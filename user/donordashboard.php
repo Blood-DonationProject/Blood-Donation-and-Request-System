@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Dashboard – BloodLife</title>
+  <script>
+    (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
+  </script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../assets/js/translations.js"></script>
+  <script src="../assets/js/i18n.js"></script>
+  <link rel="stylesheet" href="../assets/css/myanmar-font.css">
+  <style>
+    @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
+    .animate-fade-down { animation: fadeInDown 0.6s ease-out; }
+    .animate-fade-up   { animation: fadeInUp   0.6s ease-out; }
+  </style>
+  <style id="dark-mode-styles">
+    html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
+    html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
+    html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
+    html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
+    html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
+    html.dark .bg-white { background-color: #1f2937 !important; }
+    html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
+    html.dark .text-gray-700 { color: #d1d5db !important; }
+    html.dark .text-gray-600 { color: #9ca3af !important; }
+    html.dark .text-gray-500 { color: #9ca3af !important; }
+    html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
+    html.dark label { color: #d1d5db !important; }
+    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+    html.dark .border-gray-200, html.dark .border-2.border-gray-200 { border-color: #4b5563 !important; }
+    html.dark .border-t { border-color: #374151 !important; }
+    html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
+    html.dark .bg-green-50 { background-color: rgba(34,197,94,0.15) !important; }
+    html.dark tbody tr { border-color: #374151 !important; }
+    html.dark tbody tr:hover { background-color: #374151 !important; }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center space-x-3 animate-fade-down">
+          <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩸</span>
+          <div>
+            <h1 class="font-bold text-xl text-red-700">BloodLife</h1>
+            <p class="text-xs text-gray-500">Save Lives Together</p>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center space-x-8">
+          <a href="index.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
+          <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
+          <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
+          <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
+          <select class="theme-toggle-select" aria-label="Theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
+            <option value="en">EN</option>
+            <option value="my">MY</option>
+          </select>
+          <a href="donordashboard.php" class="flex items-center gap-2 hover:text-red-600 transition">
+            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">A</div>
+            <span class="font-medium text-gray-700">Ahmed</span>
+          </a>
+          <a href="#" onclick="bloodlifeLogout(); return false;" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm" data-i18n="logout">Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Welcome Banner -->
+  <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 animate-fade-up">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <p class="text-red-200 text-sm font-semibold mb-1">Monday, 29 June 2026</p>
+          <h1 class="text-4xl font-bold mb-1">Good morning, Ahmed! 👋</h1>
+          <p class="text-lg opacity-90">You have <span class="font-bold text-yellow-300">2 urgent requests</span> matching your blood type nearby.</p>
+        </div>
+        <a href="requestblood.php" class="bg-white text-red-600 px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 whitespace-nowrap">
+          + Submit Request
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Eligibility Banner -->
+  <section class="bg-green-50 border-b border-green-200 py-4">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">✅</span>
+        <p class="text-green-800 font-semibold">You are eligible to donate blood today! It's been 60+ days since your last donation.</p>
+      </div>
+      <a href="bloodrequest.php" class="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition whitespace-nowrap text-sm">Find a Request</a>
+    </div>
+  </section>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 animate-fade-up">
+      <div class="bg-white rounded-2xl shadow p-6 text-center">
+        <div class="text-4xl mb-2">🩸</div>
+        <h3 class="text-3xl font-bold text-red-600">7</h3>
+        <p class="text-gray-500 text-sm mt-1">Total Donations</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow p-6 text-center">
+        <div class="text-4xl mb-2">❤️</div>
+        <h3 class="text-3xl font-bold text-red-600">21</h3>
+        <p class="text-gray-500 text-sm mt-1">Lives Impacted</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow p-6 text-center">
+        <div class="text-4xl mb-2">🏆</div>
+        <h3 class="text-3xl font-bold text-red-600">4</h3>
+        <p class="text-gray-500 text-sm mt-1">Badges Earned</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow p-6 text-center">
+        <div class="text-4xl mb-2">📅</div>
+        <h3 class="text-3xl font-bold text-red-600">62</h3>
+        <p class="text-gray-500 text-sm mt-1">Days Since Last Donation</p>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-8">
+
+      <!-- Left Column -->
+      <div class="lg:col-span-2 space-y-8">
+
+        <!-- Urgent Requests Near You -->
+        <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">🚨</div>
+              <h2 class="text-xl font-bold text-gray-900">Urgent Requests Near You</h2>
+            </div>
+            <a href="bloodrequest.php" class="text-red-600 text-sm font-semibold hover:underline">View all →</a>
+          </div>
+          <div class="space-y-4">
+            <div class="border-2 border-red-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-red-400 transition">
+              <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center font-bold text-red-700 text-xl">A+</div>
+              <div class="flex-1">
+                <div class="flex flex-wrap gap-2 mb-1">
+                  <span class="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🔴 CRITICAL</span>
+                  <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">Aga Khan Hospital, Karachi</span>
+                </div>
+                <p class="font-semibold text-gray-800">Patient needs 2 units of A+ blood for emergency surgery</p>
+                <p class="text-xs text-gray-400 mt-0.5">Requested 45 minutes ago · Expires in 3 hrs</p>
+              </div>
+              <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap">Respond</button>
+            </div>
+            <div class="border-2 border-orange-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-orange-400 transition">
+              <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center font-bold text-red-700 text-xl">A+</div>
+              <div class="flex-1">
+                <div class="flex flex-wrap gap-2 mb-1">
+                  <span class="bg-orange-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">🟠 URGENT</span>
+                  <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">Civil Hospital, Karachi</span>
+                </div>
+                <p class="font-semibold text-gray-800">Patient requires 1 unit of A+ blood for cardiac procedure</p>
+                <p class="text-xs text-gray-400 mt-0.5">Requested 2 hours ago · Expires in 22 hrs</p>
+              </div>
+              <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap">Respond</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Donation History -->
+        <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">📋</div>
+              <h2 class="text-xl font-bold text-gray-900">Donation History</h2>
+            </div>
+            <a href="profile.php" class="text-red-600 text-sm font-semibold hover:underline">View all →</a>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-gray-100">
+                  <th class="text-left text-gray-500 font-semibold pb-3">Date</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3">Hospital</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3">Units</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50">
+                <tr class="hover:bg-gray-50">
+                  <td class="py-3 text-gray-700 font-medium">Apr 28, 2026</td>
+                  <td class="py-3 text-gray-600">Aga Khan Hospital</td>
+                  <td class="py-3 text-gray-600">1 unit</td>
+                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                  <td class="py-3 text-gray-700 font-medium">Jan 10, 2026</td>
+                  <td class="py-3 text-gray-600">Civil Hospital</td>
+                  <td class="py-3 text-gray-600">1 unit</td>
+                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                  <td class="py-3 text-gray-700 font-medium">Sep 3, 2025</td>
+                  <td class="py-3 text-gray-600">Aga Khan Hospital</td>
+                  <td class="py-3 text-gray-600">1 unit</td>
+                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                  <td class="py-3 text-gray-700 font-medium">May 20, 2025</td>
+                  <td class="py-3 text-gray-600">Mayo Hospital</td>
+                  <td class="py-3 text-gray-600">1 unit</td>
+                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column -->
+      <div class="space-y-6">
+
+        <!-- Profile Card -->
+        <div class="bg-white rounded-2xl shadow p-6 text-center animate-fade-up">
+          <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-3">👤</div>
+          <h3 class="font-bold text-gray-900 text-xl">Ahmed Raza</h3>
+          <p class="text-gray-500 text-sm mb-2">Karachi, Pakistan</p>
+          <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-5 py-1.5 rounded-full text-lg mb-4">A+</span>
+          <div class="bg-green-50 border border-green-200 rounded-xl py-2 px-3 mb-4">
+            <p class="text-green-700 text-sm font-semibold">✅ Available to Donate</p>
+          </div>
+          <a href="profile.php" class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition block text-sm">Edit Profile</a>
+        </div>
+
+        <!-- Badges -->
+        <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">🏆</div>
+            <h2 class="text-lg font-bold text-gray-900">Your Badges</h2>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 text-center">
+              <div class="text-3xl mb-1">🥇</div>
+              <p class="text-xs font-bold text-yellow-700">First Donation</p>
+            </div>
+            <div class="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-center">
+              <div class="text-3xl mb-1">🔥</div>
+              <p class="text-xs font-bold text-red-700">5 Donations</p>
+            </div>
+            <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 text-center">
+              <div class="text-3xl mb-1">⚡</div>
+              <p class="text-xs font-bold text-blue-700">Quick Responder</p>
+            </div>
+            <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 text-center">
+              <div class="text-3xl mb-1">🌟</div>
+              <p class="text-xs font-bold text-purple-700">Life Saver</p>
+            </div>
+          </div>
+          <div class="mt-3 bg-gray-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-500">Next badge: <span class="font-bold text-red-600">10 Donations Hero</span> — 3 more to go!</p>
+            <div class="mt-2 bg-gray-200 rounded-full h-2">
+              <div class="bg-red-500 h-2 rounded-full" style="width: 70%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">⚡</div>
+            <h2 class="text-lg font-bold text-gray-900">Quick Actions</h2>
+          </div>
+          <div class="space-y-3">
+            <a href="bloodrequest.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
+              <span class="text-xl">🚨</span>
+              <span class="font-semibold text-gray-700 text-sm">View Urgent Requests</span>
+            </a>
+            <a href="requestblood.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
+              <span class="text-xl">📋</span>
+              <span class="font-semibold text-gray-700 text-sm">Submit Blood Request</span>
+            </a>
+            <a href="hospital.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
+              <span class="text-xl">🏥</span>
+              <span class="font-semibold text-gray-700 text-sm">Find Nearby Hospitals</span>
+            </a>
+            <a href="profile.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
+              <span class="text-xl">👤</span>
+              <span class="font-semibold text-gray-700 text-sm">Update My Profile</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-gray-300 py-12 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid md:grid-cols-4 gap-8 mb-8">
+        <div><h3 class="text-white font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
+        <div>
+          <h4 class="text-white font-bold mb-4">Quick Links</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
+            <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
+            <li><a href="hospital.php" class="hover:text-red-400 transition">Hospitals</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-white font-bold mb-4">Contact</h4>
+          <ul class="space-y-2 text-sm">
+            <li>📧 info@bloodlife.com</li>
+            <li>📱 1-800-BLOOD-999</li>
+            <li>📍 123 Health Street, City</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-white font-bold mb-4">Follow Us</h4>
+          <div class="flex space-x-4">
+            <a href="#" class="hover:text-red-400 transition">Facebook</a>
+            <a href="#" class="hover:text-red-400 transition">Twitter</a>
+            <a href="#" class="hover:text-red-400 transition">Instagram</a>
+          </div>
+        </div>
+      </div>
+      <div class="border-t border-gray-700 pt-8 text-center text-sm">
+        <p>&copy;  BloodLife. All rights reserved. | Privacy Policy | Terms of Service</p>
+      </div>
+    </div>
+  </footer>
+  <script>
+    function bloodlifeLogout() {
+      localStorage.removeItem('bloodlife_logged_in');
+      localStorage.removeItem('bloodlife_user_name');
+      window.location.href = 'logout.php';
+    }
+  </script>
+
+  <script>
+  (function() {
+    var KEY = 'bloodlife-theme';
+    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+    function apply(t) {
+      if (t === 'dark') document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
+    }
+    apply(getTheme());
+    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
+      s.value = getTheme();
+      s.addEventListener('change', function() {
+        localStorage.setItem(KEY, this.value);
+        apply(this.value);
+      });
+    });
+  })();
+  </script>
+
+</body>
+</html>

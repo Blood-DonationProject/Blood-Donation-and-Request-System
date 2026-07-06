@@ -2,7 +2,7 @@
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "mobileshop";
+$dbname ="blood_donation";
 
 // Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);

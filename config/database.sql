@@ -2,27 +2,19 @@
 -- USERS
 -- =====================================
 
-CREATE TABLE IF NOT EXISTS `users`(
-    `id`           INT           AUTO_INCREMENT PRIMARY KEY,
-    `username`      VARCHAR(50)   NOT NULL UNIQUE,
-    ` email`          VARCHAR(150) UNIQUE NOT NULL,
-   ` password`      VARCHAR(50)  NOT NULL,
-   `confirm password`      VARCHAR(50)  NOT NULL
-);
-
-INSERT INTO users (username, email, password, confirm_password)
-VALUES ('admin', 'admin@gmail.com', 'password123', 'password123');
-
-
-CREATE TABLE Users (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(255) DEFAULT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    phone VARCHAR(20),
-    address VARCHAR(255),
-    role ENUM('ADMIN', 'DONOR', 'HOSPITAL', 'PATIENT') NOT NULL
+    phone VARCHAR(20) DEFAULT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'DONOR',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+INSERT INTO users (username, name, email, password, phone, role)
+VALUES ('admin', 'Administrator', 'admin@gmail.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '0000000000', 'ADMIN');
 
 -- =====================================
 -- HOSPITAL
@@ -48,8 +40,7 @@ CREATE TABLE Blood_Groups (
 CREATE TABLE Donors (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     blood_gp_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    dthistory_id BIGINT,
+    user_id BIGINT NOT NULL,   
     gender VARCHAR(20),
     last_donation VARCHAR(100),
     response_date DATE,
@@ -71,7 +62,6 @@ CREATE TABLE Request (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     hospital_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
-    dthistory_id BIGINT,
     blood_gp_id BIGINT NOT NULL,
     donor_id BIGINT,
     patient_name VARCHAR(255) NOT NULL,
@@ -167,3 +157,48 @@ CREATE TABLE Notifications (
         FOREIGN KEY (user_id)
         REFERENCES Users(id)
 );
+
+CREATE DATABASE bloodbank;
+USE bloodbank;
+
+CREATE TABLE requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_name VARCHAR(100),
+    blood_group VARCHAR(5),
+    hospital VARCHAR(150),
+    department VARCHAR(100),
+    units_required INT,
+    status ENUM('Critical','Pending','Fulfilled','In Progress'),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO requests
+(patient_name,blood_group,hospital,department,units_required,status)
+
+VALUES
+('Arthur Morgan','O+','St. Jude Medical Center','Emergency',4,'Critical'),
+
+('Elena Martinez','A-','City General Hospital','Surgical',2,'Pending'),
+
+('John Wickham','B+',"North Star Children's",'Pediatric',1,'Fulfilled'),
+
+('Sarah Connor','O-','Westside Trauma Center','ICU',6,'In Progress');
+
+
+<div class="flex justify-between p-6">
+
+                        <h2 class="font-bold text-xl">
+
+                            Active Blood Requests
+
+                        </h2>
+
+                        <a href="add.php"
+
+                            class="bg-red-700 text-white px-5 py-2 rounded">
+
+                            New Request
+
+                        </a>
+
+                    </div>
