@@ -7,19 +7,18 @@ $donor_stats = ['total' => 0, 'available' => 0, 'unavailable' => 0];
 
 try {
     $data = $conn->query("
-        SELECT d.*, u.username, bg.blood_gp_name
-        FROM donors d
+        SELECT d.*, u.username, d.blood_groups AS blood_gp_name
+        FROM donor d
         JOIN users u ON d.user_id = u.id
-        LEFT JOIN blood_groups bg ON d.blood_gp_id = bg.id
-        ORDER BY d.last_donation DESC
+        ORDER BY d.last_donation_date DESC
     ");
     if ($data && $data->num_rows > 0) {
         $donors = $data->fetch_all(MYSQLI_ASSOC);
     }
 
-    $donor_stats['total']       = $conn->query("SELECT COUNT(*) AS c FROM donors")->fetch_assoc()['c'];
-    $donor_stats['available']   = $conn->query("SELECT COUNT(*) AS c FROM donors WHERE status='AVAILABLE'")->fetch_assoc()['c'];
-    $donor_stats['unavailable'] = $conn->query("SELECT COUNT(*) AS c FROM donors WHERE status='UNAVAILABLE'")->fetch_assoc()['c'];
+    $donor_stats['total']       = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'];
+    $donor_stats['available']   = $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Available'")->fetch_assoc()['c'];
+    $donor_stats['unavailable'] = $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Unavailable'")->fetch_assoc()['c'];
 } catch (Exception $e) {
     // silent
 }
@@ -87,21 +86,23 @@ try {
 
            <nav class="flex-1 px-4 py-6 space-y-2">
                 <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
-                    <span>📊</span>
+                    <span>🎬</span>
                     <span data-i18n="overview">Overview</span>
                 </a>
+                 <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
+                    <span>📊</span>
+                    <span data-i18n="users">Users</span>
+                </a>
                 <a href="donors.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                    <span>👥</span>
+                    <span>📍</span>
                     <span data-i18n="donors">Donors</span>
                 </a>
+                
                 <a href="donation_histories.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                     <span>⚡</span>
                     <span data-i18n="donation_histories">Donation Histories</span>
                 </a>
-                <a href="hospitals.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>🏥</span>
-                    <span data-i18n="hospitals">Hospitals</span>
-                </a>
+                
                 <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                     <span>📋</span>
                     <span data-i18n="blood_requests">Blood Requests</span>
@@ -109,7 +110,7 @@ try {
             </nav>
 
             <div class="p-4 border-t border-gray-200">
-                <a href="logout.php" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
+                <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
                     Logout
                 </a>
             </div>
@@ -134,10 +135,7 @@ try {
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <select class="theme-toggle-select" aria-label="Theme">
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                     <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                         <option value="en">EN</option>
                         <option value="my">MY</option>
@@ -165,7 +163,7 @@ try {
                                 </div>
                             </div>
                             <div class="p-3">
-                                <a href="logout.php" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
+                                <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
                                     Logout</a>
                             </div>
                         </div>
@@ -253,12 +251,18 @@ try {
                     <table class="w-full min-w-[700px] border-collapse text-left text-sm">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-4" data-i18n="donors">Donor ID</th>
-                                <th class="p-4" data-i18n="name_col">Name</th>
+                                <th class="p-4" data-i18n="name_col">Full Name</th>
+                                <th class="p-4" data-i18n="gender">Gender</th>
+                                <th class="p-4" data-i18n="age">Age</th>
                                 <th class="p-4" data-i18n="blood_type_col">Blood Type</th>
-                                <th class="p-4" data-i18n="last_donation_col">Last Donation</th>
-                                <th class="p-4" data-i18n="status">Status</th>
-                                <th class="p-4" data-i18n="actions_col">Action</th>
+                                <th class="p-4" data-i18n="phone">Phone</th>
+                                <th class="p-4" data-i18n="email">Email</th>
+                                <th class="p-4" data-i18n="address">Address</th>
+                                <th class="p-4" data-i18n="weight">Weight (kg)</th>
+                                <th class="p-4" data-i18n="last_donation">Last Donation</th>
+                                <th class="p-4" data-i18n="status">Available Status</th>
+                                
+                                <th class="p-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -274,15 +278,20 @@ try {
                                     $statusClass = $statusClasses[$status] ?? 'bg-gray-100 text-gray-700';
                                     ?>
                                     <tr class="donor-row border-t border-slate-200">
-                                        <td class="p-4 donor-id font-semibold">#D<?= str_pad($donor['id'], 4, '0', STR_PAD_LEFT) ?></td>
-                                        <td class="p-4 donor-name"><?= htmlspecialchars($donor['username']) ?></td>
+                                        <td class="p-4 donor-name font-semibold"><?= htmlspecialchars($donor['donor_name'] ?? 'Unknown') ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['gender'] ?? '-') ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['age'] ?? '-') ?></td>
                                         <td class="p-4"><?= htmlspecialchars($donor['blood_gp_name'] ?? '-') ?></td>
-                                        <td class="p-4"><?= date('M d, Y', strtotime($donor['last_donation'])) ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['phone'] ?? '-') ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['email'] ?? '-') ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['address'] ?? '-') ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['weight'] ?? '-') ?></td>
+                                        <td class="p-4"><?= htmlspecialchars($donor['last_donation'] ?? 'Never') ?></td>
                                         <td class="p-4">
                                             <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusClass ?>">
                                                 <?= htmlspecialchars(ucfirst(strtolower($status))) ?>
                                             </span>
-                                        </td>
+                                        </td>                                        <
                                         <td class="p-4">
                                             <div class="flex flex-wrap gap-2">
                                                 <a href="/Blood-Donation-and-Request-System/user/profile.php" class="rounded-full border border-red-500 px-3 py-2 text-red-600 hover:bg-red-50">View</a>
@@ -293,7 +302,7 @@ try {
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" class="p-8 text-center text-gray-500" data-i18n="no_donors_found">No donors found.</td>
+                                    <td colspan="8" class="p-8 text-center text-gray-500" data-i18n="no_donors_found">No donors found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -354,16 +363,20 @@ try {
       function apply(t) {
         if (t === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
-        document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
       }
       apply(getTheme());
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-        s.value = getTheme();
-        s.addEventListener('change', function() {
-          localStorage.setItem(KEY, this.value);
-          apply(this.value);
-        });
-      });
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
     })();
     </script>
 

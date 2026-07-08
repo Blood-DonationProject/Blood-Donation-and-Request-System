@@ -1,3 +1,20 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/db.php';
+$isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+$username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+$userId = $_SESSION['user_id'] ?? 0;
+
+$userData = [];
+if ($isLoggedIn) {
+    $stmt = $conn->prepare("SELECT id, username, email, phone, address, created_at FROM users WHERE id = ?");
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $userData = $result->fetch_assoc();
+    $stmt->close();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,10 +80,7 @@
           <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
           <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-          <select class="theme-toggle-select" aria-label="Theme">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
           <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
             <option value="en">EN</option>
             <option value="my">MY</option>
@@ -97,11 +111,7 @@
             <h1 class="text-2xl font-bold text-gray-900">Ahmed Raza</h1>
             <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm w-fit mx-auto sm:mx-0">A+</span>
           </div>
-          <p class="text-gray-500 text-sm mt-1">📍 Karachi, Pakistan &nbsp;·&nbsp; Donor since April 2024</p>
-          <div class="flex gap-2 justify-center sm:justify-start mt-3">
-            <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">✅ Available to Donate</span>
-            <span class="bg-yellow-100 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">🏆 4 Badges</span>
-          </div>
+          <p class="text-gray-500 text-sm mt-1">📍 <?= htmlspecialchars($userData['address'] ?? 'Not set') ?> &nbsp;·&nbsp; Member since <?= $userData['created_at'] ? date('F Y', strtotime($userData['created_at'])) : 'N/A' ?></p>
         </div>
         <button onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
           ✏️ Edit Profile
@@ -200,44 +210,25 @@
             <div id="tab-info" class="tab-panel active space-y-5">
               <div class="grid sm:grid-cols-2 gap-5">
                 <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
-                  <input type="text" value="Ahmed Raza" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                  <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                 </div>
                 <div>
                   <label class="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
-                  <input type="email" value="ahmed.raza@example.com" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  <input type="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                 </div>
                 <div>
                   <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
-                  <input type="tel" value="+92 300 1234567" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  <input type="tel" value="<?= htmlspecialchars($userData['phone'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                 </div>
                 <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Date of Birth</label>
-                  <input type="date" value="1995-03-12" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Gender</label>
-                  <select disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed">
-                    <option selected>Male</option>
-                    <option>Female</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">City</label>
-                  <select disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed">
-                    <option selected>Karachi</option>
-                    <option>Lahore</option>
-                    <option>Islamabad</option>
-                  </select>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Member Since</label>
+                  <input type="text" value="<?= $userData['created_at'] ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                 </div>
                 <div class="sm:col-span-2">
                   <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
-                  <input type="text" value="House 21, Block 4, Gulshan-e-Iqbal" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  <input type="text" value="<?= htmlspecialchars($userData['address'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                 </div>
-              </div>
-              <div id="saveBar" class="hidden pt-2">
-                <button onclick="saveProfile()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition">Save Changes</button>
               </div>
             </div>
 
@@ -563,6 +554,7 @@
 
   <script>
     function bloodlifeLogout() {
+      if (!confirm('Are you sure you want to logout?')) return;
       localStorage.removeItem('bloodlife_logged_in');
       localStorage.removeItem('bloodlife_user_name');
       window.location.href = 'logout.php';
@@ -651,24 +643,28 @@
   </script>
 
   <script>
-  (function() {
-    var KEY = 'bloodlife-theme';
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-    function apply(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-    }
-    apply(getTheme());
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-      s.value = getTheme();
-      s.addEventListener('change', function() {
-        localStorage.setItem(KEY, this.value);
-        apply(this.value);
-      });
-    });
-  })();
-  </script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 </html>

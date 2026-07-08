@@ -3,6 +3,26 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+
+$requests = [];
+$totalRequests = 0;
+$urgentToday = 0;
+
+try {
+    $result = $conn->query("
+        SELECT r.*, bg.blood_gp_name
+        FROM blood_request r
+        LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
+        ORDER BY r.id DESC
+    ");
+    if ($result && $result->num_rows > 0) {
+        $requests = $result->fetch_all(MYSQLI_ASSOC);
+    }
+    $totalRequests = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
+    $urgentToday = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending','Approved')")->fetch_assoc()['c'] ?? 0;
+} catch (Exception $e) {
+    // silent
+}
 ?>
 
 <!DOCTYPE html>
@@ -28,8 +48,8 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
     .animate-fade-up   { animation: fadeInUp   0.6s ease-out; }
   </style>
   <style id="dark-mode-styles">
-    html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-    html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
+    html:not(.dark) body { background-color: #fdf2f8 !important; background-image: none !important; }
+    html:not(.dark) .bg-gray-50 { background-color: #fdf2f8 !important; }
     html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
     html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
     html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
@@ -48,7 +68,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
     html.dark tbody tr:hover { background-color: #374151 !important; }
   </style>
 </head>
-<body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
+<body class="bg-gradient-to-b from-pink-50 to-pink-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
   <nav class="bg-white shadow-lg sticky top-0 z-40">
@@ -67,13 +87,10 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
                     <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-                    <a href="hospital.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
+                    
                     <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 
-                    <select class="theme-toggle-select" aria-label="Theme">
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                     <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                         <option value="en">EN</option>
                         <option value="my">MY</option>
@@ -86,7 +103,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                             </div>
                             <span class="font-medium text-gray-700"><?= $username ?></span>
                         </a>
-                        <a href="logout.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm">Logout</a>
+                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm">Logout</a>
                     <?php else: ?>
                         <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer">
                             Login
@@ -105,9 +122,9 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
       <p class="text-xl opacity-90 max-w-2xl mx-auto">Patients urgently need your help. Review open requests and respond — your one donation can save a life.</p>
 
       <div class="grid grid-cols-3 gap-6 mt-12 max-w-lg mx-auto text-center">
-        <div><p class="text-4xl font-bold">300+</p><p class="text-sm opacity-80">Total Requests</p></div>
-        <div><p class="text-4xl font-bold">48</p><p class="text-sm opacity-80">Urgent Today</p></div>
-        <div><p class="text-4xl font-bold">35+</p><p class="text-sm opacity-80">Hospitals</p></div>
+        <div><p class="text-4xl font-bold"><?= $totalRequests ?>+</p><p class="text-sm opacity-80">Total Requests</p></div>
+        <div><p class="text-4xl font-bold"><?= $urgentToday ?>+</p><p class="text-sm opacity-80">Active Today</p></div>
+        
       </div>
     </div>
   </section>
@@ -160,111 +177,40 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
   <section class="pb-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
 
-      <!-- Card: Critical -->
-      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 border-red-600 flex flex-col sm:flex-row sm:items-center gap-6">
-        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-red-100 to-red-200">
-          <span class="text-3xl font-bold text-red-700">O-</span>
+      <?php if (count($requests) > 0): ?>
+        <?php foreach ($requests as $req): ?>
+          <?php
+            $statusColors = [
+              'Pending'   => ['border' => 'border-orange-400', 'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'badge' => 'bg-orange-400', 'label' => '🟠 Pending'],
+              'Approved'  => ['border' => 'border-blue-400', 'bg' => 'bg-blue-100', 'text' => 'text-blue-700', 'badge' => 'bg-blue-500', 'label' => '🔵 Approved'],
+              'Completed' => ['border' => 'border-green-400', 'bg' => 'bg-yellow-100', 'text' => 'text-yellow-700', 'badge' => 'bg-green-500', 'label' => '🟢 Completed'],
+              'Rejected'  => ['border' => 'border-gray-400', 'bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'badge' => 'bg-gray-500', 'label' => '⚪ Rejected'],
+            ];
+            $sc = $statusColors[$req['status']] ?? ['border' => 'border-gray-300', 'bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'badge' => 'bg-gray-400', 'label' => $req['status']];
+          ?>
+      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 <?= $sc['border'] ?> flex flex-col sm:flex-row sm:items-center gap-6">
+        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br <?= $sc['bg'] ?>">
+          <span class="text-3xl font-bold <?= $sc['text'] ?>"><?= htmlspecialchars($req['blood_gp_name'] ?? 'N/A') ?></span>
         </div>
         <div class="flex-1">
           <div class="flex flex-wrap gap-2 mb-1">
-            <span class="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full">🔴 CRITICAL</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Aga Khan Hospital</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Karachi</span>
+            <span class="<?= $sc['badge'] ?> text-white text-xs font-bold px-3 py-1 rounded-full"><?= $sc['label'] ?></span>
+            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full"><?= htmlspecialchars($req['hospital'] ?? '-') ?></span>
           </div>
-          <h3 class="font-bold text-gray-900 text-lg">Patient: Rahim Qureshi</h3>
-          <p class="text-gray-500 text-sm">Needs 2 units of O- blood for emergency surgery. Requested 1 hour ago.</p>
+          <h3 class="font-bold text-gray-900 text-lg"><?= htmlspecialchars($req['blood_gp_name'] ?? '?') ?> Blood Needed</h3>
+          <p class="text-gray-500 text-sm"><?= htmlspecialchars($req['units'] ?? '?') ?> unit(s) of <?= htmlspecialchars($req['blood_gp_name'] ?? '?') ?> blood. Required by <?= htmlspecialchars($req['required_date'] ?? 'N/A') ?>.</p>
         </div>
         <div class="flex flex-col gap-2 sm:items-end">
-          <p class="text-xs text-gray-400">Expires in <span class="text-red-600 font-bold">4 hrs</span></p>
-          <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition">Respond</button>
+          <a href="requester.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition text-center text-sm">Respond</a>
         </div>
       </div>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <div class="bg-white rounded-2xl shadow p-12 text-center">
+          <p class="text-gray-500 text-lg">No blood requests found.</p>
+        </div>
+      <?php endif; ?>
 
-      <!-- Card: Urgent -->
-      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 border-orange-400 flex flex-col sm:flex-row sm:items-center gap-6">
-        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200">
-          <span class="text-3xl font-bold text-blue-700">B+</span>
-        </div>
-        <div class="flex-1">
-          <div class="flex flex-wrap gap-2 mb-1">
-            <span class="bg-orange-400 text-white text-xs font-bold px-3 py-1 rounded-full">🟠 URGENT</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">PIMS Hospital</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Islamabad</span>
-          </div>
-          <h3 class="font-bold text-gray-900 text-lg">Patient: Nida Anwar</h3>
-          <p class="text-gray-500 text-sm">Requires 3 units of B+ blood for chemotherapy treatment. Requested 3 hours ago.</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:items-end">
-          <p class="text-xs text-gray-400">Expires in <span class="text-orange-500 font-bold">12 hrs</span></p>
-          <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition">Respond</button>
-        </div>
-      </div>
-
-      <!-- Card: Normal -->
-      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 border-green-400 flex flex-col sm:flex-row sm:items-center gap-6">
-        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-100 to-yellow-200">
-          <span class="text-3xl font-bold text-yellow-700">AB+</span>
-        </div>
-        <div class="flex-1">
-          <div class="flex flex-wrap gap-2 mb-1">
-            <span class="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">🟢 NORMAL</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Services Hospital</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Lahore</span>
-          </div>
-          <h3 class="font-bold text-gray-900 text-lg">Patient: Sohail Ahmed</h3>
-          <p class="text-gray-500 text-sm">Needs 1 unit of AB+ blood for scheduled surgery in 3 days. Requested 6 hours ago.</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:items-end">
-          <p class="text-xs text-gray-400">Expires in <span class="text-green-600 font-bold">3 days</span></p>
-          <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition">Respond</button>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 border-red-600 flex flex-col sm:flex-row sm:items-center gap-6">
-        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-100 to-purple-200">
-          <span class="text-3xl font-bold text-purple-700">O+</span>
-        </div>
-        <div class="flex-1">
-          <div class="flex flex-wrap gap-2 mb-1">
-            <span class="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full">🔴 CRITICAL</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Civil Hospital</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Multan</span>
-          </div>
-          <h3 class="font-bold text-gray-900 text-lg">Patient: Hina Yousuf</h3>
-          <p class="text-gray-500 text-sm">Accident victim needs 4 units of O+ blood immediately. Requested 30 mins ago.</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:items-end">
-          <p class="text-xs text-gray-400">Expires in <span class="text-red-600 font-bold">2 hrs</span></p>
-          <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition">Respond</button>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 border-orange-400 flex flex-col sm:flex-row sm:items-center gap-6">
-        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-red-100 to-red-200">
-          <span class="text-3xl font-bold text-red-700">A+</span>
-        </div>
-        <div class="flex-1">
-          <div class="flex flex-wrap gap-2 mb-1">
-            <span class="bg-orange-400 text-white text-xs font-bold px-3 py-1 rounded-full">🟠 URGENT</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Mayo Hospital</span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Lahore</span>
-          </div>
-          <h3 class="font-bold text-gray-900 text-lg">Patient: Tariq Mehmood</h3>
-          <p class="text-gray-500 text-sm">Requires 2 units A+ blood for cardiac procedure tomorrow morning.</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:items-end">
-          <p class="text-xs text-gray-400">Expires in <span class="text-orange-500 font-bold">18 hrs</span></p>
-          <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition">Respond</button>
-        </div>
-      </div>
-
-      <!-- Pagination -->
-      <div class="flex justify-center gap-2 pt-8">
-        <button class="w-10 h-10 rounded-xl bg-red-600 text-white font-bold">1</button>
-        <button class="w-10 h-10 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition font-bold">2</button>
-        <button class="w-10 h-10 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition font-bold">3</button>
-        <button class="w-10 h-10 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition font-bold">›</button>
-      </div>
     </div>
   </section>
 
@@ -308,24 +254,28 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
   </footer>
 
   <script>
-  (function() {
-    var KEY = 'bloodlife-theme';
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-    function apply(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-    }
-    apply(getTheme());
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-      s.value = getTheme();
-      s.addEventListener('change', function() {
-        localStorage.setItem(KEY, this.value);
-        apply(this.value);
-      });
-    });
-  })();
-  </script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 </html>

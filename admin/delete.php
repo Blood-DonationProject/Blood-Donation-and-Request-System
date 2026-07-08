@@ -5,7 +5,7 @@ include "../config/db.php";
 
 $id = $_GET['id'];
 
-$stmt = $conn->prepare("DELETE FROM requests WHERE id = ?");
+$stmt = $conn->prepare("DELETE FROM blood_request WHERE id = ?");
 $stmt->bind_param('i', $id);
 
 if($stmt->execute())

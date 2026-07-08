@@ -2,17 +2,19 @@
 include "auth_check.php";
 include "../config/db.php";
 
+$blood_groups = $conn->query("SELECT id, blood_gp_name FROM blood_groups");
+
 if(isset($_POST['save']))
 {
-    $patient_name = $_POST['patient_name'];
-    $blood_group = $_POST['blood_group'];
-    $hospital = $_POST['hospital'];
-    $department = $_POST['department'];
-    $units_required = $_POST['units_required'];
+    $users_id = (int)($_SESSION['user_id'] ?? 0);
+    $blood_groups_id = (int)$_POST['blood_groups_id'];
+    $hospital = trim($_POST['hospital'] ?? '');
+    $units = (int)$_POST['units'];
+    $required_date = $_POST['required_date'];
     $status = $_POST['status'];
 
-    $stmt = $conn->prepare("INSERT INTO requests (patient_name,blood_group,hospital,department,units_required,status) VALUES (?,?,?,?,?,?)");
-    $stmt->bind_param('ssssis', $patient_name, $blood_group, $hospital, $department, $units_required, $status);
+    $stmt = $conn->prepare("INSERT INTO blood_request (users_id, blood_groups_id, units, hospital, required_date, status) VALUES (?,?,?,?,?,?)");
+    $stmt->bind_param('iiisss', $users_id, $blood_groups_id, $units, $hospital, $required_date, $status);
 
     if($stmt->execute())
     {
@@ -62,26 +64,26 @@ if(isset($_POST['save']))
 
 <form method="POST">
 
-<input type="text" name="patient_name" placeholder="Patient Name"
-class="w-full border p-2 mb-3">
+<select name="blood_groups_id" class="w-full border p-2 mb-3" required>
+    <option value="">-- Select Blood Group --</option>
+    <?php if ($blood_groups): while ($bg = $blood_groups->fetch_assoc()): ?>
+    <option value="<?= $bg['id'] ?>"><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
+    <?php endwhile; endif; ?>
+</select>
 
-<input type="text" name="blood_group" placeholder="Blood Group"
-class="w-full border p-2 mb-3">
+<input type="text" name="hospital" placeholder="Hospital Name"
+class="w-full border p-2 mb-3" required>
 
-<input type="text" name="hospital" placeholder="Hospital"
-class="w-full border p-2 mb-3">
+<input type="number" name="units" placeholder="Units Needed" min="1"
+class="w-full border p-2 mb-3" required>
 
-<input type="text" name="department" placeholder="Department"
-class="w-full border p-2 mb-3">
-
-<input type="number" name="units_required" placeholder="Units Required"
-class="w-full border p-2 mb-3">
+<input type="date" name="required_date" class="w-full border p-2 mb-3">
 
 <select name="status" class="w-full border p-2 mb-3">
-<option>Critical</option>
-<option>Pending</option>
-<option>Fulfilled</option>
-<option>In Progress</option>
+<option value="Pending">Pending</option>
+<option value="Approved">Approved</option>
+<option value="Completed">Completed</option>
+<option value="Rejected">Rejected</option>
 </select>
 
 <button name="save"
@@ -94,17 +96,28 @@ Save
 </div>
 
 <script>
-(function() {
-  var KEY = 'bloodlife-theme';
-  function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-  function apply(t) {
-    if (t === 'dark') document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-  }
-  apply(getTheme());
-})();
-</script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 </html>

@@ -1,3 +1,52 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/db.php';
+$isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+$username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+$userId = $_SESSION['user_id'] ?? 0;
+
+$donorData = [];
+$donationCount = 0;
+$donations = [];
+$urgentRequests = [];
+if ($isLoggedIn) {
+    // Donor info
+    $stmt = $conn->prepare("SELECT d.id AS donor_id, d.user_id, u.username, u.email, d.blood_groups AS blood_group_name
+                            FROM donor d
+                            JOIN users u ON u.id = d.user_id
+                            WHERE d.user_id = ?");
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $donorData = $result->fetch_assoc();
+    $stmt->close();
+
+    // Donation count & history
+    if (!empty($donorData['donor_id'])) {
+        $did = $donorData['donor_id'];
+        $stmt2 = $conn->prepare("SELECT dh.*, bg.blood_gp_name
+                                 FROM donation_history dh
+                                 LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
+                                 WHERE dh.donor_id = ?
+                                 ORDER BY dh.donation_date DESC");
+        $stmt2->bind_param("i", $did);
+        $stmt2->execute();
+        $result2 = $stmt2->get_result();
+        $donations = $result2->fetch_all(MYSQLI_ASSOC);
+        $donationCount = count($donations);
+        $stmt2->close();
+    }
+
+    // Urgent requests
+    $urgent = $conn->query("SELECT r.id, r.units, r.hospital, r.required_date, r.status,
+                                   bg.blood_gp_name
+                            FROM blood_request r
+                            LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id
+                            WHERE r.status IN ('Pending','Approved')
+                            ORDER BY r.required_date DESC LIMIT 5");
+    if ($urgent) $urgentRequests = $urgent->fetch_all(MYSQLI_ASSOC);
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -60,10 +109,7 @@
           <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
           <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-          <select class="theme-toggle-select" aria-label="Theme">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
           <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
             <option value="en">EN</option>
             <option value="my">MY</option>
@@ -111,23 +157,23 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 animate-fade-up">
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">🩸</div>
-        <h3 class="text-3xl font-bold text-red-600">7</h3>
+        <h3 class="text-3xl font-bold text-red-600"><?= $donationCount ?></h3>
         <p class="text-gray-500 text-sm mt-1">Total Donations</p>
       </div>
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">❤️</div>
-        <h3 class="text-3xl font-bold text-red-600">21</h3>
+        <h3 class="text-3xl font-bold text-red-600"><?= $donationCount * 3 ?></h3>
         <p class="text-gray-500 text-sm mt-1">Lives Impacted</p>
       </div>
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">🏆</div>
-        <h3 class="text-3xl font-bold text-red-600">4</h3>
+        <h3 class="text-3xl font-bold text-red-600"><?= min(4, $donationCount) ?></h3>
         <p class="text-gray-500 text-sm mt-1">Badges Earned</p>
       </div>
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">📅</div>
-        <h3 class="text-3xl font-bold text-red-600">62</h3>
-        <p class="text-gray-500 text-sm mt-1">Days Since Last Donation</p>
+        <h3 class="text-3xl font-bold text-red-600"><?= $donationCount > 0 ? 'Active' : 'N/A' ?></h3>
+        <p class="text-gray-500 text-sm mt-1">Donor Status</p>
       </div>
     </div>
 
@@ -146,30 +192,26 @@
             <a href="bloodrequest.php" class="text-red-600 text-sm font-semibold hover:underline">View all →</a>
           </div>
           <div class="space-y-4">
+            <?php if (count($urgentRequests) > 0): ?>
+              <?php foreach ($urgentRequests as $ur): ?>
             <div class="border-2 border-red-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-red-400 transition">
-              <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center font-bold text-red-700 text-xl">A+</div>
+              <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center font-bold text-red-700 text-xl"><?= htmlspecialchars($ur['blood_gp_name'] ?? 'N/A') ?></div>
               <div class="flex-1">
                 <div class="flex flex-wrap gap-2 mb-1">
-                  <span class="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🔴 CRITICAL</span>
-                  <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">Aga Khan Hospital, Karachi</span>
+                  <span class="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🔴 <?= htmlspecialchars($ur['status']) ?></span>
+                  <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full"><?= htmlspecialchars($ur['hospital']) ?></span>
                 </div>
-                <p class="font-semibold text-gray-800">Patient needs 2 units of A+ blood for emergency surgery</p>
-                <p class="text-xs text-gray-400 mt-0.5">Requested 45 minutes ago · Expires in 3 hrs</p>
+                <p class="font-semibold text-gray-800"><?= htmlspecialchars($ur['blood_gp_name'] ?? '?') ?> blood needed — <?= htmlspecialchars($ur['units']) ?> unit(s)</p>
+                <p class="text-xs text-gray-400 mt-0.5">Required by <?= date('M j, Y', strtotime($ur['required_date'])) ?></p>
               </div>
-              <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap">Respond</button>
+              <a href="bloodrequest.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap">Respond</a>
             </div>
-            <div class="border-2 border-orange-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-orange-400 transition">
-              <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center font-bold text-red-700 text-xl">A+</div>
-              <div class="flex-1">
-                <div class="flex flex-wrap gap-2 mb-1">
-                  <span class="bg-orange-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">🟠 URGENT</span>
-                  <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">Civil Hospital, Karachi</span>
-                </div>
-                <p class="font-semibold text-gray-800">Patient requires 1 unit of A+ blood for cardiac procedure</p>
-                <p class="text-xs text-gray-400 mt-0.5">Requested 2 hours ago · Expires in 22 hrs</p>
-              </div>
-              <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap">Respond</button>
+              <?php endforeach; ?>
+            <?php else: ?>
+            <div class="border-2 border-gray-100 rounded-xl p-8 text-center">
+              <p class="text-gray-500">No urgent requests at this time.</p>
             </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -193,30 +235,20 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-50">
+                <?php if (count($donations) > 0): ?>
+                  <?php foreach ($donations as $d): ?>
                 <tr class="hover:bg-gray-50">
-                  <td class="py-3 text-gray-700 font-medium">Apr 28, 2026</td>
-                  <td class="py-3 text-gray-600">Aga Khan Hospital</td>
-                  <td class="py-3 text-gray-600">1 unit</td>
-                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
+                  <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($d['donation_date'])) ?></td>
+                  <td class="py-3 text-gray-600"><?= htmlspecialchars($d['blood_gp_name'] ?? '-') ?></td>
+                  <td class="py-3 text-gray-600"><?= htmlspecialchars($d['units'] ?? '1') ?> unit(s)</td>
+                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ <?= htmlspecialchars($d['status'] ?? 'Completed') ?></span></td>
                 </tr>
-                <tr class="hover:bg-gray-50">
-                  <td class="py-3 text-gray-700 font-medium">Jan 10, 2026</td>
-                  <td class="py-3 text-gray-600">Civil Hospital</td>
-                  <td class="py-3 text-gray-600">1 unit</td>
-                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                <tr>
+                  <td colspan="4" class="py-6 text-center text-gray-400">No donations yet.</td>
                 </tr>
-                <tr class="hover:bg-gray-50">
-                  <td class="py-3 text-gray-700 font-medium">Sep 3, 2025</td>
-                  <td class="py-3 text-gray-600">Aga Khan Hospital</td>
-                  <td class="py-3 text-gray-600">1 unit</td>
-                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                </tr>
-                <tr class="hover:bg-gray-50">
-                  <td class="py-3 text-gray-700 font-medium">May 20, 2025</td>
-                  <td class="py-3 text-gray-600">Mayo Hospital</td>
-                  <td class="py-3 text-gray-600">1 unit</td>
-                  <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                </tr>
+                <?php endif; ?>
               </tbody>
             </table>
           </div>
@@ -230,11 +262,11 @@
         <!-- Profile Card -->
         <div class="bg-white rounded-2xl shadow p-6 text-center animate-fade-up">
           <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-xl">Ahmed Raza</h3>
-          <p class="text-gray-500 text-sm mb-2">Karachi, Pakistan</p>
-          <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-5 py-1.5 rounded-full text-lg mb-4">A+</span>
+          <h3 class="font-bold text-gray-900 text-xl"><?= htmlspecialchars($donorData['username'] ?? $username ?: 'Donor') ?></h3>
+          <p class="text-gray-500 text-sm mb-2"><?= htmlspecialchars($donorData['address'] ?? 'Location not set') ?></p>
+          <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-5 py-1.5 rounded-full text-lg mb-4"><?= htmlspecialchars($donorData['blood_groups'] ?? 'N/A') ?></span>
           <div class="bg-green-50 border border-green-200 rounded-xl py-2 px-3 mb-4">
-            <p class="text-green-700 text-sm font-semibold">✅ Available to Donate</p>
+            <p class="text-green-700 text-sm font-semibold">✅ <?= $donationCount > 0 ? 'Active Donor' : 'Ready to Donate' ?></p>
           </div>
           <a href="profile.php" class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition block text-sm">Edit Profile</a>
         </div>
@@ -338,6 +370,7 @@
   </footer>
   <script>
     function bloodlifeLogout() {
+      if (!confirm('Are you sure you want to logout?')) return;
       localStorage.removeItem('bloodlife_logged_in');
       localStorage.removeItem('bloodlife_user_name');
       window.location.href = 'logout.php';
@@ -345,24 +378,28 @@
   </script>
 
   <script>
-  (function() {
-    var KEY = 'bloodlife-theme';
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-    function apply(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-    }
-    apply(getTheme());
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-      s.value = getTheme();
-      s.addEventListener('change', function() {
-        localStorage.setItem(KEY, this.value);
-        apply(this.value);
-      });
-    });
-  })();
-  </script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 </html>

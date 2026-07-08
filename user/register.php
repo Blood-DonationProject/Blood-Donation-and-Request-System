@@ -2,8 +2,6 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
-ensureUsersTable($conn);
-
 $message = '';
 $messageType = '';
 
@@ -15,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $confirmPassword = $_POST['confirm_password'] ?? '';
   $termsAccepted = isset($_POST['terms']) && $_POST['terms'] === '1';
 
-  if ($name === '' || $email === '' || $phone === '' || $password === '' || $confirmPassword === '') {
+  if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
     $message = 'Please fill in all required fields.';
     $messageType = 'error';
   } elseif ($password !== $confirmPassword) {
@@ -37,40 +35,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $message = 'An account with this email already exists.';
       $messageType = 'error';
     } else {
+      $role = !empty($_POST['role']) ? trim($_POST['role']) : 'Donor';
+
       $baseUsername = strtolower(preg_replace('/[^a-z0-9]+/i', '', $name));
       $username = $baseUsername !== '' ? $baseUsername : 'user';
       $suffix = 0;
-      $usernameAvailable = false;
-
-      while (!$usernameAvailable) {
-        $candidate = $suffix === 0 ? $username : $username . $suffix;
-        $checkUsername = $conn->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
-        $checkUsername->bind_param('s', $candidate);
-        $checkUsername->execute();
-        $checkUsername->store_result();
-        $usernameAvailable = $checkUsername->num_rows === 0;
-        $checkUsername->close();
-        if (!$usernameAvailable) {
-          $suffix++;
+      $candidate = $username;
+      while (true) {
+        $checkU = $conn->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
+        $checkU->bind_param('s', $candidate);
+        $checkU->execute();
+        $checkU->store_result();
+        if ($checkU->num_rows === 0) {
+          $checkU->close();
+          break;
         }
+        $checkU->close();
+        $suffix++;
+        $candidate = $username . $suffix;
       }
 
       $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-      $role = 'DONOR';
-      $stmt = $conn->prepare('INSERT INTO users (username, name, email, password, phone, role) VALUES (?, ?, ?, ?, ?, ?)');
-      $stmt->bind_param('ssssss', $candidate, $name, $email, $hashedPassword, $phone, $role);
+      $stmt = $conn->prepare('INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)');
+      $stmt->bind_param('ssss', $candidate, $email, $hashedPassword, $role);
 
       if ($stmt->execute()) {
-        $_SESSION['logged_in'] = true;
-        $_SESSION['username'] = $candidate;
-        $_SESSION['user_id'] = $conn->insert_id;
-        $_SESSION['user_email'] = $email;
-        header('Location: donordashboard.php');
+        header('Location: login.php?registered=1');
         exit;
+      } else {
+        $message = 'Registration failed. Please try again.';
+        $messageType = 'error';
       }
-
-      $message = 'Registration failed. Please try again.';
-      $messageType = 'error';
+      $stmt->close();
     }
 
     $checkEmail->close();
@@ -164,12 +160,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="hidden md:flex items-center space-x-8">
           <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition">Home</a>
           <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition">Donors</a>
-          <a href="hospital.php" class="text-gray-700 hover:text-red-600 font-medium transition">Hospitals</a>
+          
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition">Requests</a>
-          <select class="theme-toggle-select" aria-label="Theme">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
           <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
             <option value="en">EN</option>
             <option value="my">MY</option>
@@ -215,10 +208,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="phone_label">Phone Number <span class="text-red-500">*</span></label>
-              <input id="reg_phone" name="phone" type="tel" placeholder="+92 300 0000000" required
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Role <span class="text-red-500">*</span></label>
+              <select id="reg_role" name="role" required
+                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm">
+                <option value="" disabled selected>Select your role</option>
+                <option value="Donor">Donor</option>
+                <option value="Requester">Requester</option>
+              </select>
             </div>
+
+            
 
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password_label">Password <span class="text-red-500">*</span></label>
@@ -297,12 +296,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     function validateRegisterForm(event) {
       const name = document.getElementById('reg_name').value.trim();
       const email = document.getElementById('reg_email').value.trim();
-      const phone = document.getElementById('reg_phone').value.trim();
       const password = document.getElementById('reg_password').value;
       const confirm = document.getElementById('reg_confirm').value;
       const terms = document.getElementById('reg_terms').checked;
 
-      if (!name || !email || !phone || !password) {
+      if (!name || !email || !password) {
         event.preventDefault();
         alert('Please fill in all required fields.');
         return false;
@@ -328,24 +326,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </script>
 
   <script>
-  (function() {
-    var KEY = 'bloodlife-theme';
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-    function apply(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-    }
-    apply(getTheme());
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-      s.value = getTheme();
-      s.addEventListener('change', function() {
-        localStorage.setItem(KEY, this.value);
-        apply(this.value);
-      });
-    });
-  })();
-  </script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 

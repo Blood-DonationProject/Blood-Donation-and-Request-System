@@ -4,7 +4,12 @@ require_once __DIR__ . '/../config/db.php';
 
 $donations = [];
 try {
-    $result = $conn->query("SELECT id, patient_name, blood_group, hospital, units_required, status, created_at FROM requests ORDER BY created_at DESC");
+    $result = $conn->query("
+        SELECT r.id, r.users_id, r.hospital, bg.blood_gp_name AS blood_group, r.units AS units_required, r.status, r.required_date
+        FROM blood_request r
+        LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
+        ORDER BY r.id DESC
+    ");
     if ($result && $result->num_rows > 0) {
         $donations = $result->fetch_all(MYSQLI_ASSOC);
     }
@@ -92,18 +97,23 @@ try {
                     <span>📊</span>
                     <span data-i18n="overview">Overview</span>
                 </a>
+                <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
+                    <span>📊</span>
+                    <span data-i18n="users">Users</span>
+                </a>
                 <a href="donors.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
                     <span>👥</span>
                     <span data-i18n="donors">Donors</span>
                 </a>
+                <a href="requesters.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                    <span>📂</span>
+                    <span data-i18n="requesters">Requesters</span>
+                </a>   
                 <a href="donation_histories.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                     <span>⚡</span>
                     <span data-i18n="donation_histories">Donation Histories</span>
                 </a>
-                <a href="hospitals.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>🏥</span>
-                    <span data-i18n="hospitals">Hospitals</span>
-                </a>
+                
                 <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                     <span>📋</span>
                     <span data-i18n="blood_requests">Blood Requests</span>
@@ -112,7 +122,7 @@ try {
             </nav>
 
             <div class="p-4 border-t border-gray-200">
-                <a href="logout.php" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
+                <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
                     Logout
                 </a>
             </div>
@@ -127,10 +137,7 @@ try {
                        Dashboard 👋
                     </div>
                     <div class="flex items-center space-x-6">
-                        <select class="theme-toggle-select" aria-label="Theme">
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
-                        </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                         <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                             <option value="en">EN</option>
                             <option value="my">MY</option>
@@ -162,7 +169,7 @@ try {
                                     </div>
                                 </div>
                                 <div class="p-3">
-                                    <a href="logout.php" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
+                                    <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
                                 </div>
                             </div>
                         </div>
@@ -371,7 +378,7 @@ try {
                         <?php if (count($donations) > 0): ?>
                             <?php foreach ($donations as $d): ?>
                             <tr class="border-t border-slate-200 hover:bg-gray-50">
-                                <td class="p-3 font-medium"><?= htmlspecialchars($d['patient_name'] ?: '-') ?></td>
+                                <td class="p-3 font-medium"><?= htmlspecialchars($d['hospital'] ?: '-') ?></td>
                                 <td class="p-3"><?= htmlspecialchars($d['blood_group'] ?: '-') ?></td>
                                 <td class="p-3 text-gray-600"><?= htmlspecialchars($d['hospital'] ?: '-') ?></td>
                                 <td class="p-3"><?= (int)$d['units_required'] ?></td>
@@ -379,11 +386,11 @@ try {
                                     <?php
                                         $s = $d['status'];
                                         $badge = match ($s) {
-                                            'Critical'    => 'bg-red-100 text-red-700',
-                                            'Pending'     => 'bg-yellow-100 text-yellow-700',
-                                            'Fulfilled'   => 'bg-green-100 text-green-700',
-                                            'In Progress' => 'bg-blue-100 text-blue-700',
-                                            default       => 'bg-gray-100 text-gray-700',
+                                            'Pending'   => 'bg-yellow-100 text-yellow-700',
+                                            'Approved'  => 'bg-blue-100 text-blue-700',
+                                            'Completed' => 'bg-green-100 text-green-700',
+                                            'Rejected'  => 'bg-red-100 text-red-700',
+                                            default     => 'bg-gray-100 text-gray-700',
                                         };
                                     ?>
                                     <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $badge ?>">
@@ -464,16 +471,20 @@ try {
       function apply(t) {
         if (t === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
-        document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
       }
       apply(getTheme());
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-        s.value = getTheme();
-        s.addEventListener('change', function() {
-          localStorage.setItem(KEY, this.value);
-          apply(this.value);
-        });
-      });
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
     })();
     </script>
 

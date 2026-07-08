@@ -3,6 +3,11 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+
+$totalDonors   = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
+$totalRequests = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
+
+$totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
 ?>
 
 
@@ -133,13 +138,10 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
                     <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-                    <a href="hospital.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
-                    <a href="request.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
+                    
+                    <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 
-                    <select class="theme-toggle-select" aria-label="Theme">
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                     <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                         <option value="en">EN</option>
                         <option value="my">MY</option>
@@ -152,7 +154,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                             </div>
                             <span class="font-medium text-gray-700"><?= $username ?></span>
                         </a>
-                        <a href="logout.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm" data-i18n="logout">Logout</a>
+                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm" data-i18n="logout">Logout</a>
                     <?php else: ?>
                         <button onclick="openLoginModal()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer" data-i18n="login">
                             Login
@@ -197,17 +199,14 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                     <!-- Stats -->
                     <div class="grid grid-cols-3 gap-4 mt-12">
                         <div class="text-center">
-                            <h3 class="text-3xl font-bold text-red-600">250+</h3>
+                            <h3 class="text-3xl font-bold text-red-600"><?= $totalDonors ?>+</h3>
                             <p class="text-gray-600 text-sm" data-i18n="active_donors">Active Donors</p>
                         </div>
                         <div class="text-center">
-                            <h3 class="text-3xl font-bold text-red-600">120+</h3>
-                            <p class="text-gray-600 text-sm" data-i18n="lives_saved">Lives Saved</p>
+                            <h3 class="text-3xl font-bold text-red-600"><?= $totalRequests ?>+</h3>
+                            <p class="text-gray-600 text-sm" data-i18n="lives_saved">Blood Requests</p>
                         </div>
-                        <div class="text-center">
-                            <h3 class="text-3xl font-bold text-red-600">35+</h3>
-                            <p class="text-gray-600 text-sm" data-i18n="hospitals_count">Hospitals</p>
-                        </div>
+                        
                     </div>
                 </div>
 
@@ -276,11 +275,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                     <p class="text-gray-600" data-i18n="quick_easy_desc">Simple registration process. Start donating in minutes with our user-friendly platform.</p>
                 </div>
 
-                <div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
-                    <div class="text-4xl mb-4">🏥</div>
-                    <h3 class="text-xl font-bold mb-3" data-i18n="network_of_hospitals">Network of Hospitals</h3>
-                    <p class="text-gray-600" data-i18n="network_of_hospitals_desc">Connect with over 35+ hospitals nationwide to ensure your donation reaches those in need.</p>
-                </div>
+                
 
                 <div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
                     <div class="text-4xl mb-4">🛡</div>
@@ -317,23 +312,20 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
         <div class="grid md:grid-cols-4 gap-6">
 
             <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700">150+</h2>
+                <h2 class="text-4xl font-bold text-red-700"><?= $totalDonors ?>+</h2>
                 <p>Active Donors</p>
             </div>
 
-            <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700">50+</h2>
-                <p>Hospitals</p>
-            </div>
+           
 
             <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700">300+</h2>
+                <h2 class="text-4xl font-bold text-red-700"><?= $totalRequests ?>+</h2>
                 <p>Blood Requests</p>
             </div>
 
             <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700">100%</h2>
-                <p>Lives Saved</p>
+                <h2 class="text-4xl font-bold text-red-700"><?= $totalUsers ?>+</h2>
+                <p>Total Users</p>
             </div>
 
         </div>
@@ -371,7 +363,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                     <ul class="space-y-2 text-sm">
                         <li><a href="#" class="hover:text-red-600 transition" data-i18n="about_us">About Us</a></li>
                         <li><a href="donor.php" class="hover:text-red-600 transition" data-i18n="donors">Donors</a></li>
-                        <li><a href="hospital.php" class="hover:text-red-600 transition" data-i18n="hospitals">Hospitals</a></li>
+                        
                     </ul>
                 </div>
                 <div>
@@ -558,16 +550,20 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
       function apply(t) {
         if (t === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
-        document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
       }
       apply(getTheme());
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-        s.value = getTheme();
-        s.addEventListener('change', function() {
-          localStorage.setItem(KEY, this.value);
-          apply(this.value);
-        });
-      });
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
     })();
     </script>
 

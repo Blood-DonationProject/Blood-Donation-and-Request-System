@@ -162,10 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
           <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-          <select class="theme-toggle-select" aria-label="Theme">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
           <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
             <option value="en">EN</option>
             <option value="my">MY</option>
@@ -223,6 +220,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         <form method="POST" class="space-y-5">
+          <?php if (isset($_GET['registered']) && $_GET['registered'] === '1'): ?>
+            <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded">
+              <p class="text-green-700 text-sm">Registration successful! Please sign in with your credentials.</p>
+            </div>
+          <?php endif; ?>
           <?php if ($errorMessage): ?>
             <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded">
               <p class="text-red-700 text-sm"><?= htmlspecialchars($errorMessage) ?></p>
@@ -309,23 +311,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </script>
 
   <script>
-  (function() {
-    var KEY = 'bloodlife-theme';
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-    function apply(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-    }
-    apply(getTheme());
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-      s.value = getTheme();
-      s.addEventListener('change', function() {
-        localStorage.setItem(KEY, this.value);
-        apply(this.value);
-      });
-    });
-  })();
-  </script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 </body>
 </html>

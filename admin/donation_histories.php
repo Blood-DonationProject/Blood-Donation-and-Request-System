@@ -2,69 +2,72 @@
 include 'auth_check.php';
 require_once __DIR__ . '/../config/db.php';
 
-$conn->query("CREATE TABLE IF NOT EXISTS request_actions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    request_id INT,
-    donor_name VARCHAR(255),
-    blood_group VARCHAR(10),
-    action_type VARCHAR(50),
-    action_date DATE,
-    remarks TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)");
-
 $error = '';
 $success = '';
+$donors_list = $conn->query("SELECT d.id, u.username AS donor_name FROM donor d JOIN users u ON d.user_id = u.id ORDER BY u.username");
+$requests_list = $conn->query("SELECT id, blood_groups_id, units FROM blood_request ORDER BY id DESC LIMIT 100");
+$blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
 
 if (isset($_POST['add'])) {
-    $donor_name = trim($_POST['donor_name']);
-    $blood_group = trim($_POST['blood_group']);
-    $action_type = $_POST['action_type'];
-    $action_date = $_POST['action_date'];
-    $remarks = trim($_POST['remarks']);
+    $donor_id = (int)$_POST['donor_id'];
+    $request_id = (int)$_POST['request_id'];
+    $blood_groups_id = (int)$_POST['blood_groups_id'];
+    $units = (int)$_POST['units'];
+    $donation_date = $_POST['donation_date'];
 
-    if ($donor_name === '' || $action_type === '' || $action_date === '') {
-        $error = 'Please fill in all required fields.';
-    } else {
-        $stmt = $conn->prepare("INSERT INTO request_actions (donor_name, blood_group, action_type, action_date, remarks) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param('sssss', $donor_name, $blood_group, $action_type, $action_date, $remarks);
+    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '') {
+        $stmt = $conn->prepare("INSERT INTO donation_history (donor_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, 'Completed')");
+        $stmt->bind_param('iiiiss', $donor_id, $request_id, $blood_groups_id, $units, $donation_date);
         if ($stmt->execute()) {
             $success = 'Action registered successfully.';
         } else {
             $error = 'Error: ' . $conn->error;
         }
         $stmt->close();
+    } else {
+        $error = 'Please fill in all required fields.';
     }
 }
 
 if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
-    $donor_name = trim($_POST['donor_name']);
-    $blood_group = trim($_POST['blood_group']);
-    $action_type = $_POST['action_type'];
-    $action_date = $_POST['action_date'];
-    $remarks = trim($_POST['remarks']);
+    $donor_id = (int)$_POST['donor_id'];
+    $request_id = (int)$_POST['request_id'];
+    $blood_groups_id = (int)$_POST['blood_groups_id'];
+    $units = (int)$_POST['units'];
+    $donation_date = $_POST['donation_date'];
 
-    $stmt = $conn->prepare("UPDATE request_actions SET donor_name=?, blood_group=?, action_type=?, action_date=?, remarks=? WHERE id=?");
-    $stmt->bind_param('sssssi', $donor_name, $blood_group, $action_type, $action_date, $remarks, $id);
-    if ($stmt->execute()) {
-        $success = 'Action updated successfully.';
+    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '') {
+        $stmt = $conn->prepare("UPDATE donation_history SET donor_id=?, request_id=?, blood_groups_id=?, units=?, donation_date=? WHERE id=?");
+        $stmt->bind_param('iiiisi', $donor_id, $request_id, $blood_groups_id, $units, $donation_date, $id);
+        if ($stmt->execute()) {
+            $success = 'Action updated successfully.';
+        } else {
+            $error = 'Error: ' . $conn->error;
+        }
+        $stmt->close();
     } else {
-        $error = 'Error: ' . $conn->error;
+        $error = 'Please fill in all required fields.';
     }
-    $stmt->close();
 }
 
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $conn->query("DELETE FROM request_actions WHERE id = $id");
+    $conn->query("DELETE FROM donation_history WHERE id = $id");
     header('Location: donation_histories.php');
     exit;
 }
 
 $actions = [];
 $edit_row = null;
-$result = $conn->query("SELECT * FROM request_actions ORDER BY created_at DESC");
+$result = $conn->query("
+    SELECT dh.*, u.username AS donor_name, bg.blood_gp_name
+    FROM donation_history dh
+    LEFT JOIN donor d ON dh.donor_id = d.id
+    LEFT JOIN users u ON d.user_id = u.id
+    LEFT JOIN blood_groups bg ON dh.blood_groups_id = bg.id
+    ORDER BY dh.donation_date DESC
+");
 if ($result && $result->num_rows > 0) {
     $actions = $result->fetch_all(MYSQLI_ASSOC);
 }
@@ -140,18 +143,20 @@ if (isset($_GET['edit'])) {
                     <span>📊</span>
                     <span data-i18n="overview">Overview</span>
                 </a>
+                <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
+                    <span>📊</span>
+                    <span data-i18n="users">Users</span>
+                </a>
                 <a href="donors.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
                     <span>👥</span>
                     <span data-i18n="donors">Donors</span>
                 </a>
+                
                 <a href="donation_histories.php" class="flex items-center space-x-3 px-4 py-3  bg-red-50 text-red-700 rounded-lg font-semibold">
                     <span>⚡</span>
                     <span data-i18n="donation_histories">Donation Histories</span>
                 </a>
-                <a href="hospitals.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>🏥</span>
-                    <span data-i18n="hospitals">Hospitals</span>
-                </a>
+                
                 <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                     <span>📋</span>
                     <span data-i18n="blood_requests">Blood Requests</span>
@@ -159,7 +164,7 @@ if (isset($_GET['edit'])) {
             </nav>
 
         <div class="p-4 border-t border-gray-200">
-            <a href="logout.php" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
+            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
                 Logout
             </a>
         </div>
@@ -175,10 +180,7 @@ if (isset($_GET['edit'])) {
                 <p class="text-gray-500 mt-1">Track and manage all donation-related actions.</p>
             </div>
             <div class="flex items-center gap-4">
-                <select class="theme-toggle-select" aria-label="Theme">
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                 <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                     <option value="en">EN</option>
                     <option value="my">MY</option>
@@ -204,7 +206,7 @@ if (isset($_GET['edit'])) {
                         </div>
                     </div>
                     <div class="p-3">
-                        <a href="logout.php" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
+                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
                     </div>
                 </div>
             </div>
@@ -228,13 +230,13 @@ if (isset($_GET['edit'])) {
             <div class="mb-8">
                 <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg hover:from-red-700 hover:to-red-800 transition flex items-center gap-2">
                     <span>+</span>
-                    <span>Register New Action</span>
+                    <span>Register New Donation</span>
                 </button>
             </div>
 
             <div id="actionForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Action' : 'Register New Action' ?></h3>
+                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Donation' : 'Register New Donation' ?></h3>
                     <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                 </div>
                 <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -242,44 +244,53 @@ if (isset($_GET['edit'])) {
                         <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
                     <?php endif; ?>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Name *</label>
-                        <input type="text" name="donor_name" value="<?= htmlspecialchars($edit_row['donor_name'] ?? '') ?>" required
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Donor *</label>
+                        <select name="donor_id" required
                             class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
-                        <select name="blood_group"
-                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select --</option>
-                            <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
-                                <option value="<?= $bg ?>" <?= (($edit_row['blood_group'] ?? '') === $bg) ? 'selected' : '' ?>><?= $bg ?></option>
-                            <?php endforeach; ?>
+                            <option value="">-- Select Donor --</option>
+                            <?php if ($donors_list): mysqli_data_seek($donors_list, 0); while ($d = $donors_list->fetch_assoc()): ?>
+                                <option value="<?= $d['id'] ?>" <?= (($edit_row['donor_id'] ?? 0) == $d['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($d['donor_name']) ?>
+                                </option>
+                            <?php endwhile; endif; ?>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Action Type *</label>
-                        <select name="action_type" required
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Request</label>
+                        <select name="request_id"
                             class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select --</option>
-                            <?php foreach (['ACCEPTED','REJECTED','DONATED','CANCELLED','PENDING'] as $at): ?>
-                                <option value="<?= $at ?>" <?= (($edit_row['action_type'] ?? '') === $at) ? 'selected' : '' ?>><?= $at ?></option>
-                            <?php endforeach; ?>
+                            <option value="0">-- None --</option>
+                            <?php if ($requests_list): mysqli_data_seek($requests_list, 0); while ($req = $requests_list->fetch_assoc()): ?>
+                                <option value="<?= $req['id'] ?>" <?= (($edit_row['request_id'] ?? 0) == $req['id']) ? 'selected' : '' ?>>
+                                    #<?= $req['id'] ?> (<?= htmlspecialchars($req['blood_gp_name'] ?? '-') ?>, <?= $req['units'] ?> units)
+                                </option>
+                            <?php endwhile; endif; ?>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Action Date *</label>
-                        <input type="date" name="action_date" value="<?= htmlspecialchars($edit_row['action_date'] ?? date('Y-m-d')) ?>" required
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group *</label>
+                        <select name="blood_groups_id" required
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                            <option value="">-- Select --</option>
+                            <?php if ($blood_groups_list): mysqli_data_seek($blood_groups_list, 0); while ($bg = $blood_groups_list->fetch_assoc()): ?>
+                                <option value="<?= $bg['id'] ?>" <?= (($edit_row['blood_groups_id'] ?? 0) == $bg['id']) ? 'selected' : '' ?>><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
+                            <?php endwhile; endif; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Units *</label>
+                        <input type="number" name="units" value="<?= htmlspecialchars($edit_row['units'] ?? '') ?>" required min="1"
                             class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
-                    <div class="md:col-span-2 lg:col-span-2">
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Remarks</label>
-                        <input type="text" name="remarks" value="<?= htmlspecialchars($edit_row['remarks'] ?? '') ?>" placeholder="Optional notes..."
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Donation Date *</label>
+                        <input type="date" name="donation_date" value="<?= htmlspecialchars($edit_row['donation_date'] ?? date('Y-m-d')) ?>" required
                             class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <div class="flex items-end">
                         <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>"
                             class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg hover:from-red-700 hover:to-red-800 transition">
-                            <?= $edit_row ? 'Update Action' : 'Register Action' ?>
+                            <?= $edit_row ? 'Update Donation' : 'Register Donation' ?>
                         </button>
                         <?php if ($edit_row): ?>
                             <a href="donation_histories.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
@@ -303,12 +314,11 @@ if (isset($_GET['edit'])) {
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
-                                <th class="p-3" data-i18n="donor_name_col">Donor Name</th>
-                                <th class="p-3" data-i18n="blood_group_col">Blood Group</th>
-                                <th class="p-3" data-i18n="actions_col">Action Type</th>
-                                <th class="p-3" data-i18n="date_col">Action Date</th>
-                                <th class="p-3" data-i18n="remark">Remarks</th>
-                                <th class="p-3" data-i18n="date_col">Created</th>
+                                <th class="p-3" data-i18n="donor_name_col">Donor</th>
+                                <th class="p-3">Blood Group</th>
+                                <th class="p-3">Units</th>
+                                <th class="p-3" data-i18n="date_col">Donation Date</th>
+                                <th class="p-3">Status</th>
                                 <th class="p-3" data-i18n="actions_col">Actions</th>
                             </tr>
                         </thead>
@@ -317,31 +327,11 @@ if (isset($_GET['edit'])) {
                                 <?php foreach ($actions as $a): ?>
                                 <tr class="border-t border-slate-200 hover:bg-gray-50">
                                     <td class="p-3 font-medium">#<?= $a['id'] ?></td>
-                                    <td class="p-3"><?= htmlspecialchars($a['donor_name']) ?></td>
-                                    <td class="p-3">
-                                        <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-red-100 text-red-700">
-                                            <?= htmlspecialchars($a['blood_group'] ?? '-') ?>
-                                        </span>
-                                    </td>
-                                    <td class="p-3">
-                                        <?php
-                                            $at = $a['action_type'];
-                                            $badge = match ($at) {
-                                                'ACCEPTED'  => 'bg-green-100 text-green-700',
-                                                'REJECTED'  => 'bg-red-100 text-red-700',
-                                                'DONATED'   => 'bg-blue-100 text-blue-700',
-                                                'CANCELLED' => 'bg-orange-100 text-orange-700',
-                                                'PENDING'   => 'bg-yellow-100 text-yellow-700',
-                                                default     => 'bg-gray-100 text-gray-700',
-                                            };
-                                        ?>
-                                        <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $badge ?>">
-                                            <?= htmlspecialchars($at) ?>
-                                        </span>
-                                    </td>
-                                    <td class="p-3"><?= htmlspecialchars($a['action_date']) ?></td>
-                                    <td class="p-3 text-gray-500 max-w-[200px] truncate"><?= htmlspecialchars($a['remarks'] ?: '-') ?></td>
-                                    <td class="p-3 text-gray-500"><?= date('M d, Y', strtotime($a['created_at'])) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($a['donor_name'] ?? '-') ?></td>
+                                    <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($a['blood_gp_name'] ?? '-') ?></span></td>
+                                    <td class="p-3"><?= (int)$a['units'] ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($a['donation_date']) ?></td>
+                                    <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-green-100 text-green-700"><?= htmlspecialchars($a['status']) ?></span></td>
                                     <td class="p-3">
                                         <div class="flex gap-2">
                                             <a href="donation_histories.php?edit=<?= $a['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold" data-i18n="edit">Edit</a>
@@ -352,7 +342,7 @@ if (isset($_GET['edit'])) {
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="p-8 text-center text-gray-500" data-i18n="no_donation_histories">No donation histories found.</td>
+                                    <td colspan="7" class="p-8 text-center text-gray-500" data-i18n="no_donation_histories">No donation histories found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -385,24 +375,28 @@ if (isset($_GET['edit'])) {
 </script>
 
 <script>
-(function() {
-  var KEY = 'bloodlife-theme';
-  function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-  function apply(t) {
-    if (t === 'dark') document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-  }
-  apply(getTheme());
-  document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-    s.value = getTheme();
-    s.addEventListener('change', function() {
-      localStorage.setItem(KEY, this.value);
-      apply(this.value);
-    });
-  });
-})();
-</script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 </html>

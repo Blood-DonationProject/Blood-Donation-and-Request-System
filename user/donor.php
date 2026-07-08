@@ -3,6 +3,25 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+
+$donors = [];
+$totalDonors = 0;
+$totalBloodTypes = 0;
+try {
+    $result = $conn->query("
+        SELECT d.*, u.username, d.blood_groups AS blood_gp_name
+        FROM donor d
+        JOIN users u ON d.user_id = u.id
+        ORDER BY d.last_donation_date DESC
+    ");
+    if ($result && $result->num_rows > 0) {
+        $donors = $result->fetch_all(MYSQLI_ASSOC);
+    }
+    $totalDonors = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
+    $totalBloodTypes = $conn->query("SELECT COUNT(*) AS c FROM blood_groups")->fetch_assoc()['c'] ?? 0;
+} catch (Exception $e) {
+    // silent
+}
 ?>
 
 <!DOCTYPE html>
@@ -67,13 +86,10 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
                     <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-                    <a href="hospital.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
+                    
                     <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 
-                    <select class="theme-toggle-select" aria-label="Theme">
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                     <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                         <option value="en">EN</option>
                         <option value="my">MY</option>
@@ -86,7 +102,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                             </div>
                             <span class="font-medium text-gray-700"><?= $username ?></span>
                         </a>
-                        <a href="logout.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm">Logout</a>
+                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm">Logout</a>
                     <?php else: ?>
                         <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer">
                             Login
@@ -109,15 +125,15 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
       <!-- Stats row -->
       <div class="grid grid-cols-3 gap-6 mt-12 max-w-lg mx-auto text-center">
         <div>
-          <p class="text-4xl font-bold">250+</p>
+          <p class="text-4xl font-bold"><?= $totalDonors ?>+</p>
           <p class="text-sm opacity-80">Active Donors</p>
         </div>
         <div>
-          <p class="text-4xl font-bold">8</p>
+          <p class="text-4xl font-bold"><?= $totalBloodTypes ?>+</p>
           <p class="text-sm opacity-80">Blood Types</p>
         </div>
         <div>
-          <p class="text-4xl font-bold">120+</p>
+          <p class="text-4xl font-bold"><?= $totalDonors * 3 ?>+</p>
           <p class="text-sm opacity-80">Lives Saved</p>
         </div>
       </div>
@@ -172,95 +188,34 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 
-        <!-- Donor Card Template (repeated 8x with variety) -->
+        <?php if (count($donors) > 0): ?>
+          <?php foreach ($donors as $d): ?>
+            <?php
+              $statusColors = [
+                'AVAILABLE'   => ['bg' => 'bg-green-100', 'text' => 'text-green-700', 'label' => '✅ Available'],
+                'UNAVAILABLE' => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'label' => '⏳ Unavailable'],
+                'PENDING'     => ['bg' => 'bg-yellow-100', 'text' => 'text-yellow-700', 'label' => '⏳ Pending'],
+              ];
+              $sc = $statusColors[$d['status']] ?? ['bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'label' => $d['status']];
+              $bloodGp = $d['blood_groups'] ?? 'N/A';
+              $initial = strtoupper(substr($d['full_name'] ?? $d['username'] ?? '?', 0, 1));
+            ?>
         <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Ahmed Raza</h3>
-          <p class="text-gray-500 text-sm mb-3">Karachi, Pakistan</p>
-          <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-4 py-1 rounded-full text-lg mb-3">A+</span>
-          <span class="inline-block bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">✅ Available</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 2 months ago</p>
-          <button class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition">Contact</button>
+          <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-3xl mb-3 font-bold text-red-700"><?= $initial ?></div>
+          <h3 class="font-bold text-gray-900 text-lg"><?= htmlspecialchars($d['full_name'] ?? $d['username'] ?? 'Unknown') ?></h3>
+          <p class="text-gray-500 text-sm mb-3"><?= htmlspecialchars($d['email'] ?? '') ?></p>
+          <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-4 py-1 rounded-full text-lg mb-3"><?= htmlspecialchars($bloodGp) ?></span>
+          <span class="inline-block <?= $sc['bg'] ?> <?= $sc['text'] ?> text-xs font-semibold px-3 py-1 rounded-full mb-4"><?= $sc['label'] ?></span>
+          <p class="text-gray-500 text-xs mb-4">Last donated: <?= htmlspecialchars($d['last_donation_date'] ?? 'Never') ?></p>
+          <a href="mailto:<?= htmlspecialchars($d['email'] ?? '') ?>" class="w-full block border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition text-center">Contact</a>
         </div>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <div class="col-span-full bg-white rounded-2xl shadow p-12 text-center">
+            <p class="text-gray-500 text-lg">No donors registered yet.</p>
+          </div>
+        <?php endif; ?>
 
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Sara Malik</h3>
-          <p class="text-gray-500 text-sm mb-3">Lahore, Pakistan</p>
-          <span class="bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 font-bold px-4 py-1 rounded-full text-lg mb-3">B+</span>
-          <span class="inline-block bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">✅ Available</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 1 month ago</p>
-          <button class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition">Contact</button>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Omar Sheikh</h3>
-          <p class="text-gray-500 text-sm mb-3">Islamabad, Pakistan</p>
-          <span class="bg-gradient-to-br from-purple-100 to-purple-200 text-purple-700 font-bold px-4 py-1 rounded-full text-lg mb-3">O-</span>
-          <span class="inline-block bg-red-100 text-red-600 text-xs font-semibold px-3 py-1 rounded-full mb-4">⏳ Cooldown</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 3 weeks ago</p>
-          <button class="w-full border-2 border-gray-300 text-gray-400 py-2 rounded-xl font-semibold cursor-not-allowed">Unavailable</button>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Fatima Khan</h3>
-          <p class="text-gray-500 text-sm mb-3">Peshawar, Pakistan</p>
-          <span class="bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-700 font-bold px-4 py-1 rounded-full text-lg mb-3">AB+</span>
-          <span class="inline-block bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">✅ Available</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 4 months ago</p>
-          <button class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition">Contact</button>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Hassan Ali</h3>
-          <p class="text-gray-500 text-sm mb-3">Multan, Pakistan</p>
-          <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-4 py-1 rounded-full text-lg mb-3">O+</span>
-          <span class="inline-block bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">✅ Available</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 6 months ago</p>
-          <button class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition">Contact</button>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Zainab Noor</h3>
-          <p class="text-gray-500 text-sm mb-3">Karachi, Pakistan</p>
-          <span class="bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 font-bold px-4 py-1 rounded-full text-lg mb-3">A-</span>
-          <span class="inline-block bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">✅ Available</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 5 months ago</p>
-          <button class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition">Contact</button>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Bilal Hussain</h3>
-          <p class="text-gray-500 text-sm mb-3">Faisalabad, Pakistan</p>
-          <span class="bg-gradient-to-br from-purple-100 to-purple-200 text-purple-700 font-bold px-4 py-1 rounded-full text-lg mb-3">B-</span>
-          <span class="inline-block bg-red-100 text-red-600 text-xs font-semibold px-3 py-1 rounded-full mb-4">⏳ Cooldown</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 1 month ago</p>
-          <button class="w-full border-2 border-gray-300 text-gray-400 py-2 rounded-xl font-semibold cursor-not-allowed">Unavailable</button>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow hover:shadow-xl transition transform hover:-translate-y-1 p-6 flex flex-col items-center text-center">
-          <div class="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center text-3xl mb-3">👤</div>
-          <h3 class="font-bold text-gray-900 text-lg">Ayesha Siddiq</h3>
-          <p class="text-gray-500 text-sm mb-3">Rawalpindi, Pakistan</p>
-          <span class="bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-700 font-bold px-4 py-1 rounded-full text-lg mb-3">AB-</span>
-          <span class="inline-block bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">✅ Available</span>
-          <p class="text-gray-500 text-xs mb-4">Last donated: 3 months ago</p>
-          <button class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition">Contact</button>
-        </div>
-
-      </div>
-
-      <!-- Pagination -->
-      <div class="flex justify-center gap-2 mt-12">
-        <button class="w-10 h-10 rounded-xl bg-red-600 text-white font-bold">1</button>
-        <button class="w-10 h-10 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition font-bold">2</button>
-        <button class="w-10 h-10 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition font-bold">3</button>
-        <button class="w-10 h-10 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition font-bold">›</button>
       </div>
     </div>
   </section>
@@ -278,7 +233,7 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
           <ul class="space-y-2 text-sm">
             <li><a href="#" class="hover:text-red-400 transition">About Us</a></li>
             <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
-            <li><a href="#" class="hover:text-red-400 transition">Hospitals</a></li>
+            
           </ul>
         </div>
         <div>
@@ -305,24 +260,28 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
   </footer>
 
   <script>
-  (function() {
-    var KEY = 'bloodlife-theme';
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-    function apply(t) {
-      if (t === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      document.querySelectorAll('.theme-toggle-select').forEach(function(s){ s.value = t; });
-    }
-    apply(getTheme());
-    document.querySelectorAll('.theme-toggle-select').forEach(function(s) {
-      s.value = getTheme();
-      s.addEventListener('change', function() {
-        localStorage.setItem(KEY, this.value);
-        apply(this.value);
-      });
-    });
-  })();
-  </script>
+    (function() {
+      var KEY = 'bloodlife-theme';
+      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+      function apply(t) {
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+          var sun = btn.querySelector('.theme-icon-sun');
+          var moon = btn.querySelector('.theme-icon-moon');
+          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+        });
+      }
+      apply(getTheme());
+      window.toggleTheme = function() {
+        var current = localStorage.getItem(KEY) || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+      };
+    })();
+    </script>
 
 </body>
 </html>
