@@ -414,8 +414,14 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password">Password</label>
-                        <input type="password" name="password" id="loginPassword" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
-                               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+                        <div class="relative">
+                            <input type="password" name="password" id="loginPassword" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
+                                   class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
+                            <button type="button" onclick="toggleModalPassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700" id="modalEyeBtn">
+                                <svg id="modalEyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                <svg id="modalEyeClosed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="flex items-center justify-between text-sm">
@@ -439,6 +445,22 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
     </div>
 
     <script>
+        // Login Modal Password Toggle
+        function toggleModalPassword() {
+            const f = document.getElementById('loginPassword');
+            const open = document.getElementById('modalEyeOpen');
+            const closed = document.getElementById('modalEyeClosed');
+            if (f.type === 'password') {
+                f.type = 'text';
+                open.classList.add('hidden');
+                closed.classList.remove('hidden');
+            } else {
+                f.type = 'password';
+                closed.classList.add('hidden');
+                open.classList.remove('hidden');
+            }
+        }
+
         // Login Modal
         function openLoginModal() {
             document.getElementById('loginModal').classList.remove('hidden');

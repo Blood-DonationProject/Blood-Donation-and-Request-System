@@ -229,8 +229,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <div class="relative">
                 <input id="reg_password" name="password" type="password" data-i18n-placeholder="min_8_chars" placeholder="Min. 8 characters" required
                   class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition text-sm" />
-                <button type="button" onclick="togglePass('reg_password','eye1')" id="eye1"
-                  class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">👁</button>
+                <button type="button" onclick="togglePass('reg_password','eye1','eye1Open','eye1Closed')" id="eye1"
+                  class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                  <svg id="eye1Open" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  <svg id="eye1Closed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                </button>
               </div>
               <div class="flex gap-1 mt-2">
                 <div class="h-1 flex-1 rounded bg-gray-200" id="str1"></div>
@@ -245,8 +248,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <div class="relative">
                 <input id="reg_confirm" name="confirm_password" type="password" data-i18n-placeholder="re_enter_password" placeholder="Re-enter your password" required
                   class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition text-sm" />
-                <button type="button" onclick="togglePass('reg_confirm','eye2')" id="eye2"
-                  class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">👁</button>
+                <button type="button" onclick="togglePass('reg_confirm','eye2','eye2Open','eye2Closed')" id="eye2"
+                  class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                  <svg id="eye2Open" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  <svg id="eye2Closed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                </button>
               </div>
             </div>
 
@@ -281,11 +287,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </footer>
 
   <script>
-    function togglePass(fieldId, btnId) {
+    function togglePass(fieldId, btnId, openId, closedId) {
       const f = document.getElementById(fieldId);
-      const b = document.getElementById(btnId);
-      f.type = f.type === 'password' ? 'text' : 'password';
-      b.textContent = f.type === 'password' ? '👁' : '🙈';
+      const open = document.getElementById(openId);
+      const closed = document.getElementById(closedId);
+      if (f.type === 'password') {
+        f.type = 'text';
+        open.classList.add('hidden');
+        closed.classList.remove('hidden');
+      } else {
+        f.type = 'password';
+        closed.classList.add('hidden');
+        open.classList.remove('hidden');
+      }
     }
 
     document.getElementById('reg_password').addEventListener('input', function() {

@@ -1,18 +1,113 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/db.php';
-$isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
-$username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
-$userId = $_SESSION['user_id'] ?? 0;
 
+$isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+if (!$isLoggedIn) {
+    header('Location: login.php');
+    exit;
+}
+
+$userId = (int)($_SESSION['user_id'] ?? 0);
+$userRole = $_SESSION['user_role'] ?? '';
+$username = htmlspecialchars($_SESSION['username'] ?? '');
+
+$message = '';
+$messageType = '';
+
+// Handle profile update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
+    $newEmail = trim($_POST['email'] ?? '');
+    $newPhone = trim($_POST['phone'] ?? '');
+    $newAddress = trim($_POST['address'] ?? '');
+
+    if ($newEmail === '') {
+        $message = 'Email is required.';
+        $messageType = 'error';
+    } else {
+        $stmt = $conn->prepare("UPDATE users SET email = ? WHERE id = ?");
+        $stmt->bind_param("si", $newEmail, $userId);
+        $stmt->execute();
+        $stmt->close();
+        $_SESSION['user_email'] = $newEmail;
+
+        // Update donor table if donor
+        if ($userRole === 'Donor') {
+            $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, email = ?, address = ? WHERE user_id = ?");
+            $stmt2->bind_param("sssi", $newPhone, $newEmail, $newAddress, $userId);
+            $stmt2->execute();
+            $stmt2->close();
+        }
+
+        $message = 'Profile updated successfully.';
+        $messageType = 'success';
+    }
+}
+
+// Fetch user data
 $userData = [];
-if ($isLoggedIn) {
-    $stmt = $conn->prepare("SELECT id, username, email, created_at FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, username, email, created_at FROM users WHERE id = ?");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$userData = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+// Fetch donor data if donor
+$donorData = [];
+$donorId = 0;
+$donations = [];
+$donationCount = 0;
+$totalUnits = 0;
+$livesSaved = 0;
+$daysSinceLast = '-';
+$bloodGroup = '-';
+
+if ($userRole === 'Donor') {
+    $stmt = $conn->prepare("SELECT * FROM donor WHERE user_id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $userData = $result->fetch_assoc();
+    $donorData = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+
+    if ($donorData) {
+        $donorId = (int)$donorData['id'];
+        $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
+        $userData['phone'] = $donorData['phone'] ?? '';
+        $userData['address'] = $donorData['address'] ?? '';
+
+        // Fetch donation history
+        $stmt = $conn->prepare("SELECT dh.*, bg.blood_gp_name, dh.status AS dh_status
+                                FROM donation_history dh
+                                LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
+                                WHERE dh.donor_id = ?
+                                ORDER BY dh.donation_date DESC");
+        $stmt->bind_param("i", $donorId);
+        $stmt->execute();
+        $donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $donationCount = count($donations);
+        foreach ($donations as $d) {
+            $totalUnits += (int)($d['units'] ?? 1);
+        }
+        $livesSaved = $totalUnits * 3;
+
+        if ($donationCount > 0 && !empty($donations[0]['donation_date'])) {
+            $lastDate = new DateTime($donations[0]['donation_date']);
+            $now = new DateTime();
+            $daysSinceLast = $now->diff($lastDate)->days;
+        }
+    }
+} elseif ($userRole === 'Requester') {
+    $stmt = $conn->prepare("SELECT * FROM donor WHERE user_id = ?");
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $donorData = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($donorData) {
+        $userData['phone'] = $donorData['phone'] ?? '';
+        $userData['address'] = $donorData['address'] ?? '';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -76,7 +171,7 @@ if ($isLoggedIn) {
           </div>
         </div>
         <div class="hidden md:flex items-center space-x-8">
-          <a href="donordashboard.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="dashboard">Dashboard</a>
+          <a href="dashboard.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="dashboard">Dashboard</a>
           <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
           <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
@@ -102,20 +197,26 @@ if ($isLoggedIn) {
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
+    <?php if ($message): ?>
+      <div class="mb-6 rounded-xl border px-4 py-3 text-sm <?= $messageType === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700' ?>">
+        <?= htmlspecialchars($message) ?>
+      </div>
+    <?php endif; ?>
+
     <!-- Profile Header -->
     <div class="relative -mt-16 mb-8 animate-fade-up">
       <div class="bg-white rounded-2xl shadow p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-end gap-6">
         <div class="w-28 h-28 bg-red-100 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-5xl flex-shrink-0 -mt-2">👤</div>
         <div class="flex-1 text-center sm:text-left">
           <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 justify-center sm:justify-start">
-            <h1 class="text-2xl font-bold text-gray-900">Ahmed Raza</h1>
-            <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm w-fit mx-auto sm:mx-0">A+</span>
+            <h1 class="text-2xl font-bold text-gray-900"><?= htmlspecialchars($donorData['full_name'] ?? $userData['username'] ?? '') ?></h1>
+            <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm w-fit mx-auto sm:mx-0"><?= $bloodGroup ?></span>
           </div>
           
         </div>
-        <button onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
-          ✏️ Edit Profile
-        </button>
+        <a href="dashboard.php" onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
+          Back
+        </a>
       </div>
     </div>
 
@@ -128,19 +229,19 @@ if ($isLoggedIn) {
           <h2 class="font-bold text-gray-900 mb-4">Donation Stats</h2>
           <div class="grid grid-cols-2 gap-4">
             <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600">7</p>
+              <p class="text-3xl font-bold text-red-600"><?= $donationCount ?></p>
               <p class="text-xs text-gray-500 mt-1">Donations</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600">21</p>
+              <p class="text-3xl font-bold text-red-600"><?= $livesSaved ?></p>
               <p class="text-xs text-gray-500 mt-1">Lives Saved</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600">62</p>
+              <p class="text-3xl font-bold text-red-600"><?= $daysSinceLast ?></p>
               <p class="text-xs text-gray-500 mt-1">Days Since Last</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600">3.5L</p>
+              <p class="text-3xl font-bold text-red-600"><?= number_format($totalUnits * 0.5, 1) ?>L</p>
               <p class="text-xs text-gray-500 mt-1">Blood Donated</p>
             </div>
           </div>
@@ -207,28 +308,38 @@ if ($isLoggedIn) {
           <div class="p-6 sm:p-8">
 
             <!-- Personal Info Tab -->
-            <div id="tab-info" class="tab-panel active space-y-5">
-              <div class="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
-                  <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+            <form method="POST" id="profileForm">
+              <div id="tab-info" class="tab-panel active space-y-5">
+                <div class="grid sm:grid-cols-2 gap-5">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                    <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
+                    <input type="email" name="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                    <input type="tel" name="phone" value="<?= htmlspecialchars($userData['phone'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Member Since</label>
+                    <input type="text" value="<?= $userData['created_at'] ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                    <input type="text" name="address" value="<?= htmlspecialchars($userData['address'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
-                  <input type="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
-                  <input type="tel" value="<?= htmlspecialchars($userData['phone'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Member Since</label>
-                  <input type="text" value="<?= $userData['created_at'] ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
-                </div>
-                <div class="sm:col-span-2">
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
-                  <input type="text" value="<?= htmlspecialchars($userData['address'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
-                </div>
+              </div>
+            </form>
+            <!-- Save Bar -->
+            <div id="saveBar" class="hidden px-6 sm:px-8 pb-6 pt-2 border-t border-gray-100 flex items-center justify-between">
+              <p class="text-sm text-gray-500">You have unsaved changes.</p>
+              <div class="flex gap-3">
+                <button type="button" onclick="toggleEdit()" class="border-2 border-gray-300 text-gray-600 px-5 py-2 rounded-xl font-semibold hover:border-red-400 hover:text-red-600 transition text-sm">Cancel</button>
+                <button type="button" onclick="saveProfile()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm">Save Changes</button>
               </div>
             </div>
 
@@ -239,48 +350,22 @@ if ($isLoggedIn) {
                   <thead>
                     <tr class="border-b border-gray-100">
                       <th class="text-left text-gray-500 font-semibold pb-3">Date</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3">Hospital</th>
                       <th class="text-left text-gray-500 font-semibold pb-3">Units</th>
                       <th class="text-left text-gray-500 font-semibold pb-3">Status</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3">Certificate</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-50">
-                    <tr class="hover:bg-gray-50">
-                      <td class="py-3 text-gray-700 font-medium">Apr 28, 2026</td>
-                      <td class="py-3 text-gray-600">Aga Khan Hospital</td>
-                      <td class="py-3 text-gray-600">1 unit</td>
-                      <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                      <td class="py-3"><a href="#" class="text-red-600 font-semibold hover:underline">Download</a></td>
-                    </tr>
-                    <tr class="hover:bg-gray-50">
-                      <td class="py-3 text-gray-700 font-medium">Jan 10, 2026</td>
-                      <td class="py-3 text-gray-600">Civil Hospital</td>
-                      <td class="py-3 text-gray-600">1 unit</td>
-                      <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                      <td class="py-3"><a href="#" class="text-red-600 font-semibold hover:underline">Download</a></td>
-                    </tr>
-                    <tr class="hover:bg-gray-50">
-                      <td class="py-3 text-gray-700 font-medium">Sep 3, 2025</td>
-                      <td class="py-3 text-gray-600">Aga Khan Hospital</td>
-                      <td class="py-3 text-gray-600">1 unit</td>
-                      <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                      <td class="py-3"><a href="#" class="text-red-600 font-semibold hover:underline">Download</a></td>
-                    </tr>
-                    <tr class="hover:bg-gray-50">
-                      <td class="py-3 text-gray-700 font-medium">May 20, 2025</td>
-                      <td class="py-3 text-gray-600">Mayo Hospital</td>
-                      <td class="py-3 text-gray-600">1 unit</td>
-                      <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                      <td class="py-3"><a href="#" class="text-red-600 font-semibold hover:underline">Download</a></td>
-                    </tr>
-                    <tr class="hover:bg-gray-50">
-                      <td class="py-3 text-gray-700 font-medium">Dec 2, 2024</td>
-                      <td class="py-3 text-gray-600">Services Hospital</td>
-                      <td class="py-3 text-gray-600">1 unit</td>
-                      <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ Completed</span></td>
-                      <td class="py-3"><a href="#" class="text-red-600 font-semibold hover:underline">Download</a></td>
-                    </tr>
+                    <?php if (count($donations) > 0): ?>
+                      <?php foreach ($donations as $d): ?>
+                        <tr class="hover:bg-gray-50">
+                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($d['donation_date'])) ?></td>
+                          <td class="py-3 text-gray-600"><?= (int)($d['units'] ?? 1) ?> unit</td>
+                          <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($d['dh_status'] ?? $d['status'] ?? 'Completed') ?></span></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <tr><td colspan="3" class="py-8 text-center text-gray-500">No donation history found.</td></tr>
+                    <?php endif; ?>
                   </tbody>
                 </table>
               </div>
@@ -291,11 +376,11 @@ if ($isLoggedIn) {
               <div class="grid sm:grid-cols-2 gap-5">
                 <div>
                   <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type</label>
-                  <input type="text" value="A+" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  <input type="text" value="<?= $bloodGroup ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
                 </div>
                 <div>
                   <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg)</label>
-                  <input type="text" value="68" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  <input type="text" value="<?= htmlspecialchars($donorData['weight'] ?? '-') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
                 </div>
               </div>
               <div class="bg-red-50 border-2 border-red-100 rounded-xl p-5">
@@ -637,8 +722,7 @@ if ($isLoggedIn) {
     }
 
     function saveProfile() {
-      toggleEdit();
-      alert('Profile updated successfully!');
+      document.getElementById('profileForm').submit();
     }
   </script>
 

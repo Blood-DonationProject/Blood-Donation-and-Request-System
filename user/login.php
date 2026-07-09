@@ -25,12 +25,8 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     $role = $_SESSION['user_role'] ?? '';
     if ($role === 'Admin') {
         $target = '../admin/dashboard.php';
-    } elseif ($role === 'Donor') {
-        $target = 'donordashboard.php';
-    } elseif ($role === 'Requester') {
-        $target = 'requester.php';
     } else {
-        $target = 'donordashboard.php';
+        $target = 'dashboard.php';
     }
     if ($isAjax) {
         header('Content-Type: application/json');
@@ -53,9 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $loginSuccess = false;
         $targetPath = '';
 
-        // 1. Try hardcoded admin credentials first
+        // Hardcoded admin credentials (constant)
         if ($username === 'admin' && $password === 'password123') {
             $_SESSION['logged_in'] = true;
+            $_SESSION['user_id'] = 0;
             $_SESSION['username'] = 'admin';
             $_SESSION['user_email'] = 'admin@bloodlife.local';
             $_SESSION['user_role'] = 'Admin';
@@ -63,16 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $targetPath = '../admin/dashboard.php';
         }
 
-        // 2. Try hardcoded user credentials
-        if (!$loginSuccess && $username === 'user' && $password === '123456') {
-            $_SESSION['logged_in'] = true;
-            $_SESSION['username'] = 'user';
-            $_SESSION['user_role'] = 'Donor';
-            $loginSuccess = true;
-            $targetPath = 'donordashboard.php';
-        }
-
-        // 3. Fallback: check the database
+        // Verify credentials against the database
         if (!$loginSuccess) {
             $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username = ? OR email = ? LIMIT 1");
             if ($stmt) {
@@ -94,12 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $role = $row['role'];
                         if ($role === 'Admin') {
                             $targetPath = '../admin/dashboard.php';
-                        } elseif ($role === 'Donor') {
-                            $targetPath = 'donordashboard.php';
-                        } elseif ($role === 'Requester') {
-                            $targetPath = 'requester.php';
                         } else {
-                            $targetPath = 'donordashboard.php';
+                            $targetPath = 'dashboard.php';
                         }
                     }
                 }
@@ -270,7 +254,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="relative">
               <input type="password" name="password" id="passwordField" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
                      class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
-              <button type="button" onclick="togglePassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-lg" id="eyeBtn">👁</button>
+              <button type="button" onclick="togglePassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700" id="eyeBtn">
+                <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+              </button>
             </div>
           </div>
 
@@ -332,9 +319,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     function togglePassword() {
       const f = document.getElementById('passwordField');
-      const b = document.getElementById('eyeBtn');
-      if (f.type === 'password') { f.type = 'text'; b.textContent = '🙈'; }
-      else { f.type = 'password'; b.textContent = '👁'; }
+      const open = document.getElementById('eyeOpen');
+      const closed = document.getElementById('eyeClosed');
+      if (f.type === 'password') {
+        f.type = 'text';
+        open.classList.add('hidden');
+        closed.classList.remove('hidden');
+      } else {
+        f.type = 'password';
+        closed.classList.add('hidden');
+        open.classList.remove('hidden');
+      }
     }
 
   </script>

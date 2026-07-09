@@ -2,44 +2,110 @@
 include 'auth_check.php';
 require_once __DIR__ . '/../config/db.php';
 
+$error = '';
+$success = '';
+$users_list = $conn->query("SELECT id, username FROM users ORDER BY username");
+$blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
+
+// Add
+if (isset($_POST['add'])) {
+    $users_id = (int)$_POST['users_id'];
+    $blood_groups_id = (int)$_POST['blood_groups_id'];
+    $units = max(1, (int)$_POST['units']);
+    $hospital = trim($_POST['hospital']);
+    $required_date = $_POST['required_date'];
+    $status = $_POST['status'];
+
+    if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
+        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("iiisss", $users_id, $blood_groups_id, $units, $hospital, $required_date, $status);
+        if ($stmt->execute()) {
+            $success = 'Blood request created successfully.';
+        } else {
+            $error = 'Error: ' . $conn->error;
+        }
+        $stmt->close();
+    } else {
+        $error = 'Please fill in all required fields.';
+    }
+}
+
+// Update
+if (isset($_POST['update'])) {
+    $id = (int)$_POST['id'];
+    $users_id = (int)$_POST['users_id'];
+    $blood_groups_id = (int)$_POST['blood_groups_id'];
+    $units = max(1, (int)$_POST['units']);
+    $hospital = trim($_POST['hospital']);
+    $required_date = $_POST['required_date'];
+    $status = $_POST['status'];
+
+    if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
+        $stmt = $conn->prepare("UPDATE blood_request SET users_id=?, blood_groups_id=?, units=?, hospital=?, required_date=?, status=? WHERE id=?");
+        $stmt->bind_param("iiisssi", $users_id, $blood_groups_id, $units, $hospital, $required_date, $status, $id);
+        if ($stmt->execute()) {
+            $success = 'Blood request updated successfully.';
+        } else {
+            $error = 'Error: ' . $conn->error;
+        }
+        $stmt->close();
+    } else {
+        $error = 'Please fill in all required fields.';
+    }
+}
+
+// Delete
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    $stmt = $conn->prepare("DELETE FROM blood_request WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->close();
+    header('Location: requests.php');
+    exit;
+}
+
+// Fetch data
 $requesters = [];
-$requester_stats = [
-    'total_requesters' => 0,
-    'total_requests' => 0,
-    'pending_requests' => 0,
-    'completed_requests' => 0,
+$data = $conn->query("
+    SELECT br.id, br.blood_groups_id, br.units, br.hospital, br.required_date, br.status,
+           br.users_id, u.username, u.email, bg.blood_gp_name
+    FROM blood_request br
+    JOIN users u ON br.users_id = u.id
+    LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
+    ORDER BY br.required_date DESC
+");
+if ($data && $data->num_rows > 0) {
+    $requesters = $data->fetch_all(MYSQLI_ASSOC);
+}
+
+// Stats
+$stats = [
+    'total'     => $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0,
+    'pending'   => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
+    'approved'  => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0,
+    'completed' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0,
 ];
 
-try {
-    $data = $conn->query("
-        SELECT br.id, br.blood_groups_id, br.units, br.hospital, br.required_date, br.status,
-               br.users_id, u.username, u.email, bg.blood_gp_name
-        FROM blood_request br
-        JOIN users u ON br.users_id = u.id
-        LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
-        ORDER BY br.required_date DESC
-    ");
-    if ($data && $data->num_rows > 0) {
-        $requesters = $data->fetch_all(MYSQLI_ASSOC);
+// Edit row
+$edit_row = null;
+if (isset($_GET['edit'])) {
+    $edit_id = (int)$_GET['edit'];
+    foreach ($requesters as $r) {
+        if ($r['id'] == $edit_id) {
+            $edit_row = $r;
+            break;
+        }
     }
-
-    $requester_stats['total_requesters']  = $conn->query("SELECT COUNT(DISTINCT users_id) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
-    $requester_stats['total_requests']    = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
-    $requester_stats['pending_requests']  = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
-    $requester_stats['completed_requests'] = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
-} catch (Exception $e) {
-    // silent
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BloodLife - Requester Directory</title>
-
+    <title>BloodLife - Blood Requests</title>
     <script>
         (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
     </script>
@@ -50,6 +116,10 @@ try {
     <script src="../assets/js/translations.js"></script>
     <script src="../assets/js/i18n.js"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
+    <style>
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    </style>
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
         html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
@@ -69,152 +139,212 @@ try {
         html.dark .border-gray-200, html.dark .border-2.border-gray-200, html.dark .border { border-color: #4b5563 !important; }
         html.dark .border-t { border-color: #374151 !important; }
         html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
+        html.dark .bg-green-50 { background-color: rgba(34,197,94,0.15) !important; }
         html.dark tbody tr { border-color: #374151 !important; }
         html.dark tbody tr:hover { background-color: #374151 !important; }
+        html.dark .stat-card:hover { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
     </style>
-
 </head>
 
 <body class="bg-gray-100 dark:bg-gray-900">
 
-    <div class="flex min-h-screen">
+<div class="flex min-h-screen">
 
     <!-- Sidebar -->
-        <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
-            <div class="p-6 border-b border-gray-200">
-                <div class="flex items-center space-x-3">
-                    <span class="text-3xl">🩸</span>
-                    <div>
-                        <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                        <p class="text-xs text-gray-500">Dashboard</p>
-                    </div>
+    <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center space-x-3">
+                <span class="text-3xl">🩸</span>
+                <div>
+                    <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
+                    <p class="text-xs text-gray-500">CRUD Panel</p>
                 </div>
-            </div>
-
-           <nav class="flex-1 px-4 py-6 space-y-2">
-                <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>📊</span>
-                    <span data-i18n="overview">Overview</span>
-                </a>
-                <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>👤</span>
-                    <span data-i18n="users">Users</span>
-                </a>
-                <a href="donors.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>🩸</span>
-                    <span data-i18n="donors">Donors</span>
-                </a>
-                
-                <a href="donation_histories.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>⚡</span>
-                    <span data-i18n="donation_histories">Donation Histories</span>
-                </a>
-                <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                    <span>📋</span>
-                    <span data-i18n="blood_requests">Blood Requests</span>
-                </a>
-            </nav>
-
-            <div class="p-4 border-t border-gray-200">
-                <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
-                    Logout
-                </a>
             </div>
         </div>
+        <nav class="flex-1 px-4 py-6 space-y-2">
+            <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>📊</span> <span data-i18n="overview">Overview</span>
+            </a>
+            <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>👤</span> <span>Users</span>
+            </a>
+            <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
+                <span>📋</span> <span>Blood Requests</span>
+            </a>
+            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>⚡</span> <span>Donation History</span>
+            </a>
+            <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>🩸</span> <span>Donors</span>
+            </a>
+        </nav>
+        <div class="p-4 border-t border-gray-200">
+            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
+        </div>
+    </div>
 
-        <!-- Main Content -->
-        <main class="flex-1">
-
-            <!-- Top Bar -->
-            <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
-                <div>
-                    <h2 class="text-3xl font-bold text-red-800">Manage Requesters</h2>
-                    <p class="text-gray-500 mt-1">View and manage blood request submissions from users.</p>
-                </div>
-                <div class="flex items-center gap-4">
-<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-                    <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-                        <option value="en">EN</option>
-                        <option value="my">MY</option>
-                    </select>
-                    <div class="relative" id="adminMenu">
-                        <div class="flex items-center gap-2 cursor-pointer" onclick="toggleAdminDropdown()">
-                            <div class="w-10 h-10 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold">
-                                <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                            </div>
-                            <span class="font-medium"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></span>
+    <!-- Main Content -->
+    <main class="flex-1">
+        <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
+            <div>
+                <h2 class="text-3xl font-bold text-red-800">Blood Requests</h2>
+                <p class="text-gray-500 mt-1">Manage blood request submissions from users.</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
+                <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
+                    <option value="en">EN</option>
+                    <option value="my">MY</option>
+                </select>
+                <div class="relative" id="adminMenu">
+                    <div class="flex items-center gap-2 cursor-pointer" onclick="toggleAdminDropdown()">
+                        <div class="w-10 h-10 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold">
+                            <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
                         </div>
-                        <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                            <div class="p-4 border-b border-gray-100">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
-                                        <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                                    </div>
-                                    <div>
-                                        <p class="font-semibold text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                        <p class="text-sm text-gray-500"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
-                                    </div>
+                        <span class="font-medium"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></span>
+                    </div>
+                    <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                        <div class="p-4 border-b border-gray-100">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
+                                    <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
+                                    <p class="text-sm text-gray-500"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
                                 </div>
                             </div>
-                            <div class="p-3">
-                                <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-                            </div>
+                        </div>
+                        <div class="p-3">
+                            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
                         </div>
                     </div>
                 </div>
-            </header>
+            </div>
+        </header>
 
-            <div class="p-8">
+        <div class="p-8">
 
-                <!-- Stats -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white rounded-xl border p-5">
-                        <p class="text-gray-500 text-sm">Total Requesters</p>
-                        <h3 class="text-3xl font-bold mt-2"><?= $requester_stats['total_requesters'] ?></h3>
-                    </div>
-                    <div class="bg-white rounded-xl border p-5">
-                        <p class="text-gray-500 text-sm">Total Requests</p>
-                        <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $requester_stats['total_requests'] ?></h3>
-                    </div>
-                    <div class="bg-white rounded-xl border p-5">
-                        <p class="text-gray-500 text-sm">Pending Requests</p>
-                        <h3 class="text-3xl font-bold mt-2 text-yellow-600"><?= $requester_stats['pending_requests'] ?></h3>
-                    </div>
-                    <div class="bg-white rounded-xl border p-5">
-                        <p class="text-gray-500 text-sm">Completed Requests</p>
-                        <h3 class="text-3xl font-bold mt-2 text-red-500"><?= $requester_stats['completed_requests'] ?></h3>
-                    </div>
+            <?php if ($error): ?>
+                <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded mb-6"><p class="text-red-700"><?= htmlspecialchars($error) ?></p></div>
+            <?php endif; ?>
+            <?php if ($success): ?>
+                <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
+            <?php endif; ?>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl border p-5 stat-card">
+                    <p class="text-gray-500 text-sm">Total Requests</p>
+                    <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
                 </div>
-
-                <!-- Search -->
-                <div class="w-96 mb-6">
-                    <input
-                        id="searchInput"
-                        type="text"
-                        placeholder="Search by patient name, blood type, or hospital..."
-                        class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+                <div class="bg-white rounded-xl border p-5 stat-card">
+                    <p class="text-gray-500 text-sm">Pending</p>
+                    <h3 class="text-3xl font-bold mt-2 text-yellow-600"><?= $stats['pending'] ?></h3>
                 </div>
+                <div class="bg-white rounded-xl border p-5 stat-card">
+                    <p class="text-gray-500 text-sm">Approved</p>
+                    <h3 class="text-3xl font-bold mt-2 text-blue-600"><?= $stats['approved'] ?></h3>
+                </div>
+                <div class="bg-white rounded-xl border p-5 stat-card">
+                    <p class="text-gray-500 text-sm">Completed</p>
+                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['completed'] ?></h3>
+                </div>
+            </div>
 
-                <!-- Requester Table -->
-                <div class="bg-white rounded-3xl shadow-sm p-6 overflow-x-auto">
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-                        <div>
-                            <h2 class="text-xl font-semibold">Blood Request Records</h2>
-                            <p class="text-sm text-gray-500">All blood requests submitted by users.</p>
-                        </div>
+            <!-- Search -->
+            <div class="w-96 mb-6">
+                <input id="searchInput" type="text" placeholder="Search by username, blood type, or hospital..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+            </div>
+
+            <!-- Toggle Form -->
+            <div class="mb-8">
+                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
+                    <span>+</span>
+                    <span><?= $edit_row ? 'Edit Request' : 'Add New Request' ?></span>
+                </button>
+            </div>
+
+            <!-- CRUD Form -->
+            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Blood Request' : 'New Blood Request' ?></h3>
+                    <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                </div>
+                <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <?php if ($edit_row): ?>
+                        <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
+                    <?php endif; ?>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Requester *</label>
+                        <select name="users_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                            <option value="">Select user</option>
+                            <?php while ($u = $users_list->fetch_assoc()): ?>
+                                <option value="<?= $u['id'] ?>" <?= (($edit_row['users_id'] ?? '') == $u['id']) ? 'selected' : '' ?>><?= htmlspecialchars($u['username']) ?></option>
+                            <?php endwhile; ?>
+                        </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type *</label>
+                        <select name="blood_groups_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                            <option value="">Select blood type</option>
+                            <?php while ($bg = $blood_groups_list->fetch_assoc()): ?>
+                                <option value="<?= $bg['id'] ?>" <?= (($edit_row['blood_groups_id'] ?? '') == $bg['id']) ? 'selected' : '' ?>><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Units *</label>
+                        <input type="number" name="units" min="1" value="<?= htmlspecialchars($edit_row['units'] ?? '1') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital *</label>
+                        <input type="text" name="hospital" value="<?= htmlspecialchars($edit_row['hospital'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Required Date *</label>
+                        <input type="date" name="required_date" value="<?= htmlspecialchars($edit_row['required_date'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
+                        <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                            <?php foreach (['Pending','Approved','Completed','Rejected'] as $st): ?>
+                                <option value="<?= $st ?>" <?= (($edit_row['status'] ?? 'Pending') === $st) ? 'selected' : '' ?>><?= $st ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
+                            <?= $edit_row ? 'Update' : 'Create' ?>
+                        </button>
+                        <?php if ($edit_row): ?>
+                            <a href="requests.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
 
-                    <table class="w-full min-w-[900px] border-collapse text-left text-sm">
+            <!-- Data Table -->
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">Blood Request Records</h3>
+                        <p class="text-sm text-gray-500">All blood requests submitted by users.</p>
+                    </div>
+                    <span class="text-sm text-gray-500">Total: <?= count($requesters) ?></span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-4">Patient Name</th>
-                                <th class="p-4">Requester</th>
-                                <th class="p-4">Blood Type</th>
-                                <th class="p-4">Units</th>
-                                <th class="p-4">Hospital</th>
-                                <th class="p-4">Required Date</th>
-                                <th class="p-4">Status</th>
-                                <th class="p-4">Actions</th>
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Requester</th>
+                                <th class="p-3">Blood Type</th>
+                                <th class="p-3">Units</th>
+                                <th class="p-3">Hospital</th>
+                                <th class="p-3">Required Date</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -230,93 +360,89 @@ try {
                                     ];
                                     $statusClass = $statusClasses[$status] ?? 'bg-gray-100 text-gray-700';
                                     ?>
-                                    <tr class="requester-row border-t border-slate-200 hover:bg-gray-50 transition">
-                                        <td class="p-4 font-semibold"><?= htmlspecialchars($r['full_name'] ?? '-') ?></td>
-                                        <td class="p-4"><?= htmlspecialchars($r['username'] ?? '-') ?></td>
-                                        <td class="p-4">
-                                            <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs">
+                                    <tr class="requester-row border-t border-slate-200 hover:bg-gray-50">
+                                        <td class="p-3 font-medium">#<?= $r['id'] ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['username'] ?? '-') ?></td>
+                                        <td class="p-3">
+                                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-red-100 text-red-700">
                                                 <?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?>
                                             </span>
                                         </td>
-                                        <td class="p-4"><?= htmlspecialchars($r['units']) ?></td>
-                                        <td class="p-4"><?= htmlspecialchars($r['hospital']) ?></td>
-                                        <td class="p-4"><?= htmlspecialchars($r['required_date']) ?></td>
-                                        <td class="p-4">
+                                        <td class="p-3"><?= htmlspecialchars($r['units']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['hospital']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['required_date']) ?></td>
+                                        <td class="p-3">
                                             <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusClass ?>">
                                                 <?= htmlspecialchars($status) ?>
                                             </span>
                                         </td>
-                                        <td class="p-4">
-                                            <div class="flex flex-wrap gap-2">
-                                                <a href="requests.php" class="rounded-full border border-red-500 px-3 py-2 text-red-600 hover:bg-red-50 transition">View</a>
+                                        <td class="p-3">
+                                            <div class="flex gap-2">
+                                                <a href="requests.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
+                                                <a href="requests.php?delete=<?= $r['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this request?')">Delete</a>
                                             </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="p-8 text-center text-gray-500">No blood requests found.</td>
-                                </tr>
+                                <tr><td colspan="8" class="p-8 text-center text-gray-500">No blood requests found.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
-
             </div>
-        </main>
 
-    </div>
+        </div>
+    </main>
+</div>
 
-    <script>
-        const searchInput = document.getElementById('searchInput');
-        const rows = document.querySelectorAll('.requester-row');
+<script>
+function toggleAdminDropdown() {
+    document.getElementById('adminDropdown').classList.toggle('hidden');
+}
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('adminMenu');
+    const dropdown = document.getElementById('adminDropdown');
+    if (menu && dropdown && !menu.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
+function toggleForm() {
+    document.getElementById('crudForm').classList.toggle('hidden');
+}
+const searchInput = document.getElementById('searchInput');
+const rows = document.querySelectorAll('.requester-row');
+searchInput.addEventListener('keyup', function() {
+    const q = this.value.toLowerCase();
+    rows.forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+});
+</script>
 
-        searchInput.addEventListener('keyup', function() {
-            const query = this.value.toLowerCase();
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(query) ? '' : 'none';
-            });
-        });
-    </script>
-
-    <script>
-        function toggleAdminDropdown() {
-            document.getElementById('adminDropdown').classList.toggle('hidden');
-        }
-        document.addEventListener('click', function(e) {
-            const menu = document.getElementById('adminMenu');
-            const dropdown = document.getElementById('adminDropdown');
-            if (menu && dropdown && !menu.contains(e.target)) {
-                dropdown.classList.add('hidden');
-            }
-        });
-    </script>
-
-    <script>
-    (function() {
-      var KEY = 'bloodlife-theme';
-      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-      function apply(t) {
-        if (t === 'dark') document.documentElement.classList.add('dark');
-        else document.documentElement.classList.remove('dark');
-        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
-          var sun = btn.querySelector('.theme-icon-sun');
-          var moon = btn.querySelector('.theme-icon-moon');
-          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
-          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
-        });
-      }
-      apply(getTheme());
-      window.toggleTheme = function() {
-        var current = localStorage.getItem(KEY) || 'light';
-        var next = current === 'dark' ? 'light' : 'dark';
-        localStorage.setItem(KEY, next);
-        apply(next);
-      };
-    })();
-    </script>
+<script>
+(function() {
+  var KEY = 'bloodlife-theme';
+  function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+  function apply(t) {
+    if (t === 'dark') document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+      var sun = btn.querySelector('.theme-icon-sun');
+      var moon = btn.querySelector('.theme-icon-moon');
+      if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+      if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+    });
+  }
+  apply(getTheme());
+  window.toggleTheme = function() {
+    var current = localStorage.getItem(KEY) || 'light';
+    var next = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(KEY, next);
+    apply(next);
+  };
+})();
+</script>
 
 </body>
-
 </html>

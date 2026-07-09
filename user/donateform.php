@@ -311,7 +311,7 @@ if ($isLoggedIn):
       <div class="flex items-center justify-between">
         <div class="flex flex-col items-center">
           <div class="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-lg">1</div>
-          <p class="text-xs text-red-600 font-semibold mt-1">Patient Info</p>
+          <p class="text-xs text-red-600 font-semibold mt-1">Donor Info</p>
         </div>
         <div class="flex-1 h-1 bg-red-200 mx-2 rounded"></div>
         <div class="flex flex-col items-center">
@@ -343,8 +343,8 @@ if ($isLoggedIn):
           </div>
           <div class="grid sm:grid-cols-2 gap-5">
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Patient Name <span class="text-red-500">*</span></label>
-              <input type="text" name="patient_name" placeholder="Full name of the patient" required
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Name <span class="text-red-500">*</span></label>
+              <input type="text" name="donor_name" placeholder="Full name of yours" required
                 value="<?= htmlspecialchars($editData['full_name'] ?? '') ?>"
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
             </div>
