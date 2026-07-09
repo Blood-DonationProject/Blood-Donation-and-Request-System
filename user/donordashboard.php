@@ -5,6 +5,22 @@ $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 $userId = $_SESSION['user_id'] ?? 0;
 
+// Role-based access control
+$userRole = $_SESSION['user_role'] ?? '';
+if (!$isLoggedIn) {
+    header('Location: login.php');
+    exit;
+}
+
+// Redirect non-Donor users to their appropriate dashboard
+if ($userRole === 'Admin') {
+    header('Location: ../admin/dashboard.php');
+    exit;
+} elseif ($userRole === 'Requester') {
+    header('Location: requester.php');
+    exit;
+}
+
 $donorData = [];
 $donationCount = 0;
 $donations = [];

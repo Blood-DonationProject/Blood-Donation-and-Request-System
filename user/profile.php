@@ -7,7 +7,7 @@ $userId = $_SESSION['user_id'] ?? 0;
 
 $userData = [];
 if ($isLoggedIn) {
-    $stmt = $conn->prepare("SELECT id, username, email, phone, address, created_at FROM users WHERE id = ?");
+    $stmt = $conn->prepare("SELECT id, username, email, created_at FROM users WHERE id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -111,7 +111,7 @@ if ($isLoggedIn) {
             <h1 class="text-2xl font-bold text-gray-900">Ahmed Raza</h1>
             <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm w-fit mx-auto sm:mx-0">A+</span>
           </div>
-          <p class="text-gray-500 text-sm mt-1">📍 <?= htmlspecialchars($userData['address'] ?? 'Not set') ?> &nbsp;·&nbsp; Member since <?= $userData['created_at'] ? date('F Y', strtotime($userData['created_at'])) : 'N/A' ?></p>
+          
         </div>
         <button onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
           ✏️ Edit Profile

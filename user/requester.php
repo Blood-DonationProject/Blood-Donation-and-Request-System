@@ -5,6 +5,22 @@ $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $userId = $isLoggedIn ? (int)($_SESSION['user_id'] ?? 0) : 0;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 
+// Role-based access control
+$userRole = $_SESSION['user_role'] ?? '';
+if (!$isLoggedIn) {
+    header('Location: login.php');
+    exit;
+}
+
+// Redirect non-Requester users to their appropriate dashboard
+if ($userRole === 'Admin') {
+    header('Location: ../admin/dashboard.php');
+    exit;
+} elseif ($userRole === 'Donor') {
+    header('Location: donordashboard.php');
+    exit;
+}
+
 $message = '';
 $messageType = '';
 

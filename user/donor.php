@@ -196,7 +196,7 @@ try {
                 'UNAVAILABLE' => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'label' => '⏳ Unavailable'],
                 'PENDING'     => ['bg' => 'bg-yellow-100', 'text' => 'text-yellow-700', 'label' => '⏳ Pending'],
               ];
-              $sc = $statusColors[$d['status']] ?? ['bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'label' => $d['status']];
+              $sc = $statusColors[$d['available_status']] ?? ['bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'label' => $d['available_status']];
               $bloodGp = $d['blood_groups'] ?? 'N/A';
               $initial = strtoupper(substr($d['full_name'] ?? $d['username'] ?? '?', 0, 1));
             ?>

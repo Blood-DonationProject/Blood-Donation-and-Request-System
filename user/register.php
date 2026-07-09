@@ -37,6 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
       $role = !empty($_POST['role']) ? trim($_POST['role']) : 'Donor';
 
+      // Prevent registration as Admin
+      if ($role === 'Admin') {
+        $role = 'Donor';
+      }
+
       $baseUsername = strtolower(preg_replace('/[^a-z0-9]+/i', '', $name));
       $username = $baseUsername !== '' ? $baseUsername : 'user';
       $suffix = 0;

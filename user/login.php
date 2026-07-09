@@ -21,7 +21,17 @@ function absUrl($path) {
 }
 
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    $target = ($_SESSION['username'] === 'admin') ? '../admin/dashboard.php' : 'donordashboard.php';
+    // Determine redirect based on role
+    $role = $_SESSION['user_role'] ?? '';
+    if ($role === 'Admin') {
+        $target = '../admin/dashboard.php';
+    } elseif ($role === 'Donor') {
+        $target = 'donordashboard.php';
+    } elseif ($role === 'Requester') {
+        $target = 'requester.php';
+    } else {
+        $target = 'donordashboard.php';
+    }
     if ($isAjax) {
         header('Content-Type: application/json');
         echo json_encode(['success' => true, 'redirect' => absUrl($target)]);
@@ -48,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['logged_in'] = true;
             $_SESSION['username'] = 'admin';
             $_SESSION['user_email'] = 'admin@bloodlife.local';
+            $_SESSION['user_role'] = 'Admin';
             $loginSuccess = true;
             $targetPath = '../admin/dashboard.php';
         }
@@ -56,13 +67,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$loginSuccess && $username === 'user' && $password === '123456') {
             $_SESSION['logged_in'] = true;
             $_SESSION['username'] = 'user';
+            $_SESSION['user_role'] = 'Donor';
             $loginSuccess = true;
             $targetPath = 'donordashboard.php';
         }
 
         // 3. Fallback: check the database
         if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ? OR email = ? LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username = ? OR email = ? LIMIT 1");
             if ($stmt) {
                 $stmt->bind_param('ss', $username, $username);
                 $stmt->execute();
@@ -71,12 +83,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $row = $result->fetch_assoc();
                     $storedPassword = $row['password'];
 
-                    if ($password === $storedPassword || password_verify($password, $storedPassword)) {
+                    if (password_verify($password, $storedPassword)) {
                         $_SESSION['logged_in'] = true;
                         $_SESSION['username'] = $row['username'];
                         $_SESSION['user_id'] = $row['id'];
+                        $_SESSION['user_role'] = $row['role'];
                         $loginSuccess = true;
-                        $targetPath = 'donordashboard.php';
+
+                        // Redirect based on role
+                        $role = $row['role'];
+                        if ($role === 'Admin') {
+                            $targetPath = '../admin/dashboard.php';
+                        } elseif ($role === 'Donor') {
+                            $targetPath = 'donordashboard.php';
+                        } elseif ($role === 'Requester') {
+                            $targetPath = 'requester.php';
+                        } else {
+                            $targetPath = 'donordashboard.php';
+                        }
                     }
                 }
                 $stmt->close();
@@ -223,6 +247,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <?php if (isset($_GET['registered']) && $_GET['registered'] === '1'): ?>
             <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded">
               <p class="text-green-700 text-sm">Registration successful! Please sign in with your credentials.</p>
+            </div>
+          <?php endif; ?>
+          <?php if (isset($_GET['access_denied']) && $_GET['access_denied'] === '1'): ?>
+            <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded">
+              <p class="text-red-700 text-sm">Access Denied. You do not have administrator privileges.</p>
             </div>
           <?php endif; ?>
           <?php if ($errorMessage): ?>

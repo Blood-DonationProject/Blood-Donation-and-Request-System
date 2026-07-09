@@ -264,7 +264,7 @@ try {
                                     $statusColor = $status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
                                     ?>
                                     <tr class="user-row border-t border-slate-200 hover:bg-gray-50 transition">
-                                        <td class="p-4 font-semibold">#U<?= str_pad($user['user_id'], 4, '0', STR_PAD_LEFT) ?></td>
+                                        <td class="p-4 font-semibold">#U<?= str_pad($user['id'], 4, '0', STR_PAD_LEFT) ?></td>
                                         <td class="p-4 user-name font-semibold"><?= htmlspecialchars($user['name'] ?? '-') ?></td>
                                         
                                         <td class="p-4"><?= htmlspecialchars($user['email'] ?? '-') ?></td>
@@ -281,7 +281,7 @@ try {
                                         </td>
                                         <td class="p-4">
                                             <div class="flex flex-wrap gap-2">
-                                                <a href="edit.php?id=<?= $user['user_id'] ?>" class="rounded-full border border-red-500 px-3 py-2 text-red-600 hover:bg-red-50 transition">Edit</a>
+                                                <a href="edit.php?id=<?= $user['id'] ?>" class="rounded-full border border-red-500 px-3 py-2 text-red-600 hover:bg-red-50 transition">Edit</a>
                                             </div>
                                         </td>
                                     </tr>

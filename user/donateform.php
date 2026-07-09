@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_username'])) {
         }
 
         if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT user_id, username, password FROM users WHERE username = ? OR email = ? LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ? OR email = ? LIMIT 1");
             if ($stmt) {
                 $stmt->bind_param('ss', $username, $username);
                 $stmt->execute();
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_username'])) {
                     if ($password === $storedPassword || password_verify($password, $storedPassword)) {
                         $_SESSION['logged_in'] = true;
                         $_SESSION['username'] = $row['username'];
-                        $_SESSION['user_id'] = $row['user_id'];
+                        $_SESSION['user_id'] = $row['id'];
                         $loginSuccess = true;
                     }
                 }

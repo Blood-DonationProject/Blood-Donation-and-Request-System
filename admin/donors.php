@@ -269,7 +269,7 @@ try {
                             <?php if (count($donors) > 0): ?>
                                 <?php foreach ($donors as $donor): ?>
                                     <?php
-                                    $status = $donor['status'];
+                                    $status = $donor['available_status'];
                                     $statusClasses = [
                                         'AVAILABLE'   => 'bg-green-100 text-green-700',
                                         'UNAVAILABLE' => 'bg-red-100 text-red-700',
