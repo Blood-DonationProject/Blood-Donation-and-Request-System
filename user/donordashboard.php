@@ -12,14 +12,13 @@ if (!$isLoggedIn) {
     exit;
 }
 
-// Redirect non-Donor users to their appropriate dashboard
+// Redirect Admin to admin dashboard
 if ($userRole === 'Admin') {
     header('Location: ../admin/dashboard.php');
     exit;
-} elseif ($userRole === 'Requester') {
-    header('Location: requester.php');
-    exit;
 }
+
+$greeting = 'Good morning';
 
 $donorData = [];
 $donationCount = 0;
@@ -27,7 +26,7 @@ $donations = [];
 $urgentRequests = [];
 if ($isLoggedIn) {
     // Donor info
-    $stmt = $conn->prepare("SELECT d.id AS donor_id, d.user_id, u.username, u.email, d.blood_groups AS blood_group_name
+    $stmt = $conn->prepare("SELECT d.id AS donor_id, d.user_id, u.username, u.email, d.address, d.blood_groups AS blood_group_name
                             FROM donor d
                             JOIN users u ON u.id = d.user_id
                             WHERE d.user_id = ?");
@@ -117,24 +116,39 @@ if ($isLoggedIn) {
           <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩸</span>
           <div>
             <h1 class="font-bold text-xl text-red-700">BloodLife</h1>
-            <p class="text-xs text-gray-500">Save Lives Together</p>
+            <p class="text-xs text-gray-500" data-i18n="save_lives_together">Save Lives Together</p>
           </div>
         </div>
         <div class="hidden md:flex items-center space-x-8">
           <a href="index.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-          <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-          <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
+          <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>          
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
           <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
             <option value="en">EN</option>
             <option value="my">MY</option>
           </select>
-          <a href="donordashboard.php" class="flex items-center gap-2 hover:text-red-600 transition">
-            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">A</div>
-            <span class="font-medium text-gray-700">Ahmed</span>
-          </a>
-          <a href="#" onclick="bloodlifeLogout(); return false;" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm" data-i18n="logout">Logout</a>
+          <div class="relative" id="userMenu">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
+              <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700"><?= strtoupper(substr($username, 0, 1)) ?></div>
+              <span class="font-medium text-gray-700"><?= $username ?></span>
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+              <div class="p-4 border-b border-gray-100">
+                <p class="font-semibold text-gray-800"><?= $username ?></p>
+                <p class="text-sm text-gray-500">Logged in</p>
+              </div>
+              <div class="p-2">
+                <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                  <span>👤</span> <span data-i18n="profile">Profile</span>
+                </a>
+                <a href="#" onclick="bloodlifeLogout(); return false;" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
+                  <span>🚪</span> <span data-i18n="logout">Logout</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -145,12 +159,12 @@ if ($isLoggedIn) {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 animate-fade-up">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <p class="text-red-200 text-sm font-semibold mb-1">Monday, 29 June 2026</p>
-          <h1 class="text-4xl font-bold mb-1">Good morning, Ahmed! 👋</h1>
-          <p class="text-lg opacity-90">You have <span class="font-bold text-yellow-300">2 urgent requests</span> matching your blood type nearby.</p>
+          <p class="text-red-200 text-sm font-semibold mb-1"><?= date('l, j F Y') ?></p>
+          <h1 class="text-4xl font-bold mb-1"><?= $greeting ?>, <?= $username ?>! 👋</h1>
+          <p class="text-lg opacity-90"><span data-i18n="you_have">You have</span> <span class="font-bold text-yellow-300">2 urgent requests</span> <span data-i18n="urgent_requests_matching">matching your blood type nearby.</span></p>
         </div>
         <a href="requestblood.php" class="bg-white text-red-600 px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 whitespace-nowrap">
-          + Submit Request
+          <span data-i18n="submit_request_btn">+ Submit Request</span>
         </a>
       </div>
     </div>
@@ -161,9 +175,9 @@ if ($isLoggedIn) {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <span class="text-2xl">✅</span>
-        <p class="text-green-800 font-semibold">You are eligible to donate blood today! It's been 60+ days since your last donation.</p>
+        <p class="text-green-800 font-semibold" data-i18n="eligible_donate_today">You are eligible to donate blood today! It's been 60+ days since your last donation.</p>
       </div>
-      <a href="bloodrequest.php" class="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition whitespace-nowrap text-sm">Find a Request</a>
+      <a href="bloodrequest.php" class="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition whitespace-nowrap text-sm" data-i18n="find_a_request">Find a Request</a>
     </div>
   </section>
 
@@ -174,22 +188,22 @@ if ($isLoggedIn) {
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">🩸</div>
         <h3 class="text-3xl font-bold text-red-600"><?= $donationCount ?></h3>
-        <p class="text-gray-500 text-sm mt-1">Total Donations</p>
+        <p class="text-gray-500 text-sm mt-1" data-i18n="total_donations">Total Donations</p>
       </div>
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">❤️</div>
         <h3 class="text-3xl font-bold text-red-600"><?= $donationCount * 3 ?></h3>
-        <p class="text-gray-500 text-sm mt-1">Lives Impacted</p>
+        <p class="text-gray-500 text-sm mt-1" data-i18n="lives_impacted">Lives Impacted</p>
       </div>
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">🏆</div>
         <h3 class="text-3xl font-bold text-red-600"><?= min(4, $donationCount) ?></h3>
-        <p class="text-gray-500 text-sm mt-1">Badges Earned</p>
+        <p class="text-gray-500 text-sm mt-1" data-i18n="badges_earned">Badges Earned</p>
       </div>
       <div class="bg-white rounded-2xl shadow p-6 text-center">
         <div class="text-4xl mb-2">📅</div>
         <h3 class="text-3xl font-bold text-red-600"><?= $donationCount > 0 ? 'Active' : 'N/A' ?></h3>
-        <p class="text-gray-500 text-sm mt-1">Donor Status</p>
+        <p class="text-gray-500 text-sm mt-1" data-i18n="donor_status">Donor Status</p>
       </div>
     </div>
 
@@ -203,9 +217,9 @@ if ($isLoggedIn) {
           <div class="flex items-center justify-between mb-5">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">🚨</div>
-              <h2 class="text-xl font-bold text-gray-900">Urgent Requests Near You</h2>
+              <h2 class="text-xl font-bold text-gray-900" data-i18n="urgent_requests_near_you">Urgent Requests Near You</h2>
             </div>
-            <a href="bloodrequest.php" class="text-red-600 text-sm font-semibold hover:underline">View all →</a>
+            <a href="bloodrequest.php" class="text-red-600 text-sm font-semibold hover:underline" data-i18n="view_all">View all →</a>
           </div>
           <div class="space-y-4">
             <?php if (count($urgentRequests) > 0): ?>
@@ -220,12 +234,12 @@ if ($isLoggedIn) {
                 <p class="font-semibold text-gray-800"><?= htmlspecialchars($ur['blood_gp_name'] ?? '?') ?> blood needed — <?= htmlspecialchars($ur['units']) ?> unit(s)</p>
                 <p class="text-xs text-gray-400 mt-0.5">Required by <?= date('M j, Y', strtotime($ur['required_date'])) ?></p>
               </div>
-              <a href="bloodrequest.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap">Respond</a>
+              <a href="bloodrequest.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm whitespace-nowrap" data-i18n="respond">Respond</a>
             </div>
               <?php endforeach; ?>
             <?php else: ?>
             <div class="border-2 border-gray-100 rounded-xl p-8 text-center">
-              <p class="text-gray-500">No urgent requests at this time.</p>
+              <p class="text-gray-500" data-i18n="no_urgent_requests">No urgent requests at this time.</p>
             </div>
             <?php endif; ?>
           </div>
@@ -236,18 +250,18 @@ if ($isLoggedIn) {
           <div class="flex items-center justify-between mb-5">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">📋</div>
-              <h2 class="text-xl font-bold text-gray-900">Donation History</h2>
+              <h2 class="text-xl font-bold text-gray-900" data-i18n="donation_history">Donation History</h2>
             </div>
-            <a href="profile.php" class="text-red-600 text-sm font-semibold hover:underline">View all →</a>
+            <a href="profile.php" class="text-red-600 text-sm font-semibold hover:underline" data-i18n="view_all">View all →</a>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-gray-100">
-                  <th class="text-left text-gray-500 font-semibold pb-3">Date</th>
-                  <th class="text-left text-gray-500 font-semibold pb-3">Hospital</th>
-                  <th class="text-left text-gray-500 font-semibold pb-3">Units</th>
-                  <th class="text-left text-gray-500 font-semibold pb-3">Status</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-50">
@@ -262,7 +276,7 @@ if ($isLoggedIn) {
                   <?php endforeach; ?>
                 <?php else: ?>
                 <tr>
-                  <td colspan="4" class="py-6 text-center text-gray-400">No donations yet.</td>
+                  <td colspan="4" class="py-6 text-center text-gray-400" data-i18n="no_donations_yet">No donations yet.</td>
                 </tr>
                 <?php endif; ?>
               </tbody>
@@ -280,39 +294,39 @@ if ($isLoggedIn) {
           <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-3">👤</div>
           <h3 class="font-bold text-gray-900 text-xl"><?= htmlspecialchars($donorData['username'] ?? $username ?: 'Donor') ?></h3>
           <p class="text-gray-500 text-sm mb-2"><?= htmlspecialchars($donorData['address'] ?? 'Location not set') ?></p>
-          <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-5 py-1.5 rounded-full text-lg mb-4"><?= htmlspecialchars($donorData['blood_groups'] ?? 'N/A') ?></span>
+          <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-5 py-1.5 rounded-full text-lg mb-4"><?= htmlspecialchars($donorData['blood_group_name'] ?? 'N/A') ?></span>
           <div class="bg-green-50 border border-green-200 rounded-xl py-2 px-3 mb-4">
-            <p class="text-green-700 text-sm font-semibold">✅ <?= $donationCount > 0 ? 'Active Donor' : 'Ready to Donate' ?></p>
+            <p class="text-green-700 text-sm font-semibold">✅ <?= $donationCount > 0 ? '<span data-i18n="active_donor">Active Donor</span>' : '<span data-i18n="ready_to_donate">Ready to Donate</span>' ?></p>
           </div>
-          <a href="profile.php" class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition block text-sm">Edit Profile</a>
+          <a href="profile.php" class="w-full border-2 border-red-600 text-red-600 py-2 rounded-xl font-semibold hover:bg-red-50 transition block text-sm" data-i18n="edit_profile">Edit Profile</a>
         </div>
 
         <!-- Badges -->
         <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">🏆</div>
-            <h2 class="text-lg font-bold text-gray-900">Your Badges</h2>
+            <h2 class="text-lg font-bold text-gray-900" data-i18n="your_badges">Your Badges</h2>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">🥇</div>
-              <p class="text-xs font-bold text-yellow-700">First Donation</p>
+              <p class="text-xs font-bold text-yellow-700" data-i18n="first_donation">First Donation</p>
             </div>
             <div class="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">🔥</div>
-              <p class="text-xs font-bold text-red-700">5 Donations</p>
+              <p class="text-xs font-bold text-red-700" data-i18n="five_donations">5 Donations</p>
             </div>
             <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">⚡</div>
-              <p class="text-xs font-bold text-blue-700">Quick Responder</p>
+              <p class="text-xs font-bold text-blue-700" data-i18n="quick_responder">Quick Responder</p>
             </div>
             <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">🌟</div>
-              <p class="text-xs font-bold text-purple-700">Life Saver</p>
+              <p class="text-xs font-bold text-purple-700" data-i18n="life_saver">Life Saver</p>
             </div>
           </div>
           <div class="mt-3 bg-gray-50 rounded-xl p-3 text-center">
-            <p class="text-xs text-gray-500">Next badge: <span class="font-bold text-red-600">10 Donations Hero</span> — 3 more to go!</p>
+            <p class="text-xs text-gray-500"><span data-i18n="next_badge_prefix">Next badge:</span> <span class="font-bold text-red-600" data-i18n="ten_donations_hero">10 Donations Hero</span> — 3 <span data-i18n="more_to_go_suffix">more to go!</span></p>
             <div class="mt-2 bg-gray-200 rounded-full h-2">
               <div class="bg-red-500 h-2 rounded-full" style="width: 70%"></div>
             </div>
@@ -323,24 +337,24 @@ if ($isLoggedIn) {
         <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">⚡</div>
-            <h2 class="text-lg font-bold text-gray-900">Quick Actions</h2>
+            <h2 class="text-lg font-bold text-gray-900" data-i18n="quick_actions">Quick Actions</h2>
           </div>
           <div class="space-y-3">
             <a href="bloodrequest.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
               <span class="text-xl">🚨</span>
-              <span class="font-semibold text-gray-700 text-sm">View Urgent Requests</span>
+              <span class="font-semibold text-gray-700 text-sm" data-i18n="view_urgent_requests">View Urgent Requests</span>
             </a>
             <a href="requestblood.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
               <span class="text-xl">📋</span>
-              <span class="font-semibold text-gray-700 text-sm">Submit Blood Request</span>
+              <span class="font-semibold text-gray-700 text-sm" data-i18n="submit_blood_request_link">Submit Blood Request</span>
             </a>
             <a href="hospital.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
               <span class="text-xl">🏥</span>
-              <span class="font-semibold text-gray-700 text-sm">Find Nearby Hospitals</span>
+              <span class="font-semibold text-gray-700 text-sm" data-i18n="find_nearby_hospitals">Find Nearby Hospitals</span>
             </a>
             <a href="profile.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition border-2 border-gray-100 hover:border-red-200">
               <span class="text-xl">👤</span>
-              <span class="font-semibold text-gray-700 text-sm">Update My Profile</span>
+              <span class="font-semibold text-gray-700 text-sm" data-i18n="update_my_profile">Update My Profile</span>
             </a>
           </div>
         </div>
@@ -355,7 +369,7 @@ if ($isLoggedIn) {
       <div class="grid md:grid-cols-4 gap-8 mb-8">
         <div><h3 class="text-white font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
         <div>
-          <h4 class="text-white font-bold mb-4">Quick Links</h4>
+          <h4 class="text-white font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
           <ul class="space-y-2 text-sm">
             <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
             <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
@@ -363,7 +377,7 @@ if ($isLoggedIn) {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Contact</h4>
+          <h4 class="text-white font-bold mb-4" data-i18n="contact">Contact</h4>
           <ul class="space-y-2 text-sm">
             <li>📧 info@bloodlife.com</li>
             <li>📱 1-800-BLOOD-999</li>
@@ -371,7 +385,7 @@ if ($isLoggedIn) {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Follow Us</h4>
+          <h4 class="text-white font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
           <div class="flex space-x-4">
             <a href="#" class="hover:text-red-400 transition">Facebook</a>
             <a href="#" class="hover:text-red-400 transition">Twitter</a>
@@ -385,6 +399,17 @@ if ($isLoggedIn) {
     </div>
   </footer>
   <script>
+    function toggleUserDropdown() {
+      document.getElementById('userDropdown').classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('userMenu');
+      const dropdown = document.getElementById('userDropdown');
+      if (menu && dropdown && !menu.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
     function bloodlifeLogout() {
       if (!confirm('Are you sure you want to logout?')) return;
       localStorage.removeItem('bloodlife_logged_in');

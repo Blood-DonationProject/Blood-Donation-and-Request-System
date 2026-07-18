@@ -148,17 +148,52 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     </select>
 
                     <?php if ($isLoggedIn): ?>
-                        <a href="donordashboard.php" class="flex items-center gap-2 hover:text-red-600 transition">
-                            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
-                                <?= strtoupper(substr($username, 0, 1)) ?>
+                        <!-- Bell Icon -->
+                        <div class="relative" id="notifMenu">
+                            <button onclick="toggleNotifDropdown()" class="relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 hover:bg-red-50 transition">
+                                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/>
+                                </svg>
+                                <span id="notifBadge" class="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center hidden">0</span>
+                            </button>
+                            <div id="notifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                                <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                                    <p class="font-semibold text-gray-800">Notifications</p>
+                                    <span class="text-xs text-gray-400">0 new</span>
+                                </div>
+                                <div class="p-4 text-center text-gray-400 text-sm">
+                                    No new notifications
+                                </div>
                             </div>
-                            <span class="font-medium text-gray-700"><?= $username ?></span>
-                        </a>
-                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm" data-i18n="logout">Logout</a>
+                        </div>
+
+                        <div class="relative" id="userMenu">
+                            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
+                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
+                                    <?= strtoupper(substr($username, 0, 1)) ?>
+                                </div>
+                                <span class="font-medium text-gray-700"><?= $username ?></span>
+                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                                <div class="p-4 border-b border-gray-100">
+                                    <p class="font-semibold text-gray-800"><?= $username ?></p>
+                                    <p class="text-sm text-gray-500">Logged in</p>
+                                </div>
+                                <div class="p-2">
+                                    <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                                        <span>👤</span> <span data-i18n="profile">Profile</span>
+                                    </a>
+                                    <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
+                                        <span>🚪</span> <span data-i18n="logout">Logout</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     <?php else: ?>
-                        <button onclick="openLoginModal()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer" data-i18n="login">
+                        <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition" data-i18n="login">
                             Login
-                        </button>
+                        </a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -175,7 +210,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     <div class="inline-block bg-red-100 text-red-700 px-4 py-2 rounded-full text-sm font-semibold mb-4" data-i18n="help_save_lives_today">
                         ✨ Help Save Lives Today
                     </div>
- <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight mb-6">
+                    <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight mb-6">
                         <span class="text-gray-900" data-i18n="donate">Donate </span>
                         <span class="bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent" data-i18n="blood">Blood</span>
                         <span class="text-gray-900">,</span>
@@ -198,15 +233,18 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
 
                     <!-- Stats -->
                     <div class="grid grid-cols-3 gap-4 mt-12">
-                        <div class="text-center">
-                            <h3 class="text-3xl font-bold text-red-600"><?= $totalDonors ?>+</h3>
-                            <p class="text-gray-600 text-sm" data-i18n="active_donors">Active Donors</p>
+                        <div class="text-center bg-red-600 text-white rounded-2xl p-4">
+                            <h3 class="text-3xl font-bold"><?= $totalDonors ?>+</h3>
+                            <p class="text-sm opacity-90" data-i18n="active_donors">Active Donors</p>
                         </div>
-                        <div class="text-center">
-                            <h3 class="text-3xl font-bold text-red-600"><?= $totalRequests ?>+</h3>
-                            <p class="text-gray-600 text-sm" data-i18n="lives_saved">Blood Requests</p>
+                        <div class="text-center bg-red-600 text-white rounded-2xl p-4">
+                            <h3 class="text-3xl font-bold"><?= $totalRequests ?>+</h3>
+                            <p class="text-sm opacity-90" data-i18n="lives_saved">Lives Saved</p>
                         </div>
-                        
+                        <div class="text-center bg-red-600 text-white rounded-2xl p-4">
+                            <h3 class="text-3xl font-bold"><?= $totalUsers ?>+</h3>
+                            <p class="text-sm opacity-90" data-i18n="total_users">Total Users</p>
+                        </div>
                     </div>
                 </div>
 
@@ -223,34 +261,27 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                         <div class="grid grid-cols-4 gap-3 mb-6">
                             <div class="bg-gradient-to-br from-red-100 to-red-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-red-700 text-lg">A+</p>
-
                             </div>
                             <div class="bg-gradient-to-br from-blue-100 to-blue-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-blue-700 text-lg">B+</p>
-
                             </div>
                             <div class="bg-gradient-to-br from-yellow-100 to-yellow-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-yellow-700 text-lg">AB+</p>
-
                             </div>
                             <div class="bg-gradient-to-br from-purple-100 to-purple-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-purple-700 text-lg">O+</p>
- </div>
+                            </div>
                             <div class="bg-gradient-to-br from-red-100 to-red-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-red-700 text-lg">A-</p>
-
                             </div>
                             <div class="bg-gradient-to-br from-blue-100 to-blue-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-blue-700 text-lg">B-</p>
-
                             </div>
                             <div class="bg-gradient-to-br from-yellow-100 to-yellow-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-yellow-700 text-lg">AB-</p>
-
                             </div>
                             <div class="bg-gradient-to-br from-purple-100 to-purple-200 p-4 rounded-xl text-center hover:shadow-lg transition transform hover:scale-110">
                                 <p class="font-bold text-purple-700 text-lg">O-</p>
-
                             </div>
                         </div>
 
@@ -303,38 +334,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
         </div>
     </section>
 
-    <!-- Statistics -->
-
-<section class="py-10">
-
-    <div class="max-w-7xl mx-auto px-6">
-
-        <div class="grid md:grid-cols-4 gap-6">
-
-            <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700"><?= $totalDonors ?>+</h2>
-                <p>Active Donors</p>
-            </div>
-
-           
-
-            <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700"><?= $totalRequests ?>+</h2>
-                <p>Blood Requests</p>
-            </div>
-
-            <div class="bg-white p-8 rounded-2xl shadow">
-                <h2 class="text-4xl font-bold text-red-700"><?= $totalUsers ?>+</h2>
-                <p>Total Users</p>
-            </div>
-
-        </div>
-
-    </div>
-
-</section>
-
-
+   
     <!-- CTA Section -->
     <section class="py-16 bg-gradient-to-r from-red-600 to-red-800 text-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -444,7 +444,32 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
         </div>
     </div>
 
-    <script>
+<script>
+        // Notification Dropdown Toggle
+        function toggleNotifDropdown() {
+            document.getElementById('notifDropdown').classList.toggle('hidden');
+        }
+
+        // User Dropdown Toggle
+        function toggleUserDropdown() {
+            document.getElementById('userDropdown').classList.toggle('hidden');
+        }
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', function(e) {
+            const notifMenu = document.getElementById('notifMenu');
+            const notifDropdown = document.getElementById('notifDropdown');
+            const userMenu = document.getElementById('userMenu');
+            const userDropdown = document.getElementById('userDropdown');
+
+            if (notifMenu && notifDropdown && !notifMenu.contains(e.target)) {
+                notifDropdown.classList.add('hidden');
+            }
+            if (userMenu && userDropdown && !userMenu.contains(e.target)) {
+                userDropdown.classList.add('hidden');
+            }
+        });
+
         // Login Modal Password Toggle
         function toggleModalPassword() {
             const f = document.getElementById('loginPassword');

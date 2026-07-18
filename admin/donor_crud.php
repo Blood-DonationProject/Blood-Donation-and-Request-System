@@ -7,21 +7,19 @@ $success = '';
 
 if (isset($_POST['add'])) {
     $user_id = (int)$_POST['user_id'];
-    $full_name = trim($_POST['full_name']);
     $gender = $_POST['gender'];
     $date_of_birth = $_POST['date_of_birth'];
     $age = (int)$_POST['age'];
     $blood_groups = trim($_POST['blood_groups']);
     $phone = trim($_POST['phone']);
-    $email = trim($_POST['email']);
     $address = trim($_POST['address']);
     $weight = (float)$_POST['weight'];
     $last_donation_date = $_POST['last_donation_date'] ?: null;
     $available_status = $_POST['available_status'];
 
-    if ($user_id && $full_name !== '' && $blood_groups !== '' && $phone !== '' && $address !== '' && $weight > 0) {
-        $stmt = $conn->prepare("INSERT INTO donor (user_id, full_name, gender, date_of_birth, age, blood_groups, phone, email, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("isssissssdss", $user_id, $full_name, $gender, $date_of_birth, $age, $blood_groups, $phone, $email, $address, $weight, $last_donation_date, $available_status);
+    if ($user_id && $blood_groups !== '' && $phone !== '' && $address !== '' && $weight > 0) {
+        $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ississsdss", $user_id, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);
         if ($stmt->execute()) {
             $success = 'Donor created successfully.';
         } else {
@@ -36,21 +34,19 @@ if (isset($_POST['add'])) {
 if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
     $user_id = (int)$_POST['user_id'];
-    $full_name = trim($_POST['full_name']);
     $gender = $_POST['gender'];
     $date_of_birth = $_POST['date_of_birth'];
     $age = (int)$_POST['age'];
     $blood_groups = trim($_POST['blood_groups']);
     $phone = trim($_POST['phone']);
-    $email = trim($_POST['email']);
     $address = trim($_POST['address']);
     $weight = (float)$_POST['weight'];
     $last_donation_date = $_POST['last_donation_date'] ?: null;
     $available_status = $_POST['available_status'];
 
-    if ($user_id && $full_name !== '' && $blood_groups !== '' && $phone !== '' && $address !== '' && $weight > 0) {
-        $stmt = $conn->prepare("UPDATE donor SET user_id=?, full_name=?, gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, email=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE id=?");
-        $stmt->bind_param("isssissssdssi", $user_id, $full_name, $gender, $date_of_birth, $age, $blood_groups, $phone, $email, $address, $weight, $last_donation_date, $available_status, $id);
+    if ($user_id && $blood_groups !== '' && $phone !== '' && $address !== '' && $weight > 0) {
+        $stmt = $conn->prepare("UPDATE donor SET user_id=?, gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE id=?");
+        $stmt->bind_param("ississsdssi", $user_id, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status, $id);
         if ($stmt->execute()) {
             $success = 'Donor updated successfully.';
         } else {
@@ -92,7 +88,7 @@ if (isset($_GET['edit'])) {
     }
 }
 
-$users_list = $conn->query("SELECT id, username FROM users WHERE role IN ('Donor','Admin') ORDER BY username");
+$users_list = $conn->query("SELECT id, username FROM users ORDER BY username");
 $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0,
     'available' => $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Available'")->fetch_assoc()['c'] ?? 0,
@@ -167,18 +163,21 @@ $stats = [
             <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>📊</span> <span data-i18n="overview">Overview</span>
             </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>🩸</span> <span>Blood Requests</span>
-            </a>
             <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>👤</span> <span>Users</span>
-            </a>
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>⚡</span> <span>Donation History</span>
+                <span>👥</span> <span>Users</span>
             </a>
             <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
                 <span>🩸</span> <span>Donors</span>
             </a>
+            
+            
+            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>⚡</span> <span>Donation History</span>
+            </a>
+            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>📋</span> <span>Blood Requests</span>
+            </a>
+            
         </nav>
         <div class="p-4 border-t border-gray-200">
             <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
@@ -189,8 +188,8 @@ $stats = [
     <main class="flex-1">
         <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
             <div>
-                <h2 class="text-3xl font-bold text-red-800">Donors CRUD</h2>
-                <p class="text-gray-500 mt-1">Create, read, update, delete donor records.</p>
+                <h2 class="text-3xl font-bold text-red-800">Manage Donors</h2>
+                <p class="text-gray-500 mt-1">Manage and monitor the blood donor network.</p>
             </div>
             <div class="flex items-center gap-4">
                 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
@@ -274,17 +273,19 @@ $stats = [
                     <?php endif; ?>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">User *</label>
-                        <select name="user_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select User --</option>
-                            <?php if ($users_list): mysqli_data_seek($users_list, 0); while ($u = $users_list->fetch_assoc()): ?>
-                                <option value="<?= $u['id'] ?>" <?= (($edit_row['user_id'] ?? 0) == $u['id']) ? 'selected' : '' ?>><?= htmlspecialchars($u['username']) ?></option>
-                            <?php endwhile; endif; ?>
-                        </select>
+                        <?php if ($edit_row): ?>
+                            <input type="hidden" name="user_id" value="<?= $edit_row['user_id'] ?>">
+                            <input type="text" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed">
+                        <?php else: ?>
+                            <select name="user_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                                <option value="">-- Select User --</option>
+                                <?php if ($users_list): mysqli_data_seek($users_list, 0); while ($u = $users_list->fetch_assoc()): ?>
+                                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['username']) ?></option>
+                                <?php endwhile; endif; ?>
+                            </select>
+                        <?php endif; ?>
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name *</label>
-                        <input type="text" name="full_name" value="<?= htmlspecialchars($edit_row['full_name'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
+                    
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Gender *</label>
                         <select name="gender" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
@@ -313,10 +314,6 @@ $stats = [
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Phone *</label>
                         <input type="text" name="phone" value="<?= htmlspecialchars($edit_row['phone'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                        <input type="email" name="email" value="<?= htmlspecialchars($edit_row['email'] ?? '') ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) *</label>
@@ -363,12 +360,15 @@ $stats = [
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
-                                <th class="p-3">Username</th>
-                                <th class="p-3">Full Name</th>
+                                <th class="p-3">Username</th>                                
                                 <th class="p-3">Gender</th>
+                                <th class="p-3">Date of birth</th>
                                 <th class="p-3">Age</th>
-                                <th class="p-3">Blood Group</th>
-                                <th class="p-3">Phone</th>
+                                <th class="p-3">Weight</th>
+                                <th class="p-3">Blood Group</th>                              
+                                <th class="p-3">Phone</th>                               
+                                <th class="p-3">Address</th>                                
+                                <th class="p-3">Last Donation Date</th>
                                 <th class="p-3">Status</th>
                                 <th class="p-3">Actions</th>
                             </tr>
@@ -379,12 +379,15 @@ $stats = [
                                     <?php $availColor = ($d['available_status'] ?? 'Available') === 'Available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>
                                     <tr class="donor-row border-t border-slate-200 hover:bg-gray-50">
                                         <td class="p-3 font-medium">#<?= $d['id'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['username'] ?? '-') ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['full_name']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['username'] ?? '-') ?></td>                                        
                                         <td class="p-3"><?= htmlspecialchars($d['gender']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['date_of_birth']) ?></td>
                                         <td class="p-3"><?= (int)$d['age'] ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['weight']) ?></td>
                                         <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($d['blood_groups']) ?></span></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['phone']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['phone']) ?></td>                                        
+                                        <td class="p-3"><?= htmlspecialchars($d['address']) ?></td>                                        
+                                        <td class="p-3"><?= htmlspecialchars($d['last_donation_date'] ?? '-') ?></td>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $availColor ?>"><?= htmlspecialchars($d['available_status']) ?></span></td>
                                         <td class="p-3">
                                             <div class="flex gap-2">

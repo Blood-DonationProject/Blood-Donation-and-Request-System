@@ -18,18 +18,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_username'])) {
         if ($loginUser === 'admin' && $loginPass === 'password123') {
             $_SESSION['logged_in'] = true;
             $_SESSION['username'] = 'admin';
-            $_SESSION['user_email'] = 'admin@bloodlife.local';
+            $_SESSION['user_email'] = 'admin@gmail.com';
+            $_SESSION['myanmar_name'] = '';
             $loginSuccess = true;
         }
 
         if (!$loginSuccess && $loginUser === 'user' && $loginPass === '123456') {
             $_SESSION['logged_in'] = true;
             $_SESSION['username'] = 'user';
+            $_SESSION['myanmar_name'] = '';
             $loginSuccess = true;
         }
 
         if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ? OR email = ? LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, username, password, myanmar_name FROM users WHERE username = ? OR email = ? LIMIT 1");
             if ($stmt) {
                 $stmt->bind_param('ss', $loginUser, $loginUser);
                 $stmt->execute();
@@ -41,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_username'])) {
                         $_SESSION['logged_in'] = true;
                         $_SESSION['username'] = $row['username'];
                         $_SESSION['user_id'] = $row['id'];
+                        $_SESSION['myanmar_name'] = $row['myanmar_name'] ?? '';
                         $loginSuccess = true;
                     }
                 }
@@ -117,11 +120,11 @@ if ($isLoggedIn) {
             $messageType = 'error';
         } else {
             if ($updateId > 0) {
-                $stmt = $conn->prepare("UPDATE blood_request SET blood_groups_id=?, units=?, hospital=?, required_date=?, status=? WHERE id=? AND users_id=?");
-                $stmt->bind_param("iisssii", $blood_groups_id, $units, $hospital, $required_date, $status, $updateId, $userId);
+                $stmt = $conn->prepare("UPDATE blood_request SET blood_groups_id=?, units=?, hospital=?, required_date=?, status=?, requester_name=? WHERE id=? AND users_id=?");
+                $stmt->bind_param("iissssii", $blood_groups_id, $units, $hospital, $required_date, $status, $username, $updateId, $userId);
             } else {
-                $stmt = $conn->prepare("INSERT INTO blood_request (users_id, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("iiisss", $userId, $blood_groups_id, $units, $hospital, $required_date, $status);
+                $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
             }
             if ($stmt->execute()) {
                 $message = $updateId > 0 ? 'Blood request updated successfully!' : 'Blood request submitted successfully!';
@@ -226,13 +229,29 @@ if ($isLoggedIn) {
             <option value="my">MY</option>
           </select>
           <?php if ($isLoggedIn): ?>
-            <a href="donordashboard.php" class="flex items-center gap-2 hover:text-red-600 transition">
-              <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
-                <?= strtoupper(substr($username, 0, 1)) ?>
+            <div class="relative" id="userMenu">
+              <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
+                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
+                  <?= strtoupper(substr($username, 0, 1)) ?>
+                </div>
+                <span class="font-medium text-gray-700"><?= $username ?></span>
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              <span class="font-medium text-gray-700"><?= $username ?></span>
-            </a>
-            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm">Logout</a>
+              <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                <div class="p-4 border-b border-gray-100">
+                  <p class="font-semibold text-gray-800"><?= $username ?></p>
+                  <p class="text-sm text-gray-500">Logged in</p>
+                </div>
+                <div class="p-2">
+                  <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                    <span>👤</span> <span data-i18n="profile">Profile</span>
+                  </a>
+                  <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
+                    <span>🚪</span> <span data-i18n="logout">Logout</span>
+                  </a>
+                </div>
+              </div>
+            </div>
           <?php else: ?>
             <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition">Login</a>
           <?php endif; ?>
@@ -300,9 +319,10 @@ if ($isLoggedIn) {
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Required Date <span class="text-red-500">*</span></label>
-              <input type="date" name="required_date"
+              <input type="date" name="required_date" id="requiredDate" min="<?= date('Y-m-d') ?>"
                 value="<?= htmlspecialchars($editData['required_date'] ?? date('Y-m-d')) ?>"
                 required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+              <p class="text-xs text-gray-400 mt-1">Must be today or a future date</p>
             </div>
             <?php if ($editMode): ?>
             <div>
@@ -365,8 +385,7 @@ if ($isLoggedIn) {
                 <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Units</th>
                 <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Hospital</th>
                 <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Required Date</th>
-                <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Status</th>
-                <th class="text-left text-gray-500 font-semibold pb-3">Actions</th>
+                <th class="text-left text-gray-500 font-semibold pb-3">Status</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
@@ -392,12 +411,6 @@ if ($isLoggedIn) {
                 <td class="py-3 pr-4 text-gray-600"><?= date('M j, Y', strtotime($r['required_date'])) ?></td>
                 <td class="py-3 pr-4">
                   <span class="<?= $statusColor ?> text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($r['status']) ?></span>
-                </td>
-                <td class="py-3">
-                  <div class="flex gap-2">
-                    <a href="requestblood.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold text-xs">Edit</a>
-                    <a href="requestblood.php?delete=<?= $r['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold text-xs" onclick="return confirm('Delete this blood request?')">Delete</a>
-                  </div>
                 </td>
               </tr>
               <?php endforeach; ?>
@@ -524,6 +537,29 @@ if ($isLoggedIn) {
       const b = document.getElementById('loginEyeBtn');
       f.type = f.type === 'password' ? 'text' : 'password';
       b.textContent = f.type === 'password' ? '👁' : '🙈';
+    }
+
+    function toggleUserDropdown() {
+      document.getElementById('userDropdown').classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('userMenu');
+      const dropdown = document.getElementById('userDropdown');
+      if (menu && dropdown && !menu.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
+    // Required Date: no past dates
+    const requiredDate = document.getElementById('requiredDate');
+    if (requiredDate) {
+      const today = new Date().toISOString().split('T')[0];
+      requiredDate.setAttribute('min', today);
+      requiredDate.addEventListener('change', function() {
+        if (this.value < today) {
+          this.value = today;
+        }
+      });
     }
   </script>
 

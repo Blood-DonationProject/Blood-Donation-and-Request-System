@@ -31,16 +31,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         $stmt->close();
         $_SESSION['user_email'] = $newEmail;
 
-        // Update donor table if donor
-        if ($userRole === 'Donor') {
-            $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, email = ?, address = ? WHERE user_id = ?");
-            $stmt2->bind_param("sssi", $newPhone, $newEmail, $newAddress, $userId);
-            $stmt2->execute();
-            $stmt2->close();
-        }
+        // Update donor table if record exists
+        $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
+        $stmt2->bind_param("ssi", $newPhone, $newAddress, $userId);
+        $stmt2->execute();
+        $stmt2->close();
 
         $message = 'Profile updated successfully.';
         $messageType = 'success';
+    }
+}
+
+// Handle donor registration/update from profile
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
+    $gender = $_POST['gender'] ?? '';
+    $date_of_birth = $_POST['date_of_birth'] ?? '';
+    $age = (int)($_POST['age'] ?? 0);
+    $blood_groups = trim($_POST['blood_groups'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $address = trim($_POST['address'] ?? '');
+    $weight = (float)($_POST['weight'] ?? 0);
+    $last_donation_date = $_POST['last_donation_date'] ?: null;
+    $available_status = $_POST['available_status'] ?? 'Available';
+
+    if ($gender === '' || $blood_groups === '' || $phone === '' || $address === '' || $weight <= 0) {
+        $message = 'Please fill in all required donor fields.';
+        $messageType = 'error';
+    } else {
+        $check = $conn->prepare("SELECT id FROM donor WHERE user_id = ?");
+        $check->bind_param("i", $userId);
+        $check->execute();
+        $existing = $check->get_result()->fetch_assoc();
+        $check->close();
+
+        if ($existing) {
+            $stmt = $conn->prepare("UPDATE donor SET gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE user_id=?");
+            $stmt->bind_param("sssisssssi", $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status, $userId);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("isssisssds", $userId, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);
+        }
+
+        if ($stmt->execute()) {
+            $donorIdForHistory = $existing ? $existing['id'] : $conn->insert_id;
+            $bgStmt = $conn->prepare("SELECT id FROM blood_groups WHERE blood_gp_name = ?");
+            $bgStmt->bind_param("s", $blood_groups);
+            $bgStmt->execute();
+            $bgResult = $bgStmt->get_result()->fetch_assoc();
+            $bgStmt->close();
+            $blood_groups_id = $bgResult ? $bgResult['id'] : 0;
+            $donationDate = $last_donation_date ?: date('Y-m-d');
+            $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, donation_date, units, status) VALUES (?, ?, 0, ?, ?, 1, 'Completed')");
+            $dhStmt->bind_param("iiis", $donorIdForHistory, $userId, $blood_groups_id, $donationDate);
+            $dhStmt->execute();
+            $dhStmt->close();
+            $message = $existing ? 'Donor information updated successfully.' : 'Donor registration successful.';
+            $messageType = 'success';
+        } else {
+            $message = 'Error saving donor info: ' . $conn->error;
+            $messageType = 'error';
+        }
+        $stmt->close();
+    }
+}
+
+// Handle blood request submission from profile
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
+    $blood_groups_id = (int)($_POST['blood_groups_id'] ?? 0);
+    $units = max(1, (int)($_POST['units'] ?? 1));
+    $hospital = trim($_POST['hospital'] ?? '');
+    $required_date = $_POST['required_date'] ?? date('Y-m-d');
+
+    if ($blood_groups_id < 1) {
+        $message = 'Please select a blood type.';
+        $messageType = 'error';
+    } elseif ($hospital === '') {
+        $message = 'Please enter the hospital name.';
+        $messageType = 'error';
+    } else {
+        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status = 'Pending');
+        if ($stmt->execute()) {
+            $message = 'Blood request submitted successfully.';
+            $messageType = 'success';
+        } else {
+            $message = 'Error submitting request: ' . $conn->error;
+            $messageType = 'error';
+        }
+        $stmt->close();
     }
 }
 
@@ -62,53 +140,54 @@ $livesSaved = 0;
 $daysSinceLast = '-';
 $bloodGroup = '-';
 
-if ($userRole === 'Donor') {
-    $stmt = $conn->prepare("SELECT * FROM donor WHERE user_id = ?");
-    $stmt->bind_param("i", $userId);
+// Fetch donor record for any user (Donor or Requester)
+$stmt = $conn->prepare("SELECT * FROM donor WHERE user_id = ?");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$donorData = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if ($donorData) {
+    $donorId = (int)$donorData['id'];
+    $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
+    $userData['phone'] = $donorData['phone'] ?? '';
+    $userData['address'] = $donorData['address'] ?? '';
+
+    // Fetch donation history for all users with donor record
+    $stmt = $conn->prepare("SELECT dh.*, bg.blood_gp_name, dh.status AS dh_status
+                            FROM donation_history dh
+                            LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
+                            WHERE dh.donor_id = ?
+                            ORDER BY dh.donation_date DESC");
+    $stmt->bind_param("i", $donorId);
     $stmt->execute();
-    $donorData = $stmt->get_result()->fetch_assoc();
+    $donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
-    if ($donorData) {
-        $donorId = (int)$donorData['id'];
-        $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
-        $userData['phone'] = $donorData['phone'] ?? '';
-        $userData['address'] = $donorData['address'] ?? '';
-
-        // Fetch donation history
-        $stmt = $conn->prepare("SELECT dh.*, bg.blood_gp_name, dh.status AS dh_status
-                                FROM donation_history dh
-                                LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
-                                WHERE dh.donor_id = ?
-                                ORDER BY dh.donation_date DESC");
-        $stmt->bind_param("i", $donorId);
-        $stmt->execute();
-        $donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-
-        $donationCount = count($donations);
-        foreach ($donations as $d) {
-            $totalUnits += (int)($d['units'] ?? 1);
-        }
-        $livesSaved = $totalUnits * 3;
-
-        if ($donationCount > 0 && !empty($donations[0]['donation_date'])) {
-            $lastDate = new DateTime($donations[0]['donation_date']);
-            $now = new DateTime();
-            $daysSinceLast = $now->diff($lastDate)->days;
-        }
+    $donationCount = count($donations);
+    foreach ($donations as $d) {
+        $totalUnits += (int)($d['units'] ?? 1);
     }
-} elseif ($userRole === 'Requester') {
-    $stmt = $conn->prepare("SELECT * FROM donor WHERE user_id = ?");
-    $stmt->bind_param("i", $userId);
-    $stmt->execute();
-    $donorData = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if ($donorData) {
-        $userData['phone'] = $donorData['phone'] ?? '';
-        $userData['address'] = $donorData['address'] ?? '';
+    $livesSaved = $totalUnits * 3;
+
+    if ($donationCount > 0 && !empty($donations[0]['donation_date'])) {
+        $lastDate = new DateTime($donations[0]['donation_date']);
+        $now = new DateTime();
+        $daysSinceLast = $now->diff($lastDate)->days;
     }
 }
+
+// Fetch blood request history for any user
+$bloodRequests = [];
+$stmt = $conn->prepare("SELECT br.*, bg.blood_gp_name
+                        FROM blood_request br
+                        LEFT JOIN blood_groups bg ON bg.id = br.blood_groups_id
+                        WHERE br.users_id = ?
+                        ORDER BY br.required_date DESC");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$bloodRequests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -171,20 +250,35 @@ if ($userRole === 'Donor') {
           </div>
         </div>
         <div class="hidden md:flex items-center space-x-8">
-          <a href="dashboard.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="dashboard">Dashboard</a>
-          <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-          <a href="hospital.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="hospitals">Hospitals</a>
+          <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="Home">Home</a>
+          <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>          
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
           <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
             <option value="en">EN</option>
             <option value="my">MY</option>
           </select>
-          <a href="profile.php" class="flex items-center gap-2 text-red-600">
-            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">A</div>
-            <span class="font-semibold">Ahmed</span>
-          </a>
-          <a href="#" onclick="bloodlifeLogout(); return false;" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm" data-i18n="logout">Logout</a>
+          <div class="relative" id="userMenu">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
+              <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700"><?= strtoupper(substr($username, 0, 1)) ?></div>
+              <span class="font-semibold text-gray-700"><?= $username ?></span>
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+              <div class="p-4 border-b border-gray-100">
+                <p class="font-semibold text-gray-800"><?= $username ?></p>
+                <p class="text-sm text-gray-500">Logged in</p>
+              </div>
+              <div class="p-2">
+                <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                  <span>👤</span> <span data-i18n="profile">Profile</span>
+                </a>
+                <a href="#" onclick="bloodlifeLogout(); return false;" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
+                  <span>🚪</span> <span data-i18n="logout">Logout</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -212,9 +306,9 @@ if ($userRole === 'Donor') {
             <h1 class="text-2xl font-bold text-gray-900"><?= htmlspecialchars($donorData['full_name'] ?? $userData['username'] ?? '') ?></h1>
             <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-0.5 rounded-full text-sm w-fit mx-auto sm:mx-0"><?= $bloodGroup ?></span>
           </div>
-          
+
         </div>
-        <a href="dashboard.php" onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
+        <a href="donordashboard.php" onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
           Back
         </a>
       </div>
@@ -226,68 +320,68 @@ if ($userRole === 'Donor') {
       <div class="space-y-6 animate-fade-up">
 
         <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-4">Donation Stats</h2>
+          <h2 class="font-bold text-gray-900 mb-4" data-i18n="donation_stats">Donation Stats</h2>
           <div class="grid grid-cols-2 gap-4">
             <div class="text-center bg-red-50 rounded-xl p-4">
               <p class="text-3xl font-bold text-red-600"><?= $donationCount ?></p>
-              <p class="text-xs text-gray-500 mt-1">Donations</p>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="donations">Donations</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
               <p class="text-3xl font-bold text-red-600"><?= $livesSaved ?></p>
-              <p class="text-xs text-gray-500 mt-1">Lives Saved</p>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="lives_saved_stat">Lives Saved</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
               <p class="text-3xl font-bold text-red-600"><?= $daysSinceLast ?></p>
-              <p class="text-xs text-gray-500 mt-1">Days Since Last</p>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="days_since_last_stat">Days Since Last</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
               <p class="text-3xl font-bold text-red-600"><?= number_format($totalUnits * 0.5, 1) ?>L</p>
-              <p class="text-xs text-gray-500 mt-1">Blood Donated</p>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="blood_donated">Blood Donated</p>
             </div>
           </div>
         </div>
 
         <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-4">Badges Earned</h2>
+          <h2 class="font-bold text-gray-900 mb-4" data-i18n="badges_earned_profile">Badges Earned</h2>
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">🥇</div>
-              <p class="text-xs font-bold text-yellow-700">First Donation</p>
+              <p class="text-xs font-bold text-yellow-700" data-i18n="first_donation">First Donation</p>
             </div>
             <div class="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">🔥</div>
-              <p class="text-xs font-bold text-red-700">5 Donations</p>
+              <p class="text-xs font-bold text-red-700" data-i18n="five_donations">5 Donations</p>
             </div>
             <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">⚡</div>
-              <p class="text-xs font-bold text-blue-700">Quick Responder</p>
+              <p class="text-xs font-bold text-blue-700" data-i18n="quick_responder">Quick Responder</p>
             </div>
             <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 text-center">
               <div class="text-3xl mb-1">🌟</div>
-              <p class="text-xs font-bold text-purple-700">Life Saver</p>
+              <p class="text-xs font-bold text-purple-700" data-i18n="life_saver">Life Saver</p>
             </div>
             <div class="bg-gray-50 border-2 border-gray-200 rounded-xl p-3 text-center opacity-40">
               <div class="text-3xl mb-1">🔒</div>
-              <p class="text-xs font-bold text-gray-500">10 Donations</p>
+              <p class="text-xs font-bold text-gray-500" data-i18n="ten_donations">10 Donations</p>
             </div>
             <div class="bg-gray-50 border-2 border-gray-200 rounded-xl p-3 text-center opacity-40">
               <div class="text-3xl mb-1">🔒</div>
-              <p class="text-xs font-bold text-gray-500">1 Year Member</p>
+              <p class="text-xs font-bold text-gray-500" data-i18n="one_year_member">1 Year Member</p>
             </div>
           </div>
         </div>
 
         <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-3">Account</h2>
+          <h2 class="font-bold text-gray-900 mb-3" data-i18n="account">Account</h2>
           <div class="space-y-2">
             <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-gray-700 flex items-center justify-between">
-              Change Password <span>›</span>
+              <span data-i18n="change_password">Change Password</span> <span>›</span>
             </button>
             <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-gray-700 flex items-center justify-between">
-              Notification Settings <span>›</span>
+              <span data-i18n="notification_settings">Notification Settings</span> <span>›</span>
             </button>
             <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-red-600 flex items-center justify-between">
-              Delete Account <span>›</span>
+              <span data-i18n="delete_account">Delete Account</span> <span>›</span>
             </button>
           </div>
         </div>
@@ -299,10 +393,11 @@ if ($userRole === 'Donor') {
 
           <!-- Tabs -->
           <div class="flex border-b border-gray-100 overflow-x-auto">
-            <button onclick="setTab('info')" id="tabbtn-info" class="flex-1 py-4 font-semibold text-sm text-red-600 border-b-2 border-red-600 transition whitespace-nowrap px-2">Personal Info</button>
-            <button onclick="setTab('history')" id="tabbtn-history" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Donation History</button>
-            <button onclick="setTab('health')" id="tabbtn-health" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Health Info</button>
-            <button onclick="setTab('receipts')" id="tabbtn-receipts" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">🧾 Receipts</button>
+            <button onclick="setTab('info')" id="tabbtn-info" class="flex-1 py-4 font-semibold text-sm text-red-600 border-b-2 border-red-600 transition whitespace-nowrap px-2" data-i18n="personal_info">Personal Info</button>
+            <button onclick="setTab('history')" id="tabbtn-history" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="donation_history">Donation History</button>
+            <button onclick="setTab('requests')" id="tabbtn-requests" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="blood_requests_tab">Blood Requests</button>
+            <button onclick="setTab('health')" id="tabbtn-health" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="health_info">Health Info</button>
+            <button onclick="setTab('receipts')" id="tabbtn-receipts" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="receipts_tab">🧾 Receipts</button>
           </div>
 
           <div class="p-6 sm:p-8">
@@ -312,23 +407,23 @@ if ($userRole === 'Donor') {
               <div id="tab-info" class="tab-panel active space-y-5">
                 <div class="grid sm:grid-cols-2 gap-5">
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="username">Username</label>
                     <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_address">Email Address</label>
                     <input type="email" name="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="phone_number">Phone Number</label>
                     <input type="tel" name="phone" value="<?= htmlspecialchars($userData['phone'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Member Since</label>
-                    <input type="text" value="<?= $userData['created_at'] ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="member_since">Member Since</label>
+                    <input type="text" value="<?= !empty($userData['created_at']) ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                   </div>
                   <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="address">Address</label>
                     <input type="text" name="address" value="<?= htmlspecialchars($userData['address'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
                   </div>
                 </div>
@@ -338,8 +433,8 @@ if ($userRole === 'Donor') {
             <div id="saveBar" class="hidden px-6 sm:px-8 pb-6 pt-2 border-t border-gray-100 flex items-center justify-between">
               <p class="text-sm text-gray-500">You have unsaved changes.</p>
               <div class="flex gap-3">
-                <button type="button" onclick="toggleEdit()" class="border-2 border-gray-300 text-gray-600 px-5 py-2 rounded-xl font-semibold hover:border-red-400 hover:text-red-600 transition text-sm">Cancel</button>
-                <button type="button" onclick="saveProfile()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm">Save Changes</button>
+                <button type="button" onclick="toggleEdit()" class="border-2 border-gray-300 text-gray-600 px-5 py-2 rounded-xl font-semibold hover:border-red-400 hover:text-red-600 transition text-sm" data-i18n="cancel">Cancel</button>
+                <button type="button" onclick="saveProfile()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm" data-i18n="save_changes">Save Changes</button>
               </div>
             </div>
 
@@ -349,9 +444,9 @@ if ($userRole === 'Donor') {
                 <table class="w-full text-sm">
                   <thead>
                     <tr class="border-b border-gray-100">
-                      <th class="text-left text-gray-500 font-semibold pb-3">Date</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3">Units</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3">Status</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-50">
@@ -364,7 +459,51 @@ if ($userRole === 'Donor') {
                         </tr>
                       <?php endforeach; ?>
                     <?php else: ?>
-                      <tr><td colspan="3" class="py-8 text-center text-gray-500">No donation history found.</td></tr>
+                      <tr><td colspan="3" class="py-8 text-center text-gray-500" data-i18n="no_donation_history">No donation history found.</td></tr>
+                    <?php endif; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Blood Requests Tab -->
+            <div id="tab-requests" class="tab-panel">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="border-b border-gray-100">
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <?php if (count($bloodRequests) > 0): ?>
+                      <?php foreach ($bloodRequests as $br): ?>
+                        <tr class="hover:bg-gray-50">
+                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
+                          <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
+                          <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
+                          <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
+                          <td class="py-3">
+                            <?php
+                              $status = htmlspecialchars($br['status'] ?? 'Pending');
+                              $statusColors = [
+                                  'Pending'   => 'bg-yellow-100 text-yellow-700',
+                                  'Approved'  => 'bg-blue-100 text-blue-700',
+                                  'Completed' => 'bg-green-100 text-green-700',
+                                  'Rejected'  => 'bg-red-100 text-red-700',
+                              ];
+                              $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
+                            ?>
+                            <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <tr><td colspan="5" class="py-8 text-center text-gray-500" data-i18n="no_blood_request_history">No blood request history found.</td></tr>
                     <?php endif; ?>
                   </tbody>
                 </table>
@@ -375,25 +514,25 @@ if ($userRole === 'Donor') {
             <div id="tab-health" class="tab-panel space-y-5">
               <div class="grid sm:grid-cols-2 gap-5">
                 <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type</label>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="blood_type">Blood Type</label>
                   <input type="text" value="<?= $bloodGroup ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
                 </div>
                 <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg)</label>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="weight_field">Weight (kg)</label>
                   <input type="text" value="<?= htmlspecialchars($donorData['weight'] ?? '-') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
                 </div>
               </div>
               <div class="bg-red-50 border-2 border-red-100 rounded-xl p-5">
-                <h3 class="font-bold text-red-700 mb-2 flex items-center gap-2">⚠️ Medical Conditions</h3>
-                <p class="text-sm text-gray-600">None reported. Please update this section if your health status changes, as it affects your donation eligibility.</p>
+                <h3 class="font-bold text-red-700 mb-2 flex items-center gap-2">⚠️ <span data-i18n="medical_conditions">Medical Conditions</span></h3>
+                <p class="text-sm text-gray-600" data-i18n="medical_conditions_desc">None reported. Please update this section if your health status changes, as it affects your donation eligibility.</p>
               </div>
               <div class="bg-gray-50 rounded-xl p-5">
-                <h3 class="font-bold text-gray-800 mb-2">Eligibility Checklist</h3>
+                <h3 class="font-bold text-gray-800 mb-2" data-i18n="eligibility_checklist">Eligibility Checklist</h3>
                 <ul class="space-y-2 text-sm text-gray-600">
-                  <li class="flex items-center gap-2">✅ No fever or infection in past 2 weeks</li>
-                  <li class="flex items-center gap-2">✅ Last donation over 4 months ago</li>
-                  <li class="flex items-center gap-2">✅ Not on blood-thinning medication</li>
-                  <li class="flex items-center gap-2">✅ Weight above minimum requirement</li>
+                  <li class="flex items-center gap-2">✅ <span data-i18n="no_fever_2weeks">No fever or infection in past 2 weeks</span></li>
+                  <li class="flex items-center gap-2">✅ <span data-i18n="last_donation_4months">Last donation over 4 months ago</span></li>
+                  <li class="flex items-center gap-2">✅ <span data-i18n="not_on_medication">Not on blood-thinning medication</span></li>
+                  <li class="flex items-center gap-2">✅ <span data-i18n="weight_above_min">Weight above minimum requirement</span></li>
                 </ul>
               </div>
             </div>
@@ -402,7 +541,7 @@ if ($userRole === 'Donor') {
             <div id="tab-receipts" class="tab-panel space-y-5">
 
               <div class="flex items-center justify-between mb-2">
-                <p class="text-sm text-gray-500">Receipts issued to you by BloodLife admins after each donation.</p>
+                <p class="text-sm text-gray-500" data-i18n="receipts_desc">Receipts issued to you by BloodLife admins after each donation.</p>
               </div>
 
               <!-- Receipt Card 1 -->
@@ -413,21 +552,21 @@ if ($userRole === 'Donor') {
                     <div>
                       <div class="flex items-center gap-2 flex-wrap mb-1">
                         <span class="font-bold text-gray-900">Receipt #BL-2026-4821</span>
-                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ Verified</span>
+                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ <span data-i18n="verified">Verified</span></span>
                       </div>
                       <p class="text-sm text-gray-500">📅 Donated: <span class="font-semibold text-gray-700">April 28, 2026</span></p>
                       <p class="text-sm text-gray-500">🏥 Hospital: <span class="font-semibold text-gray-700">Aga Khan University Hospital, Karachi</span></p>
                     </div>
                   </div>
-                  <button onclick="showReceipt(0)" class="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl font-semibold hover:bg-red-50 transition text-sm whitespace-nowrap">View Receipt</button>
+                  <button onclick="showReceipt(0)" class="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl font-semibold hover:bg-red-50 transition text-sm whitespace-nowrap" data-i18n="view_receipt">View Receipt</button>
                 </div>
                 <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Blood Type</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="blood_type_label">Blood Type</p>
                     <p class="font-bold text-red-600">A+</p>
                   </div>
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Units</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="units_label">Units</p>
                     <p class="font-bold text-gray-700">1 unit</p>
                   </div>
                   <div class="bg-green-50 rounded-xl p-2">
@@ -435,7 +574,7 @@ if ($userRole === 'Donor') {
                     <p class="font-bold text-green-700">Aug 26, 2026</p>
                   </div>
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Issued By</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="issued_by">Issued By</p>
                     <p class="font-bold text-gray-700">Dr. Kamran</p>
                   </div>
                 </div>
@@ -452,7 +591,7 @@ if ($userRole === 'Donor') {
                     <div>
                       <div class="flex items-center gap-2 flex-wrap mb-1">
                         <span class="font-bold text-gray-900">Receipt #BL-2026-1193</span>
-                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ Verified</span>
+                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ <span data-i18n="verified">Verified</span></span>
                       </div>
                       <p class="text-sm text-gray-500">📅 Donated: <span class="font-semibold text-gray-700">January 10, 2026</span></p>
                       <p class="text-sm text-gray-500">🏥 Hospital: <span class="font-semibold text-gray-700">Civil Hospital, Karachi</span></p>
@@ -462,11 +601,11 @@ if ($userRole === 'Donor') {
                 </div>
                 <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Blood Type</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="blood_type_label">Blood Type</p>
                     <p class="font-bold text-red-600">A+</p>
                   </div>
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Units</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="units_label">Units</p>
                     <p class="font-bold text-gray-700">1 unit</p>
                   </div>
                   <div class="bg-green-50 rounded-xl p-2">
@@ -474,7 +613,7 @@ if ($userRole === 'Donor') {
                     <p class="font-bold text-green-700">May 10, 2026</p>
                   </div>
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Issued By</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="issued_by">Issued By</p>
                     <p class="font-bold text-gray-700">Dr. Saira</p>
                   </div>
                 </div>
@@ -491,7 +630,7 @@ if ($userRole === 'Donor') {
                     <div>
                       <div class="flex items-center gap-2 flex-wrap mb-1">
                         <span class="font-bold text-gray-900">Receipt #BL-2025-7734</span>
-                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ Verified</span>
+                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ <span data-i18n="verified">Verified</span></span>
                       </div>
                       <p class="text-sm text-gray-500">📅 Donated: <span class="font-semibold text-gray-700">September 3, 2025</span></p>
                       <p class="text-sm text-gray-500">🏥 Hospital: <span class="font-semibold text-gray-700">Aga Khan University Hospital, Karachi</span></p>
@@ -501,11 +640,11 @@ if ($userRole === 'Donor') {
                 </div>
                 <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Blood Type</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="blood_type_label">Blood Type</p>
                     <p class="font-bold text-red-600">A+</p>
                   </div>
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Units</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="units_label">Units</p>
                     <p class="font-bold text-gray-700">1 unit</p>
                   </div>
                   <div class="bg-green-50 rounded-xl p-2">
@@ -513,7 +652,7 @@ if ($userRole === 'Donor') {
                     <p class="font-bold text-green-700">Jan 1, 2026</p>
                   </div>
                   <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5">Issued By</p>
+                    <p class="text-gray-400 mb-0.5" data-i18n="issued_by">Issued By</p>
                     <p class="font-bold text-gray-700">Dr. Kamran</p>
                   </div>
                 </div>
@@ -594,7 +733,7 @@ if ($userRole === 'Donor') {
 
       <!-- Modal Footer -->
       <div class="px-8 pb-6 flex gap-3">
-        <button onclick="window.print()" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white py-3 rounded-xl font-bold hover:shadow-lg transition">🖨️ Print</button>
+        <button onclick="window.print()" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white py-3 rounded-xl font-bold hover:shadow-lg transition">🖨️ <span data-i18n="print">Print</span></button>
         <button onclick="closeReceiptModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-red-400 hover:text-red-600 transition">Close</button>
       </div>
 
@@ -607,7 +746,7 @@ if ($userRole === 'Donor') {
       <div class="grid md:grid-cols-4 gap-8 mb-8">
         <div><h3 class="text-white font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
         <div>
-          <h4 class="text-white font-bold mb-4">Quick Links</h4>
+          <h4 class="text-white font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
           <ul class="space-y-2 text-sm">
             <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
             <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
@@ -615,7 +754,7 @@ if ($userRole === 'Donor') {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Contact</h4>
+          <h4 class="text-white font-bold mb-4" data-i18n="contact">Contact</h4>
           <ul class="space-y-2 text-sm">
             <li>📧 info@bloodlife.com</li>
             <li>📱 1-800-BLOOD-999</li>
@@ -623,7 +762,7 @@ if ($userRole === 'Donor') {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Follow Us</h4>
+          <h4 class="text-white font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
           <div class="flex space-x-4">
             <a href="#" class="hover:text-red-400 transition">Facebook</a>
             <a href="#" class="hover:text-red-400 transition">Twitter</a>
@@ -638,6 +777,17 @@ if ($userRole === 'Donor') {
   </footer>
 
   <script>
+    function toggleUserDropdown() {
+      document.getElementById('userDropdown').classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('userMenu');
+      const dropdown = document.getElementById('userDropdown');
+      if (menu && dropdown && !menu.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
     function bloodlifeLogout() {
       if (!confirm('Are you sure you want to logout?')) return;
       localStorage.removeItem('bloodlife_logged_in');
@@ -646,11 +796,14 @@ if ($userRole === 'Donor') {
     }
 
     function setTab(tab) {
-      ['info','history','health','receipts'].forEach(t => {
-        document.getElementById('tab-' + t).classList.remove('active');
+      ['info','history','requests','health','receipts'].forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        if (el) el.classList.remove('active');
         const btn = document.getElementById('tabbtn-' + t);
-        btn.classList.remove('text-red-600','border-b-2','border-red-600');
-        btn.classList.add('text-gray-500');
+        if (btn) {
+          btn.classList.remove('text-red-600','border-b-2','border-red-600');
+          btn.classList.add('text-gray-500');
+        }
       });
       document.getElementById('tab-' + tab).classList.add('active');
       const activeBtn = document.getElementById('tabbtn-' + tab);

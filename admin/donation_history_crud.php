@@ -6,7 +6,7 @@ $error = '';
 $success = '';
 
 $donors_list = $conn->query("SELECT d.id, u.username FROM donor d JOIN users u ON d.user_id = u.id ORDER BY u.username");
-$requests_list = $conn->query("SELECT id, blood_groups_id, units FROM blood_request ORDER BY id DESC LIMIT 100");
+$requests_list = $conn->query("SELECT br.id, br.blood_groups_id, br.units, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id ORDER BY br.id DESC LIMIT 100");
 $blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
 
 if (isset($_POST['add'])) {
@@ -16,9 +16,22 @@ if (isset($_POST['add'])) {
     $units = (int)$_POST['units'];
     $donation_date = $_POST['donation_date'];
 
-    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '') {
-        $stmt = $conn->prepare("INSERT INTO donation_history (donor_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, 'Completed')");
-        $stmt->bind_param("iiiiss", $donor_id, $request_id, $blood_groups_id, $units, $donation_date);
+    // Auto-derive users_id (requester) from the selected blood request
+    $users_id = 0;
+    if ($request_id > 0) {
+        $reqStmt = $conn->prepare("SELECT users_id FROM blood_request WHERE id = ?");
+        $reqStmt->bind_param("i", $request_id);
+        $reqStmt->execute();
+        $reqResult = $reqStmt->get_result();
+        if ($reqRow = $reqResult->fetch_assoc()) {
+            $users_id = (int)$reqRow['users_id'];
+        }
+        $reqStmt->close();
+    }
+
+    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '' && $users_id > 0) {
+        $stmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Completed')");
+        $stmt->bind_param("iiiiis", $donor_id, $users_id, $request_id, $blood_groups_id, $units, $donation_date);
         if ($stmt->execute()) {
             $success = 'Donation history record created successfully.';
         } else {
@@ -38,9 +51,22 @@ if (isset($_POST['update'])) {
     $units = (int)$_POST['units'];
     $donation_date = $_POST['donation_date'];
 
-    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '') {
-        $stmt = $conn->prepare("UPDATE donation_history SET donor_id=?, request_id=?, blood_groups_id=?, units=?, donation_date=? WHERE id=?");
-        $stmt->bind_param("iiiisi", $donor_id, $request_id, $blood_groups_id, $units, $donation_date, $id);
+    // Auto-derive users_id (requester) from the selected blood request
+    $users_id = 0;
+    if ($request_id > 0) {
+        $reqStmt = $conn->prepare("SELECT users_id FROM blood_request WHERE id = ?");
+        $reqStmt->bind_param("i", $request_id);
+        $reqStmt->execute();
+        $reqResult = $reqStmt->get_result();
+        if ($reqRow = $reqResult->fetch_assoc()) {
+            $users_id = (int)$reqRow['users_id'];
+        }
+        $reqStmt->close();
+    }
+
+    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '' && $users_id > 0) {
+        $stmt = $conn->prepare("UPDATE donation_history SET donor_id=?, users_id=?, request_id=?, blood_groups_id=?, units=?, donation_date=? WHERE id=?");
+        $stmt->bind_param("iiiiisi", $donor_id, $users_id, $request_id, $blood_groups_id, $units, $donation_date, $id);
         if ($stmt->execute()) {
             $success = 'Donation history updated successfully.';
         } else {
@@ -65,10 +91,12 @@ $edit_row = null;
 $result = $conn->query("
     SELECT dh.*,
            u1.username AS donor_name,
+           u2.username AS requester_name,
            bg.blood_gp_name
     FROM donation_history dh
     LEFT JOIN donor d ON dh.donor_id = d.id
     LEFT JOIN users u1 ON d.user_id = u1.id
+    LEFT JOIN users u2 ON dh.users_id = u2.id
     LEFT JOIN blood_groups bg ON dh.blood_groups_id = bg.id
     ORDER BY dh.donation_date DESC
 ");
@@ -158,18 +186,21 @@ $stats = [
             <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>📊</span> <span data-i18n="overview">Overview</span>
             </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>🩸</span> <span>Blood Requests</span>
-            </a>
             <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>👤</span> <span>Users</span>
-            </a>
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                <span>⚡</span> <span>Donation History</span>
+                <span>👥</span> <span>Users</span>
             </a>
             <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>🩸</span> <span>Donors</span>
             </a>
+            
+            
+            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
+                <span>⚡</span> <span>Donation History</span>
+            </a>
+            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>📋</span> <span>Blood Requests</span>
+            </a>
+            
         </nav>
         <div class="p-4 border-t border-gray-200">
             <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
@@ -180,8 +211,8 @@ $stats = [
     <main class="flex-1">
         <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
             <div>
-                <h2 class="text-3xl font-bold text-red-800">Donation History CRUD</h2>
-                <p class="text-gray-500 mt-1">Create, read, update, delete donation history records.</p>
+                <h2 class="text-3xl font-bold text-red-800"> Donation Histories</h2>
+                <p class="text-gray-500 mt-1">Track and manage all donation-related actions.</p>
             </div>
             <div class="flex items-center gap-4">
                 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
@@ -268,7 +299,7 @@ $stats = [
                             <option value="0">-- None --</option>
                             <?php if ($requests_list): mysqli_data_seek($requests_list, 0); while ($req = $requests_list->fetch_assoc()): ?>
                                 <option value="<?= $req['id'] ?>" <?= (($edit_row['request_id'] ?? 0) == $req['id']) ? 'selected' : '' ?>>
-                                    #<?= $req['id'] ?> (<?= $req['blood_groups_id'] ?>, <?= $req['units'] ?> units)
+                                    #<?= $req['id'] ?> (<?= htmlspecialchars($req['blood_gp_name'] ?? '-') ?>, <?= $req['units'] ?> units)
                                 </option>
                             <?php endwhile; endif; ?>
                         </select>
@@ -315,7 +346,9 @@ $stats = [
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
-                                <th class="p-3">Donor</th>
+                                <th class="p-3">Donor Name</th>
+                                <th class="p-3">Requester Name</th>
+                                <th class="p-3">Request ID</th>
                                 <th class="p-3">Blood Group</th>
                                 <th class="p-3">Units</th>
                                 <th class="p-3">Donation Date</th>
@@ -329,6 +362,8 @@ $stats = [
                                     <tr class="border-t border-slate-200 hover:bg-gray-50">
                                         <td class="p-3 font-medium">#<?= $r['id'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donor_name'] ?? '-') ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['request_id'] ?? '-') ?></td>
                                         <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
                                         <td class="p-3"><?= (int)$r['units'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donation_date']) ?></td>

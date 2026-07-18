@@ -16,9 +16,20 @@ if (isset($_POST['add'])) {
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
 
+    // Get the username for the selected user
+    $requester_name = '';
+    $user_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
+    $user_stmt->bind_param("i", $users_id);
+    $user_stmt->execute();
+    $user_result = $user_stmt->get_result();
+    if ($user_result && $user_result->num_rows > 0) {
+        $requester_name = $user_result->fetch_assoc()['username'];
+    }
+    $user_stmt->close();
+
     if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
-        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("iiisss", $users_id, $blood_groups_id, $units, $hospital, $required_date, $status);
+        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isiisss", $users_id, $requester_name, $blood_groups_id, $units, $hospital, $required_date, $status);
         if ($stmt->execute()) {
             $success = 'Blood request created successfully.';
         } else {
@@ -40,9 +51,20 @@ if (isset($_POST['update'])) {
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
 
+    // Get the username for the selected user
+    $requester_name = '';
+    $user_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
+    $user_stmt->bind_param("i", $users_id);
+    $user_stmt->execute();
+    $user_result = $user_stmt->get_result();
+    if ($user_result && $user_result->num_rows > 0) {
+        $requester_name = $user_result->fetch_assoc()['username'];
+    }
+    $user_stmt->close();
+
     if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
-        $stmt = $conn->prepare("UPDATE blood_request SET users_id=?, blood_groups_id=?, units=?, hospital=?, required_date=?, status=? WHERE id=?");
-        $stmt->bind_param("iiisssi", $users_id, $blood_groups_id, $units, $hospital, $required_date, $status, $id);
+        $stmt = $conn->prepare("UPDATE blood_request SET users_id=?, requester_name=?, blood_groups_id=?, units=?, hospital=?, required_date=?, status=? WHERE id=?");
+        $stmt->bind_param("isiisssi", $users_id, $requester_name, $blood_groups_id, $units, $hospital, $required_date, $status, $id);
         if ($stmt->execute()) {
             $success = 'Blood request updated successfully.';
         } else {
@@ -69,9 +91,8 @@ if (isset($_GET['delete'])) {
 $requesters = [];
 $data = $conn->query("
     SELECT br.id, br.blood_groups_id, br.units, br.hospital, br.required_date, br.status,
-           br.users_id, u.username, u.email, bg.blood_gp_name
+           br.users_id, br.requester_name, bg.blood_gp_name
     FROM blood_request br
-    JOIN users u ON br.users_id = u.id
     LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
     ORDER BY br.required_date DESC
 ");
@@ -362,7 +383,7 @@ if (isset($_GET['edit'])) {
                                     ?>
                                     <tr class="requester-row border-t border-slate-200 hover:bg-gray-50">
                                         <td class="p-3 font-medium">#<?= $r['id'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['username'] ?? '-') ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
                                         <td class="p-3">
                                             <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-red-100 text-red-700">
                                                 <?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?>

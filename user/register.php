@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/db.php';
 
 $message = '';
 $messageType = '';
+$redirectTo = isset($_GET['redirect_to']) ? preg_replace('/[^a-zA-Z0-9_\-\.\/]/', '', $_GET['redirect_to']) : (isset($_POST['redirect_to']) ? preg_replace('/[^a-zA-Z0-9_\-\.\/]/', '', $_POST['redirect_to']) : '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $name = trim($_POST['name'] ?? '');
@@ -15,6 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
     $message = 'Please fill in all required fields.';
+    $messageType = 'error';
+  } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $message = 'Please enter a valid email address.';
     $messageType = 'error';
   } elseif ($password !== $confirmPassword) {
     $message = 'Passwords do not match.';
@@ -35,15 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $message = 'An account with this email already exists.';
       $messageType = 'error';
     } else {
-      $role = !empty($_POST['role']) ? trim($_POST['role']) : 'Donor';
-
-      // Prevent registration as Admin
-      if ($role === 'Admin') {
-        $role = 'Donor';
-      }
+      $role = 'User';
 
       $baseUsername = strtolower(preg_replace('/[^a-z0-9]+/i', '', $name));
-      $username = $baseUsername !== '' ? $baseUsername : 'user';
+      $username = $baseUsername !== '' ? $baseUsername : strtolower(preg_replace('/[^a-z0-9@.]+/i', '', $email));
+      if ($username === '') $username = 'user';
       $suffix = 0;
       $candidate = $username;
       while (true) {
@@ -61,11 +61,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
 
       $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-      $stmt = $conn->prepare('INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)');
-      $stmt->bind_param('ssss', $candidate, $email, $hashedPassword, $role);
+      $stmt = $conn->prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)');
+      $stmt->bind_param('sss', $candidate, $email, $hashedPassword);
 
       if ($stmt->execute()) {
-        header('Location: login.php?registered=1');
+        $loginRedirect = 'login.php?registered=1';
+        if (!empty($redirectTo)) {
+          $loginRedirect .= '&redirect_to=' . urlencode($redirectTo);
+        }
+        header('Location: ' . $loginRedirect);
         exit;
       } else {
         $message = 'Registration failed. Please try again.';
@@ -172,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <option value="en">EN</option>
             <option value="my">MY</option>
           </select>
-          <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition">Login</a>
+          <a href="login.php<?= !empty($redirectTo) ? '?redirect_to=' . htmlspecialchars($redirectTo) : '' ?>" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition">Login</a>
         </div>
       </div>
     </div>
@@ -200,6 +204,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <?php endif; ?>
 
           <form method="POST" class="space-y-5" onsubmit="return validateRegisterForm(event)">
+            <?php if (!empty($redirectTo)): ?>
+              <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($redirectTo) ?>" />
+            <?php endif; ?>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="full_name_label">Full Name <span class="text-red-500">*</span></label>
               <input id="reg_name" name="name" type="text" data-i18n-placeholder="enter_full_name" placeholder="Your full name" required
@@ -208,21 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_label">Email Address <span class="text-red-500">*</span></label>
-              <input id="reg_email" name="email" type="email" placeholder="you@example.com" required
+              <input id="reg_email" name="email" type="text" placeholder="you@example.com" required
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
             </div>
-
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Role <span class="text-red-500">*</span></label>
-              <select id="reg_role" name="role" required
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm">
-                <option value="" disabled selected>Select your role</option>
-                <option value="Donor">Donor</option>
-                <option value="Requester">Requester</option>
-              </select>
-            </div>
-
-            
 
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password_label">Password <span class="text-red-500">*</span></label>
@@ -268,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </form>
 
           <p class="text-center text-sm text-gray-500">
-            <span data-i18n="already_have_account">Already have an account?</span> <a href="login.php" class="text-red-600 font-bold hover:underline" data-i18n="sign_in_link">Sign in</a>
+            <span data-i18n="already_have_account">Already have an account?</span> <a href="login.php<?= !empty($redirectTo) ? '?redirect_to=' . htmlspecialchars($redirectTo) : '' ?>" class="text-red-600 font-bold hover:underline" data-i18n="sign_in_link">Sign in</a>
           </p>
         </div>
       </div>
@@ -315,6 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     function validateRegisterForm(event) {
       const name = document.getElementById('reg_name').value.trim();
       const email = document.getElementById('reg_email').value.trim();
+      const role = document.getElementById('reg_role').value;
       const password = document.getElementById('reg_password').value;
       const confirm = document.getElementById('reg_confirm').value;
       const terms = document.getElementById('reg_terms').checked;
@@ -322,6 +318,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!name || !email || !password) {
         event.preventDefault();
         alert('Please fill in all required fields.');
+        return false;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        event.preventDefault();
+        alert('Please enter a valid email address.');
         return false;
       }
       if (password !== confirm) {

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../config/db.php';
 $error = '';
 $success = '';
 $donors_list = $conn->query("SELECT d.id, u.username AS donor_name FROM donor d JOIN users u ON d.user_id = u.id ORDER BY u.username");
-$requests_list = $conn->query("SELECT id, blood_groups_id, units FROM blood_request ORDER BY id DESC LIMIT 100");
+$requests_list = $conn->query("SELECT br.id, br.blood_groups_id, br.units, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id ORDER BY br.id DESC LIMIT 100");
 $blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
 
 if (isset($_POST['add'])) {
@@ -15,9 +15,22 @@ if (isset($_POST['add'])) {
     $units = (int)$_POST['units'];
     $donation_date = $_POST['donation_date'];
 
-    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '') {
-        $stmt = $conn->prepare("INSERT INTO donation_history (donor_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, 'Completed')");
-        $stmt->bind_param('iiiiss', $donor_id, $request_id, $blood_groups_id, $units, $donation_date);
+    // Auto-derive users_id (requester) from the selected blood request
+    $users_id = 0;
+    if ($request_id > 0) {
+        $reqStmt = $conn->prepare("SELECT users_id FROM blood_request WHERE id = ?");
+        $reqStmt->bind_param("i", $request_id);
+        $reqStmt->execute();
+        $reqResult = $reqStmt->get_result();
+        if ($reqRow = $reqResult->fetch_assoc()) {
+            $users_id = (int)$reqRow['users_id'];
+        }
+        $reqStmt->close();
+    }
+
+    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '' && $users_id > 0) {
+        $stmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Completed')");
+        $stmt->bind_param("iiiiis", $donor_id, $users_id, $request_id, $blood_groups_id, $units, $donation_date);
         if ($stmt->execute()) {
             $success = 'Action registered successfully.';
         } else {
@@ -37,9 +50,22 @@ if (isset($_POST['update'])) {
     $units = (int)$_POST['units'];
     $donation_date = $_POST['donation_date'];
 
-    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '') {
-        $stmt = $conn->prepare("UPDATE donation_history SET donor_id=?, request_id=?, blood_groups_id=?, units=?, donation_date=? WHERE id=?");
-        $stmt->bind_param('iiiisi', $donor_id, $request_id, $blood_groups_id, $units, $donation_date, $id);
+    // Auto-derive users_id (requester) from the selected blood request
+    $users_id = 0;
+    if ($request_id > 0) {
+        $reqStmt = $conn->prepare("SELECT users_id FROM blood_request WHERE id = ?");
+        $reqStmt->bind_param("i", $request_id);
+        $reqStmt->execute();
+        $reqResult = $reqStmt->get_result();
+        if ($reqRow = $reqResult->fetch_assoc()) {
+            $users_id = (int)$reqRow['users_id'];
+        }
+        $reqStmt->close();
+    }
+
+    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '' && $users_id > 0) {
+        $stmt = $conn->prepare("UPDATE donation_history SET donor_id=?, users_id=?, request_id=?, blood_groups_id=?, units=?, donation_date=? WHERE id=?");
+        $stmt->bind_param("iiiiisi", $donor_id, $users_id, $request_id, $blood_groups_id, $units, $donation_date, $id);
         if ($stmt->execute()) {
             $success = 'Action updated successfully.';
         } else {
@@ -61,10 +87,11 @@ if (isset($_GET['delete'])) {
 $actions = [];
 $edit_row = null;
 $result = $conn->query("
-    SELECT dh.*, u.username AS donor_name, bg.blood_gp_name
+    SELECT dh.*, u.username AS donor_name, u2.username AS requester_name, bg.blood_gp_name
     FROM donation_history dh
     LEFT JOIN donor d ON dh.donor_id = d.id
     LEFT JOIN users u ON d.user_id = u.id
+    LEFT JOIN users u2 ON dh.users_id = u2.id
     LEFT JOIN blood_groups bg ON dh.blood_groups_id = bg.id
     ORDER BY dh.donation_date DESC
 ");
@@ -314,11 +341,13 @@ if (isset($_GET['edit'])) {
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
-                                <th class="p-3" data-i18n="donor_name_col">Donor</th>
-                                <th class="p-3">Blood Group</th>
-                                <th class="p-3">Units</th>
+                                <th class="p-3" data-i18n="donor_name_col">Donor Name</th>
+                                <th class="p-3" data-i18n="requester_name_col">Requester Name</th>
+                                <th class="p-3" data-i18n="request_id_col">Request ID</th>
+                                <th class="p-3" data-i18n="blood_group_col">Blood Group</th>
+                                <th class="p-3" data-i18n="units_col">Units</th>
                                 <th class="p-3" data-i18n="date_col">Donation Date</th>
-                                <th class="p-3">Status</th>
+                                <th class="p-3" data-i18n="status_col">Status</th>
                                 <th class="p-3" data-i18n="actions_col">Actions</th>
                             </tr>
                         </thead>
@@ -328,6 +357,8 @@ if (isset($_GET['edit'])) {
                                 <tr class="border-t border-slate-200 hover:bg-gray-50">
                                     <td class="p-3 font-medium">#<?= $a['id'] ?></td>
                                     <td class="p-3"><?= htmlspecialchars($a['donor_name'] ?? '-') ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($a['requester_name'] ?? '-') ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($a['request_id'] ?? '-') ?></td>
                                     <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($a['blood_gp_name'] ?? '-') ?></span></td>
                                     <td class="p-3"><?= (int)$a['units'] ?></td>
                                     <td class="p-3"><?= htmlspecialchars($a['donation_date']) ?></td>

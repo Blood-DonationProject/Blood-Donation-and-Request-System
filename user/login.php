@@ -3,6 +3,8 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 
 $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
+$redirectTo = isset($_GET['redirect_to']) ? preg_replace('/[^a-zA-Z0-9_\-\.\/]/', '', $_GET['redirect_to']) : (isset($_POST['redirect_to']) ? preg_replace('/[^a-zA-Z0-9_\-\.\/]/', '', $_POST['redirect_to']) : '');
+$redirectToUrl = $redirectTo !== '' ? $redirectTo . '.php' : '';
 
 // Resolve relative path to an absolute URL from document root
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
@@ -21,12 +23,16 @@ function absUrl($path) {
 }
 
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    // Determine redirect based on role
-    $role = $_SESSION['user_role'] ?? '';
-    if ($role === 'Admin') {
-        $target = '../admin/dashboard.php';
+    // Determine redirect based on role or redirect_to param
+    if (!empty($redirectToUrl)) {
+        $target = $redirectToUrl;
     } else {
-        $target = 'dashboard.php';
+        $role = $_SESSION['user_role'] ?? '';
+        if ($role === 'Admin') {
+            $target = '../admin/dashboard.php';
+        } else {
+            $target = 'donordashboard.php';
+        }
     }
     if ($isAjax) {
         header('Content-Type: application/json');
@@ -40,21 +46,21 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 $errorMessage = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($username === '' || $password === '') {
-        $errorMessage = 'Please enter both username and password.';
+    if ($email === '' || $password === '') {
+        $errorMessage = 'Please enter both email and password.';
     } else {
         $loginSuccess = false;
         $targetPath = '';
 
         // Hardcoded admin credentials (constant)
-        if ($username === 'admin' && $password === 'password123') {
+        if ($email === 'admin@gmail.com' && $password === 'password123') {
             $_SESSION['logged_in'] = true;
             $_SESSION['user_id'] = 0;
             $_SESSION['username'] = 'admin';
-            $_SESSION['user_email'] = 'admin@bloodlife.local';
+            $_SESSION['user_email'] = 'admin@gmail.com';
             $_SESSION['user_role'] = 'Admin';
             $loginSuccess = true;
             $targetPath = '../admin/dashboard.php';
@@ -62,9 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Verify credentials against the database
         if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username = ? OR email = ? LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE email = ?  LIMIT 1");
             if ($stmt) {
-                $stmt->bind_param('ss', $username, $username);
+                $stmt->bind_param('s', $email);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 if ($result && $result->num_rows > 0) {
@@ -76,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['username'] = $row['username'];
                         $_SESSION['user_id'] = $row['id'];
                         $_SESSION['user_role'] = $row['role'];
+                        $_SESSION['myanmar_name'] = $row['myanmar_name'] ?? '';
                         $loginSuccess = true;
 
                         // Redirect based on role
@@ -83,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($role === 'Admin') {
                             $targetPath = '../admin/dashboard.php';
                         } else {
-                            $targetPath = 'dashboard.php';
+                            $targetPath = 'donordashboard.php';
                         }
                     }
                 }
@@ -94,14 +101,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($loginSuccess) {
             if ($isAjax) {
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'redirect' => absUrl($targetPath)]);
+                $finalRedirect = !empty($redirectToUrl) ? absUrl($redirectToUrl) : absUrl($targetPath);
+                echo json_encode(['success' => true, 'redirect' => $finalRedirect]);
                 exit;
             }
-            header('Location: ' . $targetPath);
+            if (!empty($redirectToUrl)) {
+                header('Location: ' . $redirectToUrl);
+            } else {
+                header('Location: ' . $targetPath);
+            }
             exit;
         }
 
-        $errorMessage = 'Invalid username or password.';
+        $errorMessage = 'Invalid email or password.';
     }
 
     if ($isAjax) {
@@ -217,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
         </div>
 
-        <p class="text-sm opacity-70 mt-8"><span data-i18n="no_account_prompt">Don't have an account?</span> <a href="register.php" class="underline font-semibold hover:opacity-100" data-i18n="sign_up_free">Sign up free →</a></p>
+        <p class="text-sm opacity-70 mt-8"><span data-i18n="no_account_prompt">Don't have an account?</span> <a href="register.php<?= !empty($redirectToUrl) ? '?redirect_to=' . htmlspecialchars($redirectTo) : '' ?>" class="underline font-semibold hover:opacity-100" data-i18n="sign_up_free">Sign up free →</a></p>
       </div>
 
       <!-- Right Panel — Form -->
@@ -228,9 +240,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         <form method="POST" class="space-y-5">
+          <?php if (!empty($redirectToUrl)): ?>
+            <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($redirectTo) ?>" />
+          <?php endif; ?>
           <?php if (isset($_GET['registered']) && $_GET['registered'] === '1'): ?>
             <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded">
               <p class="text-green-700 text-sm">Registration successful! Please sign in with your credentials.</p>
+            </div>
+          <?php endif; ?>
+          <?php if (!empty($redirectToUrl)): ?>
+            <div class="bg-blue-50 border-l-2 border-blue-500 p-4 rounded">
+              <p class="text-blue-700 text-sm">You must be logged in to access that page. Please sign in below.</p>
             </div>
           <?php endif; ?>
           <?php if (isset($_GET['access_denied']) && $_GET['access_denied'] === '1'): ?>
@@ -245,8 +265,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <?php endif; ?>
 
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="username">Username</label>
-            <input type="text" name="username" data-i18n-placeholder="enter_username" placeholder="Enter your username" required
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+            <input type="email" name="email" placeholder="Enter your email" required
                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
           </div>
           <div>
@@ -261,36 +281,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
           </div>
 
-          <div class="flex items-center justify-between text-sm">
-            <label class="flex items-center gap-2 text-gray-600 cursor-pointer">
-              <input type="checkbox" class="accent-red-600 w-4 h-4" />
-              <span data-i18n="remember_me">Remember me</span>
-            </label>
-            <a href="#" class="text-red-600 font-semibold hover:underline" data-i18n="forgot_password">Forgot password?</a>
-          </div>
-
           <button type="submit" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-4 rounded-xl font-bold hover:shadow-xl hover:from-red-700 hover:to-red-800 transition transform hover:scale-[1.02] text-lg mt-2" data-i18n="sign_in">
             Sign In →
           </button>
         </form>
 
-        <div class="flex items-center gap-4 my-6">
-          <div class="flex-1 h-px bg-gray-200"></div>
-          <span class="text-gray-400 text-sm" data-i18n="or_continue_with">or continue with</span>
-          <div class="flex-1 h-px bg-gray-200"></div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <button class="border-2 border-gray-200 rounded-xl py-3 font-semibold text-gray-700 hover:border-red-400 hover:text-red-600 transition flex items-center justify-center gap-2">
-            <span>G</span> Google
-          </button>
-          <button class="border-2 border-gray-200 rounded-xl py-3 font-semibold text-gray-700 hover:border-red-400 hover:text-red-600 transition flex items-center justify-center gap-2">
-            <span>f</span> Facebook
-          </button>
-        </div>
-
         <p class="text-center text-sm text-gray-500 mt-8">
-          <span data-i18n="new_to_bloodlife_login">New to BloodLife?</span> <a href="register.php" class="text-red-600 font-bold hover:underline" data-i18n="create_account_login">Create an account</a>
+          <span data-i18n="new_to_bloodlife_login">New to BloodLife?</span> <a href="register.php<?= !empty($redirectToUrl) ? '?redirect_to=' . htmlspecialchars($redirectTo) : '' ?>" class="text-red-600 font-bold hover:underline" data-i18n="create_account_login">Create an account</a>
         </p>
       </div>
     </div>

@@ -90,20 +90,36 @@ try {
                     
                     <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 
-<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
+                      <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
                     <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
                         <option value="en">EN</option>
                         <option value="my">MY</option>
                     </select>
 
                     <?php if ($isLoggedIn): ?>
-                        <a href="donordashboard.php" class="flex items-center gap-2 hover:text-red-600 transition">
-                            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
-                                <?= strtoupper(substr($username, 0, 1)) ?>
+                        <div class="relative" id="userMenu">
+                            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
+                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
+                                    <?= strtoupper(substr($username, 0, 1)) ?>
+                                </div>
+                                <span class="font-medium text-gray-700"><?= $username ?></span>
+                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </div>
-                            <span class="font-medium text-gray-700"><?= $username ?></span>
-                        </a>
-                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-5 py-2 rounded-lg font-semibold hover:shadow-lg transition text-sm">Logout</a>
+                            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                                <div class="p-4 border-b border-gray-100">
+                                    <p class="font-semibold text-gray-800"><?= $username ?></p>
+                                    <p class="text-sm text-gray-500">Logged in</p>
+                                </div>
+                                <div class="p-2">
+                                    <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                                        <span>👤</span> <span data-i18n="profile">Profile</span>
+                                    </a>
+                                    <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
+                                        <span>🚪</span> <span data-i18n="logout">Logout</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     <?php else: ?>
                         <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer">
                             Login
@@ -252,6 +268,19 @@ try {
       </div>
     </div>
   </footer>
+
+  <script>
+    function toggleUserDropdown() {
+      document.getElementById('userDropdown').classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('userMenu');
+      const dropdown = document.getElementById('userDropdown');
+      if (menu && dropdown && !menu.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+  </script>
 
   <script>
     (function() {

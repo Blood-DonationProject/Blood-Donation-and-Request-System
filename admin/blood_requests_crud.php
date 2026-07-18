@@ -15,9 +15,20 @@ if (isset($_POST['add'])) {
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
 
+    // Get the username for the selected user
+    $requester_name = '';
+    $user_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
+    $user_stmt->bind_param("i", $users_id);
+    $user_stmt->execute();
+    $user_result = $user_stmt->get_result();
+    if ($user_result && $user_result->num_rows > 0) {
+        $requester_name = $user_result->fetch_assoc()['username'];
+    }
+    $user_stmt->close();
+
     if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
-        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("iiisss", $users_id, $blood_groups_id, $units, $hospital, $required_date, $status);
+        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isiisss", $users_id, $requester_name, $blood_groups_id, $units, $hospital, $required_date, $status);
         if ($stmt->execute()) {
             $success = 'Blood request created successfully.';
         } else {
@@ -38,9 +49,20 @@ if (isset($_POST['update'])) {
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
 
+    // Get the username for the selected user
+    $requester_name = '';
+    $user_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
+    $user_stmt->bind_param("i", $users_id);
+    $user_stmt->execute();
+    $user_result = $user_stmt->get_result();
+    if ($user_result && $user_result->num_rows > 0) {
+        $requester_name = $user_result->fetch_assoc()['username'];
+    }
+    $user_stmt->close();
+
     if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
-        $stmt = $conn->prepare("UPDATE blood_request SET users_id=?, blood_groups_id=?, units=?, hospital=?, required_date=?, status=? WHERE id=?");
-        $stmt->bind_param("iiisssi", $users_id, $blood_groups_id, $units, $hospital, $required_date, $status, $id);
+        $stmt = $conn->prepare("UPDATE blood_request SET users_id=?, requester_name=?, blood_groups_id=?, units=?, hospital=?, required_date=?, status=? WHERE id=?");
+        $stmt->bind_param("isiisssi", $users_id, $requester_name, $blood_groups_id, $units, $hospital, $required_date, $status, $id);
         if ($stmt->execute()) {
             $success = 'Blood request updated successfully.';
         } else {
@@ -63,9 +85,8 @@ $requests = [];
 $edit_row = null;
 
 $result = $conn->query("
-    SELECT br.*, u.username AS requester_name, bg.blood_gp_name
+    SELECT br.*, bg.blood_gp_name
     FROM blood_request br
-    JOIN users u ON br.users_id = u.id
     LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
     ORDER BY br.required_date DESC
 ");
@@ -157,17 +178,19 @@ $stats = [
             <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>📊</span> <span data-i18n="overview">Overview</span>
             </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                <span>🩸</span> <span>Blood Requests</span>
-            </a>
             <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>👤</span> <span>Users</span>
-            </a>
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>⚡</span> <span>Donation History</span>
+                <span>👥</span> <span>Users</span>
             </a>
             <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>🩸</span> <span>Donors</span>
+            </a>
+            
+            
+            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>⚡</span> <span>Donation History</span>
+            </a>
+            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
+                <span>📋</span> <span>Blood Requests</span>
             </a>
         </nav>
         <div class="p-4 border-t border-gray-200">
@@ -179,8 +202,8 @@ $stats = [
     <main class="flex-1">
         <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
             <div>
-                <h2 class="text-3xl font-bold text-red-800">Blood Requests CRUD</h2>
-                <p class="text-gray-500 mt-1">Create, read, update, delete blood requests.</p>
+                <h2 class="text-3xl font-bold text-red-800">Blood Requests</h2>
+                <p class="text-gray-500 mt-1">Manage blood request submissions from users.</p>
             </div>
             <div class="flex items-center gap-4">
                 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>

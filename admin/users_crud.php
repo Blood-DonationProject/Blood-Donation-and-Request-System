@@ -80,10 +80,14 @@ if (isset($_GET['edit'])) {
 
 $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0,
-    'donors' => $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='Donor'")->fetch_assoc()['c'] ?? 0,
-    'requesters' => $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='Requester'")->fetch_assoc()['c'] ?? 0,
-    'admins' => $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='Admin'")->fetch_assoc()['c'] ?? 0,
+    'users' => 0,
+    'admins' => 0,
 ];
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+if ($roleCheck && $roleCheck->num_rows > 0) {
+    $stats['users'] = $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='User'")->fetch_assoc()['c'] ?? 0;
+    $stats['admins'] = $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='Admin'")->fetch_assoc()['c'] ?? 0;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,18 +156,20 @@ $stats = [
             <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>📊</span> <span data-i18n="overview">Overview</span>
             </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>🩸</span> <span>Blood Requests</span>
-            </a>
             <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                <span>👤</span> <span>Users</span>
-            </a>
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>⚡</span> <span>Donation History</span>
+                <span>👥</span> <span>Users</span>
             </a>
             <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                 <span>🩸</span> <span>Donors</span>
             </a>
+            
+            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>⚡</span> <span>Donation History</span>
+            </a>
+            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                <span>🩸</span> <span>Blood Requests</span>
+            </a>
+            
         </nav>
         <div class="p-4 border-t border-gray-200">
             <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
@@ -174,8 +180,8 @@ $stats = [
     <main class="flex-1">
         <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
             <div>
-                <h2 class="text-3xl font-bold text-red-800">Users CRUD</h2>
-                <p class="text-gray-500 mt-1">Create, read, update, delete users.</p>
+                <h2 class="text-3xl font-bold text-red-800">Manage Users</h2>
+                <p class="text-gray-500 mt-1">Manage and monitor the user network.</p>
             </div>
             <div class="flex items-center gap-4">
                 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
@@ -230,12 +236,8 @@ $stats = [
                     <h3 class="text-3xl font-bold mt-2 text-purple-600"><?= $stats['admins'] ?></h3>
                 </div>
                 <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Donors</p>
-                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['donors'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Requesters</p>
-                    <h3 class="text-3xl font-bold mt-2 text-blue-600"><?= $stats['requesters'] ?></h3>
+                    <p class="text-gray-500 text-sm">Users</p>
+                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['users'] ?></h3>
                 </div>
             </div>
 
@@ -276,8 +278,8 @@ $stats = [
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
                         <select name="role" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <?php foreach (['Admin','Donor','Requester'] as $role): ?>
-                                <option value="<?= $role ?>" <?= (($edit_row['role'] ?? 'Donor') === $role) ? 'selected' : '' ?>><?= $role ?></option>
+                            <?php foreach (['Admin','User'] as $role): ?>
+                                <option value="<?= $role ?>" <?= (($edit_row['role'] ?? 'User') === $role) ? 'selected' : '' ?>><?= $role ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -315,8 +317,7 @@ $stats = [
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
                                 <th class="p-3">Username</th>
-                                <th class="p-3">Email</th>
-                                <th class="p-3">Role</th>
+                                <th class="p-3">Email</th>                                
                                 <th class="p-3">Status</th>
                                 <th class="p-3">Created</th>
                                 <th class="p-3">Actions</th>
@@ -326,15 +327,13 @@ $stats = [
                             <?php if (count($users) > 0): ?>
                                 <?php foreach ($users as $u): ?>
                                     <?php
-                                    $roleBadges = ['Admin'=>'bg-purple-100 text-purple-700','Donor'=>'bg-green-100 text-green-700','Requester'=>'bg-blue-100 text-blue-700'];
-                                    $rb = $roleBadges[$u['role']] ?? 'bg-gray-100 text-gray-700';
+                                    $roleBadges = ['Admin'=>'bg-purple-100 text-purple-700','User'=>'bg-green-100 text-green-700'];                                    
                                     $statusColor = ($u['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
                                     ?>
                                     <tr class="user-row border-t border-slate-200 hover:bg-gray-50">
                                         <td class="p-3 font-medium">#<?= $u['id'] ?></td>
                                         <td class="p-3 font-medium"><?= htmlspecialchars($u['username']) ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($u['email'] ?? '-') ?></td>
-                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $rb ?>"><?= htmlspecialchars($u['role']) ?></span></td>
+                                        <td class="p-3"><?= htmlspecialchars($u['email'] ?? '-') ?></td>                                        
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($u['status']) ?></span></td>
                                         <td class="p-3 text-gray-500"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                         <td class="p-3">

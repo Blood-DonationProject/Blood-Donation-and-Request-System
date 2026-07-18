@@ -13,15 +13,5 @@ if ($role === 'Admin') {
     exit;
 }
 
-if ($role === 'Donor') {
-    header('Location: donordashboard.php');
-    exit;
-}
-
-if ($role === 'Requester') {
-    header('Location: requester.php');
-    exit;
-}
-
-header('Location: donordashboard.php');
+header('Location: profile.php');
 exit;
