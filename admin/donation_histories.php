@@ -341,14 +341,13 @@ if (isset($_GET['edit'])) {
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
-                                <th class="p-3" data-i18n="donor_name_col">Donor Name</th>
-                                <th class="p-3" data-i18n="requester_name_col">Requester Name</th>
-                                <th class="p-3" data-i18n="request_id_col">Request ID</th>
-                                <th class="p-3" data-i18n="blood_group_col">Blood Group</th>
-                                <th class="p-3" data-i18n="units_col">Units</th>
-                                <th class="p-3" data-i18n="date_col">Donation Date</th>
-                                <th class="p-3" data-i18n="status_col">Status</th>
-                                <th class="p-3" data-i18n="actions_col">Actions</th>
+                                <th class="p-3" >Donor Name</th>
+                                <th class="p-3" >Requester Name</th>                         
+                                <th class="p-3" >Blood Group</th>
+                                <th class="p-3" >Units</th>
+                                <th class="p-3" >Donation Date</th>
+                                <th class="p-3" >Status</th>
+                                <th class="p-3" >Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -357,8 +356,7 @@ if (isset($_GET['edit'])) {
                                 <tr class="border-t border-slate-200 hover:bg-gray-50">
                                     <td class="p-3 font-medium">#<?= $a['id'] ?></td>
                                     <td class="p-3"><?= htmlspecialchars($a['donor_name'] ?? '-') ?></td>
-                                    <td class="p-3"><?= htmlspecialchars($a['requester_name'] ?? '-') ?></td>
-                                    <td class="p-3"><?= htmlspecialchars($a['request_id'] ?? '-') ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($a['requester_name'] ?? '-') ?></td>                                    
                                     <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($a['blood_gp_name'] ?? '-') ?></span></td>
                                     <td class="p-3"><?= (int)$a['units'] ?></td>
                                     <td class="p-3"><?= htmlspecialchars($a['donation_date']) ?></td>

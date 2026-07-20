@@ -4,20 +4,76 @@ require_once __DIR__ . '/../config/db.php';
 
 // Stats
 $stats = [
-    'total_donors'   => 0,
-    'total_requests'  => 0,
-    'pending'         => 0,
-    'approved'        => 0,
-    'completed'       => 0,
-    'today_donations' => 0,
+    'total_users'          => 0,
+    'total_donors'         => 0,
+    'total_requests'       => 0,
+    'pending'              => 0,
+    'approved'             => 0,
+    'completed'            => 0,
+    'completed_donations'  => 0,
+    'certificates_issued'  => 0,
+    'today_donations'      => 0,
 ];
 
 try {
-    $stats['total_donors']   = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
-    $stats['total_requests']  = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
-    $stats['pending']         = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
-    $stats['approved']        = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0;
-    $stats['completed']       = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
+    $stats['total_users']          = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
+    $stats['total_donors']         = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
+    $stats['total_requests']       = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
+    $stats['pending']              = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
+    $stats['approved']             = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0;
+    $stats['completed']            = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
+    $stats['completed_donations']  = $conn->query("SELECT COUNT(*) AS c FROM donation_history WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
+    $stats['certificates_issued']  = $stats['completed_donations'];
+} catch (Exception $e) {}
+
+// Blood group donor counts for pie chart
+$blood_group_stats = [];
+try {
+    $bg_result = $conn->query("
+        SELECT bg.blood_gp_name AS blood_group, COUNT(d.id) AS donor_count
+        FROM blood_groups bg
+        LEFT JOIN donor d ON bg.blood_gp_name = d.blood_groups
+        GROUP BY bg.blood_gp_name
+        ORDER BY donor_count DESC
+    ");
+    if ($bg_result && $bg_result->num_rows > 0) {
+        $blood_group_stats = $bg_result->fetch_all(MYSQLI_ASSOC);
+    }
+} catch (Exception $e) {}
+
+// Monthly donation stats for bar chart (last 12 months)
+$monthly_donations = [];
+try {
+    $md_result = $conn->query("
+        SELECT DATE_FORMAT(donation_date, '%Y-%m') AS month_key,
+               DATE_FORMAT(donation_date, '%b %Y') AS month_label,
+               COUNT(*) AS donation_count,
+               SUM(units) AS total_units
+        FROM donation_history
+        WHERE status = 'Completed'
+          AND donation_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY month_key, month_label
+        ORDER BY month_key ASC
+    ");
+    if ($md_result && $md_result->num_rows > 0) {
+        $monthly_donations = $md_result->fetch_all(MYSQLI_ASSOC);
+    }
+} catch (Exception $e) {}
+
+// Latest 5 blood requests for Recent section
+$recent_requests = [];
+try {
+    $rr_result = $conn->query("
+        SELECT r.id, r.requester_name, bg.blood_gp_name AS blood_group,
+               r.units, r.required_date, r.status, r.assigned_donor_id
+        FROM blood_request r
+        LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
+        ORDER BY r.id DESC
+        LIMIT 5
+    ");
+    if ($rr_result && $rr_result->num_rows > 0) {
+        $recent_requests = $rr_result->fetch_all(MYSQLI_ASSOC);
+    }
 } catch (Exception $e) {}
 
 // Pending blood requests for notification bar & action cards
@@ -196,6 +252,10 @@ try {
         $assigned_requests = $result->fetch_all(MYSQLI_ASSOC);
     }
 } catch (Exception $e) {}
+
+$admin_name = htmlspecialchars($_SESSION['username'] ?? 'Admin');
+$current_date = date('l, F j, Y');
+$current_time = date('h:i A');
 ?>
 
 <!DOCTYPE html>
@@ -215,6 +275,7 @@ try {
     <script src="../assets/js/i18n.js"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         @keyframes slideIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -423,14 +484,89 @@ try {
             <!-- Main Content Area -->
             <div class="p-6 md:p-8">
 
+                <!-- Welcome Hero Section -->
+                <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 shadow-lg mb-8 animate-slide-in">
+                    <!-- Background Decorations -->
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-32 translate-x-32"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full translate-y-24 -translate-x-24"></div>
+                    <div class="absolute top-1/2 right-1/4 w-32 h-32 bg-white opacity-5 rounded-full -translate-y-1/2"></div>
+
+                    <div class="relative flex flex-col md:flex-row items-center justify-between p-8 md:p-10">
+                        <!-- Left Content -->
+                        <div class="flex-1 mb-6 md:mb-0">
+                            <div class="flex items-center space-x-2 mb-3">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full bg-white bg-opacity-20 text-white text-xs font-semibold backdrop-blur-sm">
+                                    <i class="fas fa-shield-alt mr-1.5"></i>Admin Panel
+                                </span>
+                            </div>
+                            <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-2 tracking-tight">
+                                Welcome, <?= $admin_name ?>
+                            </h1>
+                            <p class="text-red-100 text-base md:text-lg mb-4 max-w-lg">
+                                Manage blood donations, donor assignments, and requests all from one place.
+                            </p>
+                            <div class="flex flex-wrap items-center gap-4 text-sm">
+                                <div class="flex items-center space-x-2 bg-white bg-opacity-15 backdrop-blur-sm rounded-xl px-4 py-2.5">
+                                    <i class="fas fa-calendar-alt text-white"></i>
+                                    <span class="text-white font-medium" id="welcomeDate"><?= $current_date ?></span>
+                                </div>
+                                <div class="flex items-center space-x-2 bg-white bg-opacity-15 backdrop-blur-sm rounded-xl px-4 py-2.5">
+                                    <i class="fas fa-clock text-white"></i>
+                                    <span class="text-white font-medium" id="welcomeTime"><?= $current_time ?></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Icon -->
+                        <div class="flex-shrink-0">
+                            <div class="w-28 h-28 md:w-36 md:h-36 bg-white bg-opacity-15 backdrop-blur-sm rounded-3xl flex items-center justify-center border border-white border-opacity-20 shadow-2xl">
+                                <div class="text-center">
+                                    <i class="fas fa-hand-holding-heart text-white text-4xl md:text-5xl mb-2 drop-shadow-lg"></i>
+                                    <p class="text-white text-xs font-bold tracking-wider uppercase opacity-80">BloodLife</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Clock Script -->
+                <script>
+                (function() {
+                    function updateClock() {
+                        var now = new Date();
+                        var options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                        var dateStr = now.toLocaleDateString('en-US', options);
+                        var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        var dateEl = document.getElementById('welcomeDate');
+                        var timeEl = document.getElementById('welcomeTime');
+                        if (dateEl) dateEl.textContent = dateStr;
+                        if (timeEl) timeEl.textContent = timeStr;
+                    }
+                    updateClock();
+                    setInterval(updateClock, 1000);
+                })();
+                </script>
+
                 <!-- Stats Grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+
+                    <!-- Total Users -->
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-pink-50 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-users text-red-500 text-lg"></i>
+                            </div>
+                            <span class="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Total</span>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['total_users'] ?></h3>
+                        <p class="text-sm text-gray-400 mt-1">Total Users</p>
+                    </div>
 
                     <!-- Total Donors -->
-                    <div class="stat-card bg-gray-200 rounded-2xl p-6 border border-gray-100 shadow-sm animate-slide-in">
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.1s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-users text-red-600 text-lg"></i>
+                                <i class="fas fa-hand-holding-heart text-red-600 text-lg"></i>
                             </div>
                             <span class="text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Active</span>
                         </div>
@@ -438,20 +574,20 @@ try {
                         <p class="text-sm text-gray-400 mt-1">Total Donors</p>
                     </div>
 
-                    <!-- Blood Requests -->
-                    <div class="stat-card bg-red-200 rounded-2xl p-6 border border-gray-100 shadow-sm animate-slide-in" style="animation-delay: 0.1s;">
+                    <!-- Total Blood Requests -->
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.2s;">
                         <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-file-medical text-red-600 text-lg"></i>
+                            <div class="w-12 h-12 bg-pink-50 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-file-medical text-red-500 text-lg"></i>
                             </div>
                             <span class="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full"><?= $stats['pending'] ?> new</span>
                         </div>
                         <h3 class="text-3xl font-bold text-gray-900"><?= $stats['total_requests'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Blood Requests</p>
+                        <p class="text-sm text-gray-400 mt-1">Total Blood Requests</p>
                     </div>
 
-                    <!-- Pending -->
-                    <div class="stat-card bg-red-100 rounded-2xl p-6 border border-gray-100 shadow-sm animate-slide-in" style="animation-delay: 0.2s;">
+                    <!-- Pending Requests -->
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.3s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-clock text-yellow-500 text-lg"></i>
@@ -462,16 +598,28 @@ try {
                         <p class="text-sm text-gray-400 mt-1">Pending Requests</p>
                     </div>
 
-                    <!-- Approved -->
-                    <div class="stat-card bg-green-100 rounded-2xl p-6 border border-gray-100 shadow-sm animate-slide-in" style="animation-delay: 0.3s;">
+                    <!-- Completed Donations -->
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.4s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-check-circle text-green-500 text-lg"></i>
                             </div>
                             <span class="text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Done</span>
                         </div>
-                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['approved'] + $stats['completed'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Approved & Completed</p>
+                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['completed_donations'] ?></h3>
+                        <p class="text-sm text-gray-400 mt-1">Completed Donations</p>
+                    </div>
+
+                    <!-- Certificates Issued -->
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.5s;">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-certificate text-red-500 text-lg"></i>
+                            </div>
+                            <span class="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Issued</span>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['certificates_issued'] ?></h3>
+                        <p class="text-sm text-gray-400 mt-1">Certificates Issued</p>
                     </div>
 
                 </div>
@@ -633,6 +781,16 @@ try {
                                     <p class="text-blue-700 text-sm font-medium">Showing donors with blood type: <span id="selectedBloodType" class="font-bold"></span></p>
                                 </div>
 
+                                <div id="matchInfoBox" class="mb-4 hidden">
+                                    <div class="p-3 bg-green-50 border border-green-200 rounded-xl">
+                                        <div class="flex items-center mb-2">
+                                            <i class="fas fa-magic text-green-600 mr-2"></i>
+                                            <p class="text-green-700 text-sm font-bold">Best Match Found</p>
+                                        </div>
+                                        <p class="text-green-600 text-xs" id="matchInfoText"></p>
+                                    </div>
+                                </div>
+
                                 <div class="mb-4">
                                     <input type="text" id="donorSearch" placeholder="Search donor by name or phone..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition outline-none">
                                 </div>
@@ -725,6 +883,147 @@ try {
                                             <a href="dashboard.php?unassign=<?= $asr['id'] ?>" onclick="return confirm('Remove this donor assignment? The request will return to Pending status.')" class="text-red-500 hover:text-red-700 text-xs font-semibold">
                                                 <i class="fas fa-user-minus mr-1"></i>Unassign
                                             </a>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- Blood Group Statistics Chart -->
+                <div class="mb-8">
+                    <div class="bg-white rounded-2xl border border-pink-100 shadow-sm p-6">
+                        <div class="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">
+                                    <i class="fas fa-chart-pie text-red-500 mr-2"></i>Blood Group Statistics
+                                </h3>
+                                <p class="text-sm text-gray-400 mt-1">Donor distribution across blood groups</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col lg:flex-row items-center gap-8">
+                            <!-- Pie Chart -->
+                            <div class="w-full lg:w-1/2 flex justify-center">
+                                <div class="relative" style="max-width: 340px; width: 100%;">
+                                    <canvas id="bloodGroupPieChart"></canvas>
+                                </div>
+                            </div>
+                            <!-- Legend / Summary -->
+                            <div class="w-full lg:w-1/2">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <?php foreach ($blood_group_stats as $bg): ?>
+                                    <div class="flex items-center space-x-3 p-3 rounded-xl bg-pink-50 border border-pink-100">
+                                        <div class="w-10 h-10 bg-red-600 text-white rounded-lg flex items-center justify-center font-bold text-xs">
+                                            <?= htmlspecialchars($bg['blood_group']) ?>
+                                        </div>
+                                        <div>
+                                            <p class="text-lg font-bold text-gray-900"><?= (int)$bg['donor_count'] ?></p>
+                                            <p class="text-xs text-gray-400">Donors</p>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="mt-4 p-3 bg-red-50 rounded-xl border border-red-100 flex items-center">
+                                    <i class="fas fa-info-circle text-red-500 mr-2"></i>
+                                    <p class="text-sm text-red-700 font-medium">Total registered donors: <span class="font-bold"><?= $stats['total_donors'] ?></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly Donation Statistics Chart -->
+                <div class="mb-8">
+                    <div class="bg-white rounded-2xl border border-pink-100 shadow-sm p-6">
+                        <div class="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">
+                                    <i class="fas fa-chart-bar text-red-500 mr-2"></i>Monthly Donation Statistics
+                                </h3>
+                                <p class="text-sm text-gray-400 mt-1">Completed donations over the last 12 months</p>
+                            </div>
+                        </div>
+                        <div class="relative" style="height: 320px;">
+                            <canvas id="monthlyDonationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Blood Requests -->
+                <?php if (count($recent_requests) > 0): ?>
+                <div class="mb-8">
+                    <div class="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-between px-6 py-5 border-b border-pink-50">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">
+                                    <i class="fas fa-clock-rotate-left text-red-500 mr-2"></i>Recent Blood Requests
+                                </h3>
+                                <p class="text-sm text-gray-400 mt-1">Latest 5 blood requests from users</p>
+                            </div>
+                            <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
+                                View All <i class="fas fa-arrow-right ml-1"></i>
+                            </a>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-pink-50 border-b border-pink-100">
+                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Requester</th>
+                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Blood Group</th>
+                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Units</th>
+                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Required Date</th>
+                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Status</th>
+                                        <th class="px-6 py-3 text-center font-semibold text-gray-600">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($recent_requests as $rr): ?>
+                                    <tr class="border-b border-pink-50 hover:bg-red-50/30 transition">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-9 h-9 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                                                    <?= strtoupper(substr($rr['requester_name'] ?? 'U', 0, 2)) ?>
+                                                </div>
+                                                <span class="font-semibold text-gray-800"><?= htmlspecialchars($rr['requester_name'] ?? 'Unknown') ?></span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                                                <?= htmlspecialchars($rr['blood_group'] ?? '-') ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 font-semibold text-gray-800"><?= (int)$rr['units'] ?></td>
+                                        <td class="px-6 py-4 text-gray-600"><?= htmlspecialchars($rr['required_date']) ?></td>
+                                        <td class="px-6 py-4">
+                                            <?php
+                                            $statusColors = [
+                                                'Pending'   => 'bg-yellow-100 text-yellow-700',
+                                                'Approved'  => 'bg-blue-100 text-blue-700',
+                                                'Completed' => 'bg-green-100 text-green-700',
+                                                'Rejected'  => 'bg-red-100 text-red-700',
+                                            ];
+                                            $statusColor = $statusColors[$rr['status']] ?? 'bg-gray-100 text-gray-700';
+                                            ?>
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold <?= $statusColor ?>">
+                                                <?= htmlspecialchars($rr['status']) ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center justify-center gap-2">
+                                                <a href="requests.php?view=<?= (int)$rr['id'] ?>"
+                                                   class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                                                    <i class="fas fa-eye mr-1"></i>View
+                                                </a>
+                                                <?php if (empty($rr['assigned_donor_id']) && in_array($rr['status'], ['Pending', 'Approved'])): ?>
+                                                <button type="button" onclick="scrollToAssign(<?= (int)$rr['id'] ?>)"
+                                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
+                                                    <i class="fas fa-user-plus mr-1"></i>Assign Donor
+                                                </button>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -869,9 +1168,62 @@ try {
     </script>
 
     <script>
-        // Donor Assignment Logic
+        // Donor Assignment Logic with Blood Compatibility Matching
         var allDonors = <?= json_encode($available_donors) ?>;
         var selectedDonorId = null;
+
+        // Blood compatibility chart: which blood types can donate TO each recipient
+        var bloodCompatibility = {
+            'O-': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
+            'O+': ['O+', 'A+', 'B+', 'AB+'],
+            'A-': ['A-', 'A+', 'AB-', 'AB+'],
+            'A+': ['A+', 'AB+'],
+            'B-': ['B-', 'B+', 'AB-', 'AB+'],
+            'B+': ['B+', 'AB+'],
+            'AB-': ['AB-', 'AB+'],
+            'AB+': ['AB+']
+        };
+
+        // Calculate match score for a donor (higher = better match)
+        function calculateMatchScore(donor, requestBloodGroup) {
+            var score = 0;
+            var reasons = [];
+
+            // 1. Exact blood type match (40 points)
+            if (donor.blood_groups === requestBloodGroup) {
+                score += 40;
+                reasons.push('Exact blood type match');
+            }
+
+            // 2. Blood compatibility (30 points if compatible)
+            var compatibleTypes = bloodCompatibility[donor.blood_groups] || [];
+            if (compatibleTypes.indexOf(requestBloodGroup) !== -1) {
+                score += 30;
+                reasons.push('Compatible blood type');
+            }
+
+            // 3. Readiness / cooldown status (20 points)
+            var canDonate = true;
+            var daysSinceLastDonation = 999;
+            if (donor.last_donation_date) {
+                var lastDate = new Date(donor.last_donation_date);
+                var now = new Date();
+                daysSinceLastDonation = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+                canDonate = daysSinceLastDonation >= 56;
+            }
+            if (canDonate) {
+                score += 20;
+                reasons.push('Ready to donate');
+            }
+
+            // 4. Time since last donation bonus (up to 10 points)
+            // Longer gap = more time for recovery = better
+            var timeBonus = Math.min(10, Math.floor(daysSinceLastDonation / 14));
+            score += timeBonus;
+            if (timeBonus > 5) reasons.push('Extended recovery time');
+
+            return { score: score, reasons: reasons, canDonate: canDonate, daysSince: daysSinceLastDonation };
+        }
 
         function selectRequest(el) {
             // Remove previous selection
@@ -905,53 +1257,88 @@ try {
 
         function renderDonors(bloodGroup, searchQuery) {
             var donorList = document.getElementById('donorList');
-            var filtered = allDonors.filter(function(d) {
-                var matchesBlood = d.blood_groups === bloodGroup;
-                if (!searchQuery) return matchesBlood;
-                var q = searchQuery.toLowerCase();
-                return matchesBlood && (d.username.toLowerCase().includes(q) || d.phone.toLowerCase().includes(q));
+            var matchInfoBox = document.getElementById('matchInfoBox');
+
+            // Score and filter donors
+            var scored = [];
+            allDonors.forEach(function(d) {
+                var match = calculateMatchScore(d, bloodGroup);
+                if (!searchQuery) {
+                    scored.push({ donor: d, match: match });
+                } else {
+                    var q = searchQuery.toLowerCase();
+                    if (d.username.toLowerCase().indexOf(q) !== -1 || d.phone.toLowerCase().indexOf(q) !== -1) {
+                        scored.push({ donor: d, match: match });
+                    }
+                }
             });
 
-            if (filtered.length === 0) {
+            // Sort by match score descending (best match first)
+            scored.sort(function(a, b) { return b.match.score - a.match.score; });
+
+            if (scored.length === 0) {
+                matchInfoBox.classList.add('hidden');
                 donorList.innerHTML = '<div class="text-center py-6"><div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2"><i class="fas fa-user-slash text-gray-300"></i></div><p class="text-gray-400 text-sm">No matching donors available</p><p class="text-gray-300 text-xs mt-1">Try a different blood type or check donor availability</p></div>';
                 return;
             }
 
-            var html = '';
-            filtered.forEach(function(d) {
-                var lastDonation = d.last_donation_date ? d.last_donation_date : 'Never';
-                var canDonate = true;
-                if (d.last_donation_date) {
-                    var lastDate = new Date(d.last_donation_date);
-                    var now = new Date();
-                    var diffDays = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
-                    canDonate = diffDays >= 56; // 8 weeks between donations
-                }
+            // Show best match info
+            var best = scored[0];
+            if (best.match.score > 0) {
+                matchInfoBox.classList.remove('hidden');
+                var infoText = escapeHtml(best.donor.username) + ' — ' + best.match.reasons.join(', ') + ' (Score: ' + best.match.score + '/100)';
+                document.getElementById('matchInfoText').textContent = infoText;
+            } else {
+                matchInfoBox.classList.add('hidden');
+            }
 
-                html += '<div class="donor-item p-3 rounded-xl border-2 border-gray-200 hover:border-green-300 cursor-pointer transition" data-donor-id="' + d.id + '" onclick="selectDonor(this, ' + d.id + ')">';
-                html += '  <div class="flex items-center justify-between">';
+            var html = '';
+            scored.forEach(function(item, idx) {
+                var d = item.donor;
+                var m = item.match;
+                var isBest = idx === 0 && m.score > 0;
+                var borderColor = isBest ? 'border-green-500 bg-green-50' : 'border-gray-200';
+                var bestBadge = isBest ? '<span class="ml-2 text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full"><i class="fas fa-star mr-1"></i>Best Match</span>' : '';
+
+                // Score bar color
+                var barColor = m.score >= 70 ? 'bg-green-500' : m.score >= 40 ? 'bg-yellow-500' : 'bg-gray-300';
+
+                html += '<div class="donor-item p-3 rounded-xl border-2 ' + borderColor + ' hover:border-green-300 cursor-pointer transition" data-donor-id="' + d.id + '" onclick="selectDonor(this, ' + d.id + ')">';
+                html += '  <div class="flex items-start justify-between">';
                 html += '    <div class="flex items-center space-x-3">';
                 html += '      <div class="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center font-bold text-xs">';
                 html += '        ' + d.username.substring(0, 2).toUpperCase();
                 html += '      </div>';
                 html += '      <div>';
-                html += '        <p class="font-semibold text-gray-900 text-sm">' + escapeHtml(d.username) + '</p>';
+                html += '        <p class="font-semibold text-gray-900 text-sm">' + escapeHtml(d.username) + bestBadge + '</p>';
                 html += '        <p class="text-xs text-gray-400">' + escapeHtml(d.phone) + ' | Age: ' + d.age + ' | ' + d.weight + 'kg</p>';
+                html += '        <p class="text-xs text-gray-400 mt-0.5">Last donation: ' + escapeHtml(m.daysSince < 999 ? m.daysSince + ' days ago' : 'Never') + '</p>';
                 html += '      </div>';
                 html += '    </div>';
-                html += '    <div class="text-right">';
-                if (!canDonate) {
+                html += '    <div class="text-right flex flex-col items-end">';
+                if (!m.canDonate) {
                     html += '      <span class="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>Cooldown</span>';
                 } else {
                     html += '      <span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full"><i class="fas fa-check mr-1"></i>Ready</span>';
                 }
-                html += '      <p class="text-xs text-gray-400 mt-1">Last: ' + escapeHtml(lastDonation) + '</p>';
+                html += '      <div class="mt-1.5 flex items-center gap-1">';
+                html += '        <div class="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div class="h-full ' + barColor + ' rounded-full" style="width:' + m.score + '%"></div></div>';
+                html += '        <span class="text-[10px] font-bold text-gray-500">' + m.score + '</span>';
+                html += '      </div>';
                 html += '    </div>';
                 html += '  </div>';
                 html += '</div>';
             });
 
             donorList.innerHTML = html;
+
+            // Auto-select the best match
+            if (scored.length > 0 && scored[0].match.score > 0) {
+                var bestItem = donorList.querySelector('.donor-item[data-donor-id="' + scored[0].donor.id + '"]');
+                if (bestItem) {
+                    selectDonor(bestItem, scored[0].donor.id);
+                }
+            }
         }
 
         function selectDonor(el, donorId) {
@@ -995,6 +1382,183 @@ try {
                 }, 400);
             }
         }
+    </script>
+
+    <!-- Blood Group Pie Chart -->
+    <script>
+    (function() {
+        var ctx = document.getElementById('bloodGroupPieChart');
+        if (!ctx) return;
+
+        var labels = <?= json_encode(array_column($blood_group_stats, 'blood_group')) ?>;
+        var data = <?= json_encode(array_map('intval', array_column($blood_group_stats, 'donor_count'))) ?>;
+
+        var colors = [
+            '#DC2626', // red-600
+            '#EF4444', // red-500
+            '#B91C1C', // red-700
+            '#991B1B', // red-800
+            '#F87171', // red-400
+            '#FCA5A5', // red-300
+            '#7F1D1D', // red-900
+            '#FEE2E2'  // red-100
+        ];
+
+        var borderColors = colors.map(function(c) { return c; });
+
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderColor: '#ffffff',
+                    borderWidth: 3,
+                    hoverBorderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: '#1F2937',
+                        titleFont: { size: 13, weight: 'bold' },
+                        bodyFont: { size: 12 },
+                        padding: 12,
+                        cornerRadius: 10,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                var total = context.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                var value = context.parsed;
+                                var pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return ' ' + value + ' donors (' + pct + '%)';
+                            }
+                        }
+                    }
+                },
+                animation: {
+                    animateRotate: true,
+                    animateScale: true,
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+    })();
+
+    // Monthly Donation Bar Chart
+    (function() {
+        var ctx = document.getElementById('monthlyDonationChart');
+        if (!ctx) return;
+
+        var labels = <?= json_encode(array_column($monthly_donations, 'month_label')) ?>;
+        var counts = <?= json_encode(array_map('intval', array_column($monthly_donations, 'donation_count'))) ?>;
+        var units = <?= json_encode(array_map('intval', array_column($monthly_donations, 'total_units'))) ?>;
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Donations',
+                        data: counts,
+                        backgroundColor: 'rgba(220, 38, 38, 0.8)',
+                        hoverBackgroundColor: 'rgba(220, 38, 38, 1)',
+                        borderColor: '#DC2626',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.7
+                    },
+                    {
+                        label: 'Units Donated',
+                        data: units,
+                        backgroundColor: 'rgba(254, 202, 202, 0.7)',
+                        hoverBackgroundColor: 'rgba(254, 202, 202, 1)',
+                        borderColor: '#FCA5A5',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.7
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#9CA3AF',
+                            font: { size: 11, weight: '500' }
+                        },
+                        border: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#F3F4F6' },
+                        ticks: {
+                            color: '#9CA3AF',
+                            font: { size: 11 },
+                            stepSize: 1,
+                            callback: function(value) {
+                                if (Number.isInteger(value)) return value;
+                                return '';
+                            }
+                        },
+                        border: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded',
+                            padding: 20,
+                            font: { size: 12, weight: '500' },
+                            color: '#6B7280'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1F2937',
+                        titleFont: { size: 13, weight: 'bold' },
+                        bodyFont: { size: 12 },
+                        padding: 12,
+                        cornerRadius: 10,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                var label = context.dataset.label || '';
+                                return ' ' + label + ': ' + context.parsed.y;
+                            }
+                        }
+                    }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+    })();
     </script>
 
 </body>

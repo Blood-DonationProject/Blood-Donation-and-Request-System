@@ -94,6 +94,15 @@ $stats = [
     'available' => $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Available'")->fetch_assoc()['c'] ?? 0,
     'unavailable' => $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Unavailable'")->fetch_assoc()['c'] ?? 0,
 ];
+
+// Fetch available donors for the dedicated section
+$availableDonors = $conn->query("
+    SELECT u.username AS donor_name, d.blood_groups, d.phone, d.address, d.available_status
+    FROM donor d
+    JOIN users u ON d.user_id = u.id
+    WHERE d.available_status = 'Available'
+    ORDER BY d.created_at DESC
+");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -403,6 +412,71 @@ $stats = [
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <!-- Available Donors Section -->
+            <div class="mt-8 bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                            Available Donors
+                        </h3>
+                        <p class="text-sm text-gray-500">Donors currently available to donate blood.</p>
+                    </div>
+                    <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                        <?= $stats['available'] ?> available
+                    </span>
+                </div>
+                <?php if ($availableDonors && $availableDonors->num_rows > 0): ?>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-green-50 text-green-800">
+                                <th class="p-3">#</th>
+                                <th class="p-3">Donor Name</th>
+                                <th class="p-3">Blood Group</th>
+                                <th class="p-3">Phone</th>
+                                <th class="p-3">Address</th>
+                                <th class="p-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $i = 1; while ($row = $availableDonors->fetch_assoc()): ?>
+                            <tr class="border-t border-slate-200 hover:bg-green-50 transition">
+                                <td class="p-3 text-gray-500"><?= $i++ ?></td>
+                                <td class="p-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-xs font-bold text-red-700">
+                                            <?= strtoupper(substr(htmlspecialchars($row['donor_name']), 0, 1)) ?>
+                                        </div>
+                                        <span class="font-semibold text-gray-800"><?= htmlspecialchars($row['donor_name']) ?></span>
+                                    </div>
+                                </td>
+                                <td class="p-3">
+                                    <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs">
+                                        <?= htmlspecialchars($row['blood_groups']) ?>
+                                    </span>
+                                </td>
+                                <td class="p-3"><?= htmlspecialchars($row['phone']) ?></td>
+                                <td class="p-3 max-w-[200px] truncate"><?= htmlspecialchars($row['address']) ?></td>
+                                <td class="p-3">
+                                    <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+                                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                                        <?= htmlspecialchars($row['available_status']) ?>
+                                    </span>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php else: ?>
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-user-slash text-3xl text-gray-300 mb-3"></i>
+                    <p>No donors are currently available.</p>
+                </div>
+                <?php endif; ?>
             </div>
 
         </div>

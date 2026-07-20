@@ -334,7 +334,6 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
         </div>
     </section>
 
-   
     <!-- CTA Section -->
     <section class="py-16 bg-gradient-to-r from-red-600 to-red-800 text-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

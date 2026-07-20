@@ -504,6 +504,7 @@ $translations = [
     'search_donors_placeholder' => 'Search by name, email, or blood type…',
     'total_registered_donors' => 'Total Registered Donors',
     'available_donors' => 'Available Donors',
+    'available_donors_desc' => 'These donors are currently available and ready to donate blood.',
     'donors_on_cooldown' => 'Donors on Cooldown',
     'name_col' => 'Name',
     'email_col' => 'Email',

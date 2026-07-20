@@ -347,8 +347,7 @@ $stats = [
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
                                 <th class="p-3">Donor Name</th>
-                                <th class="p-3">Requester Name</th>
-                                <th class="p-3">Request ID</th>
+                                <th class="p-3">Requester Name</th>                                
                                 <th class="p-3">Blood Group</th>
                                 <th class="p-3">Units</th>
                                 <th class="p-3">Donation Date</th>
@@ -362,8 +361,7 @@ $stats = [
                                     <tr class="border-t border-slate-200 hover:bg-gray-50">
                                         <td class="p-3 font-medium">#<?= $r['id'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donor_name'] ?? '-') ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['request_id'] ?? '-') ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>                                        
                                         <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
                                         <td class="p-3"><?= (int)$r['units'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donation_date']) ?></td>

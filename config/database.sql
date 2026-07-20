@@ -75,8 +75,7 @@ CREATE TABLE donor (
 
 CREATE TABLE donation_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    donor_id INT NOT NULL,
-    users_id INT NOT NULL,
+    donor_id INT NOT NULL,    
     request_id INT NOT NULL,
     blood_groups_id INT NOT NULL,
     units INT NOT NULL,
