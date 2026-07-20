@@ -4,20 +4,10 @@ require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 
-$requests = [];
 $totalRequests = 0;
 $urgentToday = 0;
 
 try {
-    $result = $conn->query("
-        SELECT r.*, bg.blood_gp_name
-        FROM blood_request r
-        LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        ORDER BY r.id DESC
-    ");
-    if ($result && $result->num_rows > 0) {
-        $requests = $result->fetch_all(MYSQLI_ASSOC);
-    }
     $totalRequests = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
     $urgentToday = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending','Approved')")->fetch_assoc()['c'] ?? 0;
 } catch (Exception $e) {
@@ -152,81 +142,6 @@ try {
       <a href="requestblood.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 whitespace-nowrap">
         + New Blood Request
       </a>
-    </div>
-  </section>
-
-  <!-- Filter Bar -->
-  <section class="py-10">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="bg-white rounded-2xl shadow p-6 flex flex-col md:flex-row gap-4 items-end">
-        <div class="flex-1">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
-          <input type="text" placeholder="Search by patient name or hospital…" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type Needed</label>
-          <select class="border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
-            <option value="">All Types</option>
-            <option>A+</option><option>A-</option>
-            <option>B+</option><option>B-</option>
-            <option>AB+</option><option>AB-</option>
-            <option>O+</option><option>O-</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Urgency</label>
-          <select class="border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
-            <option>All</option>
-            <option>Critical</option>
-            <option>Urgent</option>
-            <option>Normal</option>
-          </select>
-        </div>
-        <button class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition">
-          Filter
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Request Cards -->
-  <section class="pb-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-
-      <?php if (count($requests) > 0): ?>
-        <?php foreach ($requests as $req): ?>
-          <?php
-            $statusColors = [
-              'Pending'   => ['border' => 'border-orange-400', 'bg' => 'bg-orange-100', 'text' => 'text-orange-700', 'badge' => 'bg-orange-400', 'label' => '🟠 Pending'],
-              'Approved'  => ['border' => 'border-blue-400', 'bg' => 'bg-blue-100', 'text' => 'text-blue-700', 'badge' => 'bg-blue-500', 'label' => '🔵 Approved'],
-              'Completed' => ['border' => 'border-green-400', 'bg' => 'bg-yellow-100', 'text' => 'text-yellow-700', 'badge' => 'bg-green-500', 'label' => '🟢 Completed'],
-              'Rejected'  => ['border' => 'border-gray-400', 'bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'badge' => 'bg-gray-500', 'label' => '⚪ Rejected'],
-            ];
-            $sc = $statusColors[$req['status']] ?? ['border' => 'border-gray-300', 'bg' => 'bg-gray-100', 'text' => 'text-gray-600', 'badge' => 'bg-gray-400', 'label' => $req['status']];
-          ?>
-      <div class="bg-white rounded-2xl shadow hover:shadow-xl transition p-6 border-l-4 <?= $sc['border'] ?> flex flex-col sm:flex-row sm:items-center gap-6">
-        <div class="flex-shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br <?= $sc['bg'] ?>">
-          <span class="text-3xl font-bold <?= $sc['text'] ?>"><?= htmlspecialchars($req['blood_gp_name'] ?? 'N/A') ?></span>
-        </div>
-        <div class="flex-1">
-          <div class="flex flex-wrap gap-2 mb-1">
-            <span class="<?= $sc['badge'] ?> text-white text-xs font-bold px-3 py-1 rounded-full"><?= $sc['label'] ?></span>
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full"><?= htmlspecialchars($req['hospital'] ?? '-') ?></span>
-          </div>
-          <h3 class="font-bold text-gray-900 text-lg"><?= htmlspecialchars($req['blood_gp_name'] ?? '?') ?> Blood Needed</h3>
-          <p class="text-gray-500 text-sm"><?= htmlspecialchars($req['units'] ?? '?') ?> unit(s) of <?= htmlspecialchars($req['blood_gp_name'] ?? '?') ?> blood. Required by <?= htmlspecialchars($req['required_date'] ?? 'N/A') ?>.</p>
-        </div>
-        <div class="flex flex-col gap-2 sm:items-end">
-          <a href="requester.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition text-center text-sm">Respond</a>
-        </div>
-      </div>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <div class="bg-white rounded-2xl shadow p-12 text-center">
-          <p class="text-gray-500 text-lg">No blood requests found.</p>
-        </div>
-      <?php endif; ?>
-
     </div>
   </section>
 

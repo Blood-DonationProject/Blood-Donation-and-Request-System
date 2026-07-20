@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt->bind_param('sss', $candidate, $email, $hashedPassword);
 
       if ($stmt->execute()) {
-        $loginRedirect = 'login.php?registered=1';
+        $loginRedirect = 'login.php?registered=1&email=' . urlencode($email) . '&password=' . urlencode($password);
         if (!empty($redirectTo)) {
           $loginRedirect .= '&redirect_to=' . urlencode($redirectTo);
         }

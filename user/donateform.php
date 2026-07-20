@@ -15,9 +15,40 @@ $message = '';
 $messageType = '';
 $editMode = false;
 $editData = null;
+$donorExists = false;
+$donorStatus = '';
+$daysRemaining = 0;
 
 if ($isLoggedIn) {
     $userId = $_SESSION['user_id'] ?? 0;
+
+    // Check if user already has a donor record
+    $checkStmt = $conn->prepare("SELECT id, available_status, last_donation_date FROM donor WHERE user_id = ? LIMIT 1");
+    $checkStmt->bind_param("i", $userId);
+    $checkStmt->execute();
+    $checkResult = $checkStmt->get_result();
+    if ($checkResult && $checkResult->num_rows > 0) {
+        $existingDonor = $checkResult->fetch_assoc();
+        $donorExists = true;
+        $donorStatus = $existingDonor['available_status'];
+
+        // Auto-update status based on 3-month cooldown
+        if ($existingDonor['last_donation_date']) {
+            $lastDonated = new DateTime($existingDonor['last_donation_date']);
+            $threeMonthsLater = (clone $lastDonated)->modify('+3 months');
+            if ($threeMonthsLater <= new DateTime()) {
+                // Cooldown passed, auto-set to Available
+                $donorStatus = 'Available';
+                $updateAvail = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+                $updateAvail->bind_param("i", $existingDonor['id']);
+                $updateAvail->execute();
+                $updateAvail->close();
+            } else {
+                $daysRemaining = (new DateTime())->diff($threeMonthsLater)->days;
+            }
+        }
+    }
+    $checkStmt->close();
 
     // DELETE
     if (isset($_GET['delete'])) {
@@ -199,8 +230,13 @@ if ($isLoggedIn) {
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-12">
     <div class="max-w-3xl mx-auto px-4 text-center animate-fade-up">
       <div class="inline-block bg-white/20 px-4 py-2 rounded-full text-sm font-semibold mb-3">🩸 <span data-i18n="ready_to_save">Ready to Save a Life?</span></div>
+      <?php if ($donorExists && !$editMode): ?>
+      <h1 class="text-4xl font-bold mb-2">You Are Already a Donor</h1>
+      <p class="text-lg opacity-90">You are already registered as a blood donor. You can view or edit your profile below.</p>
+      <?php else: ?>
       <h1 class="text-4xl font-bold mb-2" data-i18n="donate_blood_form"><?= $editMode ? 'Edit Donor Record' : 'Donate Blood' ?></h1>
       <p class="text-lg opacity-90" data-i18n="donate_blood_desc"><?= $editMode ? 'Update your donor registration details below.' : 'Fill in the form below so we can prepare your donation appointment and verify your eligibility.' ?></p>
+      <?php endif; ?>
     </div>
   </section>
 
@@ -234,10 +270,47 @@ if ($isLoggedIn) {
     </div>
   </section>
 
+  <?php if ($donorExists && $donorStatus === 'Unavailable'): ?>
+  <div class="max-w-2xl mx-auto px-4 mt-6">
+    <div class="rounded-xl p-6 bg-red-100 text-red-700 border border-red-200 animate-fade-up">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">⚠️</span>
+        <div>
+          <h3 class="font-bold text-lg mb-1">Donor Registration Unavailable</h3>
+          <p class="text-sm mb-2">You are currently <strong>Unavailable</strong> due to a recent blood donation. You must wait <strong>3 months</strong> between donations.</p>
+          <?php if ($daysRemaining > 0): ?>
+          <p class="text-sm font-semibold">You can register again in <strong><?= $daysRemaining ?> days</strong>.</p>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <section class="py-12">
     <div class="max-w-2xl mx-auto px-4 sm:px-6 space-y-6 animate-fade-up">
 
-      <form method="POST" action="donor_crud.php" class="space-y-6">
+      <?php if ($donorExists && !$editMode): ?>
+      <!-- Already Registered Message -->
+      <div class="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
+        <div class="text-5xl mb-4">✅</div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">You are already registered as a donor.</h2>
+        <p class="text-gray-600 mb-6">You can view your donor profile or edit your details below.</p>
+        <a href="donateform.php?edit=<?= $myDonors[0]['id'] ?? 0 ?>" class="inline-block bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
+          View / Edit Donor Profile
+        </a>
+      </div>
+      <?php else: ?>
+
+      <?php if (!$donorExists || $donorStatus === 'Available'): ?>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+        <span class="text-xl">ℹ️</span>
+        <p class="text-blue-700 text-sm font-medium">Please enter all information correctly. Double-check your details before submitting.</p>
+      </div>
+      <?php endif; ?>
+
+      <?php $formDisabled = ($donorExists && $donorStatus === 'Unavailable'); ?>
+      <form method="POST" action="donor_crud.php" class="space-y-6" <?= $formDisabled ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>
         <?php if ($editMode && $editData): ?>
           <input type="hidden" name="update_id" value="<?= $editData['id'] ?>" />
         <?php endif; ?>
@@ -251,7 +324,7 @@ if ($isLoggedIn) {
           <div class="grid sm:grid-cols-2 gap-5">
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Gender <span class="text-red-500">*</span></label>
-              <select name="gender" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+              <select name="gender" required <?= $formDisabled ? 'disabled' : '' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
                 <option value="">Select gender</option>
                 <option value="Male" <?= ($editData['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
                 <option value="Female" <?= ($editData['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
@@ -262,14 +335,16 @@ if ($isLoggedIn) {
               <label class="block text-sm font-semibold text-gray-700 mb-1">Date Of Birth</label>
               <input type="date" name="date_of_birth" id="dateOfBirth"
                 value="<?= htmlspecialchars($editData['date_of_birth'] ?? '') ?>"
+                <?= $formDisabled ? 'disabled' : '' ?>
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Age <span class="text-red-500">*</span></label>
               <input type="number" name="age" id="ageField" placeholder="Min. 18 years" min="18" required
                 value="<?= htmlspecialchars($editData['age'] ?? '') ?>"
+                <?= $formDisabled ? 'disabled' : '' ?>
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" readonly />
-            </div>            
+            </div>
           </div>
         </div>
 
@@ -284,6 +359,7 @@ if ($isLoggedIn) {
               <label class="block text-sm font-semibold text-gray-700 mb-1">Contact Number <span class="text-red-500">*</span></label>
               <input type="tel" name="contact" id="contactField" placeholder="Enter phone number" maxlength="15" pattern="[0-9]*" inputmode="numeric" required
                 value="<?= htmlspecialchars($editData['phone'] ?? '') ?>"
+                <?= $formDisabled ? 'disabled' : '' ?>
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
               <p class="text-xs text-gray-400 mt-1">Numbers only, max 15 digits</p>
             </div>
@@ -291,6 +367,7 @@ if ($isLoggedIn) {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Address <span class="text-red-500">*</span></label>
             <textarea name="address" placeholder="Your address" required
+              <?= $formDisabled ? 'disabled' : '' ?>
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" rows="3"><?= htmlspecialchars($editData['address'] ?? '') ?></textarea>
           </div>
         </div>
@@ -304,7 +381,7 @@ if ($isLoggedIn) {
           <div class="grid sm:grid-cols-2 gap-5">
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type <span class="text-red-500">*</span></label>
-              <select name="blood_groups" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+              <select name="blood_groups" required <?= $formDisabled ? 'disabled' : '' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
                 <option value="">Select blood type</option>
                 <?php
                 $blood_groups = $conn->query("SELECT blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
@@ -322,6 +399,7 @@ if ($isLoggedIn) {
               <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (lb) <span class="text-red-500">*</span></label>
               <input type="number" name="weight" id="weightField" placeholder="Min. 100 lb" min="100" required
                 value="<?= htmlspecialchars($editData['weight'] ?? '') ?>"
+                <?= $formDisabled ? 'disabled' : '' ?>
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
               <p class="text-xs text-gray-400 mt-1">Minimum weight: 100 lb</p>
             </div>
@@ -329,9 +407,10 @@ if ($isLoggedIn) {
               <label class="block text-sm font-semibold text-gray-700 mb-1">Last Donation Date</label>
               <input type="date" name="last_donation_date" id="lastDonationDate" max="<?= date('Y-m-d') ?>"
                 value="<?= htmlspecialchars($editData['last_donation_date'] ?? '') ?>"
+                <?= $formDisabled ? 'disabled' : '' ?>
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
               <p class="text-xs text-gray-400 mt-1">Cannot be a future date</p>
-            </div>                        
+            </div>
           </div>
         </div>
 
@@ -342,12 +421,13 @@ if ($isLoggedIn) {
           <?php else: ?>
             <a href="donordashboard.php" class="border-2 border-gray-300 text-gray-600 py-4 rounded-xl font-bold hover:border-red-400 hover:text-red-600 transition text-center text-sm" data-i18n="cancel">Cancel</a>
           <?php endif; ?>
-          <button type="submit" class="bg-gradient-to-r from-red-600 to-red-700 text-white py-4 rounded-xl font-bold hover:shadow-xl transition transform hover:scale-105 text-sm">
+          <button type="submit" <?= $formDisabled ? 'disabled' : '' ?> class="bg-gradient-to-r from-red-600 to-red-700 text-white py-4 rounded-xl font-bold hover:shadow-xl transition transform hover:scale-105 text-sm <?= $formDisabled ? 'opacity-50 cursor-not-allowed' : '' ?>">
             <?= $editMode ? 'Update Record' : 'Submit Donation Request 🩸' ?>
           </button>
         </div>
       </form>
 
+      <?php endif; ?>
     </div>
   </section>
 
@@ -376,6 +456,7 @@ if ($isLoggedIn) {
                 <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Blood Type</th>
                 <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Age</th>
                 <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Phone</th>
+                <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Last Donation</th>
                 <th class="text-left text-gray-500 font-semibold pb-3">Status</th>
               </tr>
             </thead>
@@ -387,6 +468,16 @@ if ($isLoggedIn) {
                     'Unavailable' => 'bg-red-100 text-red-700',
                     default => 'bg-gray-100 text-gray-600',
                   };
+                  // Calculate remaining cooldown days
+                  $cooldownText = '';
+                  if ($d['last_donation_date']) {
+                      $lastDonated = new DateTime($d['last_donation_date']);
+                      $threeMonthsLater = (clone $lastDonated)->modify('+3 months');
+                      if ($threeMonthsLater > new DateTime()) {
+                          $remain = (new DateTime())->diff($threeMonthsLater)->days;
+                          $cooldownText = " ({$remain} days left)";
+                      }
+                  }
                 ?>
               <tr class="hover:bg-gray-50">
                 <td class="py-3 pr-4 font-medium text-gray-700">#<?= $d['id'] ?></td>
@@ -398,8 +489,9 @@ if ($isLoggedIn) {
                 </td>
                 <td class="py-3 pr-4 text-gray-600"><?= (int)$d['age'] ?></td>
                 <td class="py-3 pr-4 text-gray-600"><?= htmlspecialchars($d['phone']) ?></td>
+                <td class="py-3 pr-4 text-gray-600"><?= htmlspecialchars($d['last_donation_date'] ?? 'N/A') ?></td>
                 <td class="py-3 pr-4">
-                  <span class="<?= $statusColor ?> text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($d['available_status']) ?></span>
+                  <span class="<?= $statusColor ?> text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($d['available_status']) ?><?= $cooldownText ?></span>
                 </td>
               </tr>
               <?php endforeach; ?>
@@ -410,7 +502,8 @@ if ($isLoggedIn) {
         <div class="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center">
           <div class="text-4xl mb-3">🩸</div>
           <p class="text-gray-500 text-lg mb-2">No donor records yet.</p>
-          <p class="text-gray-400 text-sm">Fill in the form above to register as a blood donor.</p>
+          <p class="text-gray-400 text-sm mb-4">You have not registered as a donor yet.</p>
+          <a href="donateform.php" class="inline-block bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition">Register as Donor</a>
         </div>
         <?php endif; ?>
       </div>

@@ -56,6 +56,46 @@ if (!$isLoggedIn) {
         $message = 'You must be logged in to register as a donor.';
         $messageType = 'error';
     } else {
+        // Check if user already has a donor record (prevent duplicate registration)
+        if ($updateId <= 0) {
+            $checkStmt = $conn->prepare("SELECT id, available_status, last_donation_date FROM donor WHERE user_id = ? LIMIT 1");
+            $checkStmt->bind_param("i", $userId);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+            if ($checkResult && $checkResult->num_rows > 0) {
+                $existingDonor = $checkResult->fetch_assoc();
+                $checkStmt->close();
+
+                // Auto-update status based on 3-month cooldown
+                if ($existingDonor['last_donation_date']) {
+                    $lastDonated = new DateTime($existingDonor['last_donation_date']);
+                    $threeMonthsLater = (clone $lastDonated)->modify('+3 months');
+                    if ($threeMonthsLater <= new DateTime()) {
+                        // Cooldown passed, auto-set to Available
+                        $updateAvail = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+                        $updateAvail->bind_param("i", $existingDonor['id']);
+                        $updateAvail->execute();
+                        $updateAvail->close();
+                    } else {
+                        $remainingDays = (new DateTime())->diff($threeMonthsLater)->days;
+                        $message = "You are currently Unavailable. You can register again in {$remainingDays} days (after 3 months from your last donation).";
+                        $messageType = 'error';
+                        $redirect = 'donateform.php?msg=error&text=' . urlencode($message);
+                        header('Location: ' . $redirect);
+                        exit;
+                    }
+                } else {
+                    $message = 'You already have a donor record. You can edit your existing record instead.';
+                    $messageType = 'error';
+                    $redirect = 'donateform.php?msg=error&text=' . urlencode($message);
+                    header('Location: ' . $redirect);
+                    exit;
+                }
+            } else {
+                $checkStmt->close();
+            }
+        }
+
         try {
             if ($updateId > 0) {
                 $stmt = $conn->prepare("UPDATE donor SET gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE id=? AND user_id=?");
@@ -67,20 +107,6 @@ if (!$isLoggedIn) {
 
             if ($stmt->execute()) {
                 $donorId = $updateId > 0 ? $updateId : $conn->insert_id;
-
-                // Create donation_history record
-                $bgStmt = $conn->prepare("SELECT id FROM blood_groups WHERE blood_gp_name = ?");
-                $bgStmt->bind_param("s", $blood_groups);
-                $bgStmt->execute();
-                $bgResult = $bgStmt->get_result()->fetch_assoc();
-                $bgStmt->close();
-                $blood_groups_id = $bgResult ? $bgResult['id'] : 0;
-                $donationDate = $last_donation_date ?: date('Y-m-d');
-
-                $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, donation_date, units, status) VALUES (?, ?, 0, ?, ?, 1, 'Completed')");
-                $dhStmt->bind_param("iiis", $donorId, $userId, $blood_groups_id, $donationDate);
-                $dhStmt->execute();
-                $dhStmt->close();
 
                 $message = $updateId > 0 ? 'Donor record updated successfully!' : 'Donor registration submitted successfully! Your status is pending approval.';
                 $messageType = 'success';

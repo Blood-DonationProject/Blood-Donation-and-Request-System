@@ -1,7 +1,24 @@
 <?php
 session_start();
+require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+
+// Check if logged-in user already has a donor record
+$isAlreadyDonor = false;
+if ($isLoggedIn) {
+    $userId = $_SESSION['user_id'] ?? 0;
+    if ($userId > 0) {
+        $stmt = $conn->prepare("SELECT id FROM donor WHERE user_id = ? LIMIT 1");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            $isAlreadyDonor = true;
+        }
+        $stmt->close();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -107,9 +124,20 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
                 surgeries, cancer treatments, and many other life-threatening situations.
             </p>
 
+            <?php if ($isLoggedIn && $isAlreadyDonor): ?>
+            <div class="mt-10 inline-flex flex-col items-center gap-4">
+                <div class="bg-white/20 text-white px-6 py-3 rounded-full text-sm font-semibold">
+                    ✅ You are already registered as a donor.
+                </div>
+                <a href="donateform.php" class="bg-white text-red-600 font-semibold px-8 py-4 rounded-full shadow-lg hover:bg-red-100 duration-300" data-i18n="view_edit_profile">
+                    View / Edit Donor Profile
+                </a>
+            </div>
+            <?php else: ?>
             <a href="donateform.php" class="mt-10 inline-block bg-white text-red-600 font-semibold px-8 py-4 rounded-full shadow-lg hover:bg-red-100 duration-300" data-i18n="become_a_donor">
                 Become a Donor
             </a>
+            <?php endif; ?>
 
         </div>
     </section>
@@ -316,11 +344,22 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 
             </p>
 
+            <?php if ($isLoggedIn && $isAlreadyDonor): ?>
+            <div class="inline-flex flex-col items-center gap-4">
+                <div class="bg-white/20 text-white px-6 py-3 rounded-full text-sm font-semibold">
+                    ✅ You are already registered as a donor.
+                </div>
+                <a href="donateform.php" class="bg-white text-red-600 px-10 py-4 rounded-full font-bold hover:bg-red-100 duration-300" data-i18n="view_edit_profile">
+                    View / Edit Donor Profile
+                </a>
+            </div>
+            <?php else: ?>
             <a href="donateform.php" class="bg-white text-red-600 px-10 py-4 rounded-full font-bold hover:bg-red-100 duration-300" data-i18n="register_as_a_donor">
 
                 Register as a Donor
 
             </a>
+            <?php endif; ?>
 
         </div>
 

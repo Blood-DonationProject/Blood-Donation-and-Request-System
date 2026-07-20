@@ -44,6 +44,8 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 }
 
 $errorMessage = '';
+$prefillEmail = isset($_GET['email']) ? $_GET['email'] : '';
+$prefillPassword = isset($_GET['password']) ? $_GET['password'] : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
@@ -267,12 +269,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
             <input type="email" name="email" placeholder="Enter your email" required
+                   value="<?= htmlspecialchars($prefillEmail) ?>"
                    class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
           </div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password">Password</label>
             <div class="relative">
               <input type="password" name="password" id="passwordField" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
+                     value="<?= htmlspecialchars($prefillPassword) ?>"
                      class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
               <button type="button" onclick="togglePassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700" id="eyeBtn">
                 <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
