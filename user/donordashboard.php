@@ -364,12 +364,12 @@ if ($isLoggedIn) {
   </div>
 
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-300 py-12 mt-8">
+  <footer class="bg-white text-gray-600 py-12 border-t border-gray-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid md:grid-cols-4 gap-8 mb-8">
-        <div><h3 class="text-white font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
+        <div><h3 class="text-red-600 font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
         <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
+          <h4 class="text-red-600 font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
           <ul class="space-y-2 text-sm">
             <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
             <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
@@ -377,7 +377,7 @@ if ($isLoggedIn) {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="contact">Contact</h4>
+          <h4 class="text-red-600 font-bold mb-4" data-i18n="contact">Contact</h4>
           <ul class="space-y-2 text-sm">
             <li>📧 info@bloodlife.com</li>
             <li>📱 1-800-BLOOD-999</li>
@@ -385,7 +385,7 @@ if ($isLoggedIn) {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
+          <h4 class="text-red-600 font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
           <div class="flex space-x-4">
             <a href="#" class="hover:text-red-400 transition">Facebook</a>
             <a href="#" class="hover:text-red-400 transition">Twitter</a>

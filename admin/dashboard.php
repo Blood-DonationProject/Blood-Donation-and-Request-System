@@ -142,6 +142,12 @@ if (isset($_POST['assign_donor'])) {
                         $assign = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Approved' WHERE id = ?");
                         $assign->bind_param("ii", $donor_id, $request_id);
                         if ($assign->execute()) {
+                            // Mark donor as Unavailable after assignment
+                            $donorUpdate = $conn->prepare("UPDATE donor SET available_status = 'Unavailable' WHERE id = ?");
+                            $donorUpdate->bind_param("i", $donor_id);
+                            $donorUpdate->execute();
+                            $donorUpdate->close();
+
                             // Create donation_history record for the verified assignment
                             $reqDetail = $conn->prepare("SELECT users_id, blood_groups_id, units FROM blood_request WHERE id = ?");
                             $reqDetail->bind_param("i", $request_id);
@@ -194,10 +200,26 @@ if (isset($_POST['assign_donor'])) {
 // Unassign donor action
 if (isset($_GET['unassign'])) {
     $id = (int)$_GET['unassign'];
+    // Get the assigned donor_id before unassigning
+    $getDonor = $conn->prepare("SELECT assigned_donor_id FROM blood_request WHERE id = ? AND assigned_donor_id IS NOT NULL");
+    $getDonor->bind_param("i", $id);
+    $getDonor->execute();
+    $donorRow = $getDonor->get_result()->fetch_assoc();
+    $getDonor->close();
+
     $stmt = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL, status = 'Pending' WHERE id = ? AND assigned_donor_id IS NOT NULL");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $stmt->close();
+
+    // Restore donor availability to Available
+    if ($donorRow && $donorRow['assigned_donor_id']) {
+        $restoreDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+        $restoreDonor->bind_param("i", $donorRow['assigned_donor_id']);
+        $restoreDonor->execute();
+        $restoreDonor->close();
+    }
+
     header('Location: dashboard.php');
     exit;
 }
@@ -302,6 +324,15 @@ $current_time = date('h:i A');
         .btn-reject:hover { transform: scale(1.05); }
         .btn-assign { transition: all 0.2s ease; }
         .btn-assign:hover { transform: scale(1.05); }
+        /* Assign Modal */
+        .assign-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .assign-modal-overlay.active { display: flex; }
+        .assign-modal { background: white; border-radius: 1rem; width: 90%; max-width: 520px; max-height: 85vh; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: fadeIn 0.3s ease; }
+        .assign-modal-body { max-height: 60vh; overflow-y: auto; padding: 1rem; }
+        .assign-modal-donor { padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 0.75rem; cursor: pointer; transition: all 0.2s ease; margin-bottom: 0.5rem; }
+        .assign-modal-donor:hover { border-color: #3b82f6; background: #eff6ff; }
+        .assign-modal-donor.selected { border-color: #16a34a; background: #f0fdf4; }
+        .assign-modal-donor.best-match { border-color: #22c55e; background: #f0fdf4; }
     </style>
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
@@ -401,6 +432,18 @@ $current_time = date('h:i A');
                             <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm pulse-dot"><?= $stats['pending'] ?></span>
                             <?php endif; ?>
                         </button>
+                        <!-- Date & Time -->
+                        <div class="hidden lg:flex items-center gap-2 border-l border-gray-200 pl-4">
+                            <div class="flex items-center space-x-1.5 text-sm text-gray-600">
+                                <i class="fas fa-calendar-alt text-red-500 text-xs"></i>
+                                <span class="font-medium" id="welcomeDate"><?= $current_date ?></span>
+                            </div>
+                            <div class="w-px h-4 bg-gray-200"></div>
+                            <div class="flex items-center space-x-1.5 text-sm text-gray-600">
+                                <i class="fas fa-clock text-red-500 text-xs"></i>
+                                <span class="font-medium" id="welcomeTime"><?= $current_time ?></span>
+                            </div>
+                        </div>
                         <!-- Admin Profile -->
                         <div class="relative" id="adminMenu">
                             <div class="flex items-center space-x-3 cursor-pointer pl-3 border-l border-gray-200" onclick="toggleAdminDropdown()">
@@ -458,7 +501,7 @@ $current_time = date('h:i A');
                                 <a href="dashboard.php?approve=<?= $pr['id'] ?>" class="btn-approve bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onclick="return confirm('Approve this request?')">
                                     <i class="fas fa-check mr-1"></i>Approve
                                 </a>
-                                <button type="button" onclick="scrollToAssign(<?= $pr['id'] ?>); toggleNotifications();" class="btn-assign bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+                                <button type="button" onclick="toggleNotifications(); openAssignModal(<?= $pr['id'] ?>);" class="btn-assign bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
                                     <i class="fas fa-user-plus mr-1"></i>Assign
                                 </button>
                                 <a href="dashboard.php?reject=<?= $pr['id'] ?>" class="btn-reject bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold px-3 py-1.5 rounded-lg" onclick="return confirm('Reject this request?')">
@@ -483,51 +526,6 @@ $current_time = date('h:i A');
 
             <!-- Main Content Area -->
             <div class="p-6 md:p-8">
-
-                <!-- Welcome Hero Section -->
-                <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 shadow-lg mb-8 animate-slide-in">
-                    <!-- Background Decorations -->
-                    <div class="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-32 translate-x-32"></div>
-                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full translate-y-24 -translate-x-24"></div>
-                    <div class="absolute top-1/2 right-1/4 w-32 h-32 bg-white opacity-5 rounded-full -translate-y-1/2"></div>
-
-                    <div class="relative flex flex-col md:flex-row items-center justify-between p-8 md:p-10">
-                        <!-- Left Content -->
-                        <div class="flex-1 mb-6 md:mb-0">
-                            <div class="flex items-center space-x-2 mb-3">
-                                <span class="inline-flex items-center px-3 py-1 rounded-full bg-white bg-opacity-20 text-white text-xs font-semibold backdrop-blur-sm">
-                                    <i class="fas fa-shield-alt mr-1.5"></i>Admin Panel
-                                </span>
-                            </div>
-                            <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-2 tracking-tight">
-                                Welcome, <?= $admin_name ?>
-                            </h1>
-                            <p class="text-red-100 text-base md:text-lg mb-4 max-w-lg">
-                                Manage blood donations, donor assignments, and requests all from one place.
-                            </p>
-                            <div class="flex flex-wrap items-center gap-4 text-sm">
-                                <div class="flex items-center space-x-2 bg-white bg-opacity-15 backdrop-blur-sm rounded-xl px-4 py-2.5">
-                                    <i class="fas fa-calendar-alt text-white"></i>
-                                    <span class="text-white font-medium" id="welcomeDate"><?= $current_date ?></span>
-                                </div>
-                                <div class="flex items-center space-x-2 bg-white bg-opacity-15 backdrop-blur-sm rounded-xl px-4 py-2.5">
-                                    <i class="fas fa-clock text-white"></i>
-                                    <span class="text-white font-medium" id="welcomeTime"><?= $current_time ?></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right Icon -->
-                        <div class="flex-shrink-0">
-                            <div class="w-28 h-28 md:w-36 md:h-36 bg-white bg-opacity-15 backdrop-blur-sm rounded-3xl flex items-center justify-center border border-white border-opacity-20 shadow-2xl">
-                                <div class="text-center">
-                                    <i class="fas fa-hand-holding-heart text-white text-4xl md:text-5xl mb-2 drop-shadow-lg"></i>
-                                    <p class="text-white text-xs font-bold tracking-wider uppercase opacity-80">BloodLife</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Live Clock Script -->
                 <script>
@@ -680,7 +678,7 @@ $current_time = date('h:i A');
                                 <a href="dashboard.php?approve=<?= $pr['id'] ?>" onclick="return confirm('Approve this blood request?')" class="btn-approve flex-1 bg-green-500 hover:bg-green-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm">
                                     <i class="fas fa-check mr-1"></i>Approve
                                 </a>
-                                <button type="button" onclick="scrollToAssign(<?= $pr['id'] ?>)" class="btn-assign flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm transition">
+                                <button type="button" onclick="openAssignModal(<?= $pr['id'] ?>)" class="btn-assign flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm transition">
                                     <i class="fas fa-user-plus mr-1"></i>Assign
                                 </button>
                                 <a href="dashboard.php?reject=<?= $pr['id'] ?>" onclick="return confirm('Reject this blood request?')" class="btn-reject flex-1 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 text-center py-2.5 rounded-xl font-semibold text-sm">
@@ -778,7 +776,7 @@ $current_time = date('h:i A');
                             <div id="donorSelection" class="hidden">
                                 <div class="mb-4 p-3 bg-blue-50 rounded-xl flex items-center">
                                     <i class="fas fa-info-circle text-blue-500 mr-2"></i>
-                                    <p class="text-blue-700 text-sm font-medium">Showing donors with blood type: <span id="selectedBloodType" class="font-bold"></span></p>
+                                    <p class="text-blue-700 text-sm font-medium">Donors with same blood type: <span id="selectedBloodType" class="font-bold"></span></p>
                                 </div>
 
                                 <div id="matchInfoBox" class="mb-4 hidden">
@@ -1018,7 +1016,7 @@ $current_time = date('h:i A');
                                                     <i class="fas fa-eye mr-1"></i>View
                                                 </a>
                                                 <?php if (empty($rr['assigned_donor_id']) && in_array($rr['status'], ['Pending', 'Approved'])): ?>
-                                                <button type="button" onclick="scrollToAssign(<?= (int)$rr['id'] ?>)"
+                                                <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>)"
                                                         class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
                                                     <i class="fas fa-user-plus mr-1"></i>Assign Donor
                                                 </button>
@@ -1170,6 +1168,7 @@ $current_time = date('h:i A');
     <script>
         // Donor Assignment Logic with Blood Compatibility Matching
         var allDonors = <?= json_encode($available_donors) ?>;
+        var pendingRequestsData = <?= json_encode($pending_requests) ?>;
         var selectedDonorId = null;
 
         // Blood compatibility chart: which blood types can donate TO each recipient
@@ -1259,9 +1258,10 @@ $current_time = date('h:i A');
             var donorList = document.getElementById('donorList');
             var matchInfoBox = document.getElementById('matchInfoBox');
 
-            // Score and filter donors
+            // Only show donors with the exact same blood type
             var scored = [];
             allDonors.forEach(function(d) {
+                if (d.blood_groups !== bloodGroup) return;
                 var match = calculateMatchScore(d, bloodGroup);
                 if (!searchQuery) {
                     scored.push({ donor: d, match: match });
@@ -1278,7 +1278,7 @@ $current_time = date('h:i A');
 
             if (scored.length === 0) {
                 matchInfoBox.classList.add('hidden');
-                donorList.innerHTML = '<div class="text-center py-6"><div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2"><i class="fas fa-user-slash text-gray-300"></i></div><p class="text-gray-400 text-sm">No matching donors available</p><p class="text-gray-300 text-xs mt-1">Try a different blood type or check donor availability</p></div>';
+                donorList.innerHTML = '<div class="text-center py-6"><div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2"><i class="fas fa-user-slash text-gray-300"></i></div><p class="text-gray-400 text-sm">No donors with blood type ' + escapeHtml(bloodGroup) + ' available</p><p class="text-gray-300 text-xs mt-1">Check donor availability or registration</p></div>';
                 return;
             }
 
@@ -1382,7 +1382,244 @@ $current_time = date('h:i A');
                 }, 400);
             }
         }
+
+        // Modal Assign Donor Logic
+        var modalSelectedDonorId = null;
+        var modalRequestId = null;
+        var modalBloodGroup = null;
+
+        // Find assignable request info from PHP data
+        var assignableRequests = <?= json_encode($assignable_requests) ?>;
+
+        function openAssignModal(requestId) {
+            modalRequestId = requestId;
+            modalSelectedDonorId = null;
+
+            // Find request info
+            var reqInfo = null;
+            for (var i = 0; i < assignableRequests.length; i++) {
+                if (assignableRequests[i].id == requestId) {
+                    reqInfo = assignableRequests[i];
+                    break;
+                }
+            }
+
+            // If not in assignable list, try pending requests
+            if (!reqInfo) {
+                for (var j = 0; j < pendingRequestsData.length; j++) {
+                    if (pendingRequestsData[j].id == requestId) {
+                        reqInfo = pendingRequestsData[j];
+                        break;
+                    }
+                }
+            }
+
+            if (!reqInfo) return;
+
+            modalBloodGroup = reqInfo.blood_group;
+            document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId + ' — ' + reqInfo.requester_name;
+            document.getElementById('modalBloodType').textContent = reqInfo.blood_group + ' (' + reqInfo.units + ' units needed)';
+            document.getElementById('modalDonorSearch').value = '';
+            document.getElementById('modalAssignBtn').disabled = true;
+
+            renderModalDonors(reqInfo.blood_group, '');
+
+            document.getElementById('assignModal').classList.add('active');
+        }
+
+        function closeAssignModal() {
+            document.getElementById('assignModal').classList.remove('active');
+            modalSelectedDonorId = null;
+            modalRequestId = null;
+        }
+
+        function renderModalDonors(bloodGroup, searchQuery) {
+            var donorList = document.getElementById('modalDonorList');
+            var noDonors = document.getElementById('modalNoDonors');
+            var bestMatchBox = document.getElementById('modalBestMatch');
+
+            // Only show donors with the exact same blood type
+            var scored = [];
+            allDonors.forEach(function(d) {
+                if (d.blood_groups !== bloodGroup) return;
+                var match = calculateMatchScore(d, bloodGroup);
+                if (!searchQuery) {
+                    scored.push({ donor: d, match: match });
+                } else {
+                    var q = searchQuery.toLowerCase();
+                    if (d.username.toLowerCase().indexOf(q) !== -1 || d.phone.toLowerCase().indexOf(q) !== -1) {
+                        scored.push({ donor: d, match: match });
+                    }
+                }
+            });
+
+            scored.sort(function(a, b) { return b.match.score - a.match.score; });
+
+            if (scored.length === 0) {
+                donorList.innerHTML = '';
+                noDonors.classList.remove('hidden');
+                bestMatchBox.classList.add('hidden');
+                return;
+            }
+
+            noDonors.classList.add('hidden');
+
+            // Show best match
+            var best = scored[0];
+            if (best.match.score > 0) {
+                bestMatchBox.classList.remove('hidden');
+                document.getElementById('modalBestMatchText').textContent =
+                    best.donor.username + ' — ' + best.match.reasons.join(', ') + ' (Score: ' + best.match.score + '/100)';
+            } else {
+                bestMatchBox.classList.add('hidden');
+            }
+
+            var html = '';
+            scored.forEach(function(item, idx) {
+                var d = item.donor;
+                var m = item.match;
+                var isBest = idx === 0 && m.score > 0;
+                var borderColor = isBest ? 'best-match' : '';
+                var bestBadge = isBest ? '<span class="ml-2 text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full"><i class="fas fa-star mr-1"></i>Best</span>' : '';
+                var barColor = m.score >= 70 ? 'bg-green-500' : m.score >= 40 ? 'bg-yellow-500' : 'bg-gray-300';
+
+                html += '<div class="assign-modal-donor ' + borderColor + '" data-donor-id="' + d.id + '" onclick="selectModalDonor(this, ' + d.id + ')">';
+                html += '  <div class="flex items-start justify-between">';
+                html += '    <div class="flex items-center space-x-3">';
+                html += '      <div class="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center font-bold text-xs">';
+                html += '        ' + d.username.substring(0, 2).toUpperCase();
+                html += '      </div>';
+                html += '      <div>';
+                html += '        <p class="font-semibold text-gray-900 text-sm">' + escapeHtml(d.username) + bestBadge + '</p>';
+                html += '        <p class="text-xs text-gray-400">' + escapeHtml(d.phone) + ' | Age: ' + d.age + ' | ' + d.weight + 'kg</p>';
+                html += '        <p class="text-xs text-gray-400 mt-0.5">Last donation: ' + escapeHtml(m.daysSince < 999 ? m.daysSince + ' days ago' : 'Never') + '</p>';
+                html += '      </div>';
+                html += '    </div>';
+                html += '    <div class="text-right flex flex-col items-end">';
+                if (!m.canDonate) {
+                    html += '      <span class="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>Cooldown</span>';
+                } else {
+                    html += '      <span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full"><i class="fas fa-check mr-1"></i>Ready</span>';
+                }
+                html += '      <div class="mt-1.5 flex items-center gap-1">';
+                html += '        <div class="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div class="h-full ' + barColor + ' rounded-full" style="width:' + m.score + '%"></div></div>';
+                html += '        <span class="text-[10px] font-bold text-gray-500">' + m.score + '</span>';
+                html += '      </div>';
+                html += '    </div>';
+                html += '  </div>';
+                html += '</div>';
+            });
+
+            donorList.innerHTML = html;
+
+            // Auto-select best match
+            if (scored.length > 0 && scored[0].match.score > 0) {
+                var bestItem = donorList.querySelector('.assign-modal-donor[data-donor-id="' + scored[0].donor.id + '"]');
+                if (bestItem) {
+                    selectModalDonor(bestItem, scored[0].donor.id);
+                }
+            }
+        }
+
+        function selectModalDonor(el, donorId) {
+            document.querySelectorAll('.assign-modal-donor').forEach(function(item) {
+                item.classList.remove('selected');
+            });
+            el.classList.add('selected');
+            modalSelectedDonorId = donorId;
+            document.getElementById('modalAssignBtn').disabled = false;
+        }
+
+        function submitModalAssign() {
+            if (!modalRequestId || !modalSelectedDonorId) return;
+
+            // Create and submit a form
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'dashboard.php';
+
+            var ridInput = document.createElement('input');
+            ridInput.type = 'hidden';
+            ridInput.name = 'request_id';
+            ridInput.value = modalRequestId;
+            form.appendChild(ridInput);
+
+            var didInput = document.createElement('input');
+            didInput.type = 'hidden';
+            didInput.name = 'donor_id';
+            didInput.value = modalSelectedDonorId;
+            form.appendChild(didInput);
+
+            var submitInput = document.createElement('input');
+            submitInput.type = 'hidden';
+            submitInput.name = 'assign_donor';
+            submitInput.value = '1';
+            form.appendChild(submitInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // Modal donor search
+        var modalDonorSearch = document.getElementById('modalDonorSearch');
+        if (modalDonorSearch) {
+            modalDonorSearch.addEventListener('input', function() {
+                if (modalBloodGroup) {
+                    renderModalDonors(modalBloodGroup, this.value);
+                }
+            });
+        }
     </script>
+
+    <!-- Assign Donor Modal -->
+    <div id="assignModal" class="assign-modal-overlay" onclick="if(event.target===this)closeAssignModal()">
+        <div class="assign-modal">
+            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-user-plus"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">Assign Donor</h3>
+                        <p class="text-xs text-gray-400" id="modalRequestInfo"></p>
+                    </div>
+                </div>
+                <button onclick="closeAssignModal()" class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition">
+                    <i class="fas fa-times text-gray-500 text-sm"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="mb-3 p-3 bg-blue-50 rounded-xl flex items-center">
+                    <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                    <p class="text-blue-700 text-sm font-medium">Donors with same blood type: <span id="modalBloodType" class="font-bold"></span></p>
+                </div>
+                <input type="text" id="modalDonorSearch" placeholder="Search by name or phone..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition outline-none mb-3">
+                <div id="modalBestMatch" class="mb-3 hidden">
+                    <div class="p-3 bg-green-50 border border-green-200 rounded-xl">
+                        <div class="flex items-center mb-1">
+                            <i class="fas fa-magic text-green-600 mr-2"></i>
+                            <p class="text-green-700 text-sm font-bold">Best Match</p>
+                        </div>
+                        <p class="text-green-600 text-xs" id="modalBestMatchText"></p>
+                    </div>
+                </div>
+                <div id="modalDonorList" class="assign-modal-body"></div>
+                <div id="modalNoDonors" class="text-center py-6 hidden">
+                    <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                        <i class="fas fa-user-slash text-gray-300"></i>
+                    </div>
+                    <p class="text-gray-400 text-sm">No donors with this blood type available</p>
+                    <p class="text-gray-300 text-xs mt-1">All matching donors may be currently assigned</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-100 flex gap-3">
+                <button onclick="closeAssignModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl transition">Cancel</button>
+                <button id="modalAssignBtn" onclick="submitModalAssign()" disabled class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-user-check mr-1"></i>Assign
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Blood Group Pie Chart -->
     <script>

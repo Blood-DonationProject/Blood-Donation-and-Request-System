@@ -129,3 +129,29 @@ PREPARE stmt14 FROM @sql14; EXECUTE stmt14; DEALLOCATE PREPARE stmt14;
 --     'DROP TABLE IF EXISTS requester',
 --     'SELECT "requester table does not exist"');
 -- PREPARE stmt15 FROM @sql15; EXECUTE stmt15; DEALLOCATE PREPARE stmt15;
+
+
+-- 4. Add assigned_donor_id column to blood_request if it doesn't exist
+SET @col_exists_ad = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'blood_donation' AND TABLE_NAME = 'blood_request' AND COLUMN_NAME = 'assigned_donor_id');
+SET @sql_ad = IF(@col_exists_ad = 0,
+    'ALTER TABLE blood_request ADD COLUMN assigned_donor_id INT DEFAULT NULL AFTER status',
+    'SELECT "assigned_donor_id column already exists"');
+PREPARE stmt_ad FROM @sql_ad; EXECUTE stmt_ad; DEALLOCATE PREPARE stmt_ad;
+
+-- Add foreign key for assigned_donor_id
+SET @fk_ad = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = 'blood_donation' AND TABLE_NAME = 'blood_request'
+    AND CONSTRAINT_NAME = 'fk_br_assigned_donor');
+SET @sql_fk_ad = IF(@fk_ad = 0,
+    'ALTER TABLE blood_request ADD CONSTRAINT fk_br_assigned_donor FOREIGN KEY (assigned_donor_id) REFERENCES donor(id) ON DELETE SET NULL ON UPDATE CASCADE',
+    'SELECT "fk_br_assigned_donor already exists"');
+PREPARE stmt_fk_ad FROM @sql_fk_ad; EXECUTE stmt_fk_ad; DEALLOCATE PREPARE stmt_fk_ad;
+
+-- 5. Add requester_name column to blood_request if it doesn't exist
+SET @col_exists_rn = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'blood_donation' AND TABLE_NAME = 'blood_request' AND COLUMN_NAME = 'requester_name');
+SET @sql_rn = IF(@col_exists_rn = 0,
+    'ALTER TABLE blood_request ADD COLUMN requester_name VARCHAR(100) DEFAULT NULL AFTER users_id',
+    'SELECT "requester_name column already exists"');
+PREPARE stmt_rn FROM @sql_rn; EXECUTE stmt_rn; DEALLOCATE PREPARE stmt_rn;

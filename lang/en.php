@@ -355,6 +355,7 @@ $translations = [
     'member_since' => 'Member Since',
     'blood_requests_tab' => 'Blood Requests',
     'no_donation_history' => 'No donation history found.',
+    'donation_history_empty_desc' => 'When you make your first donation, your history will appear here.',
     'no_blood_request_history' => 'No blood request history found.',
     'pending' => 'Pending',
     'approved' => 'Approved',
@@ -367,6 +368,7 @@ $translations = [
     'ready_to_donate' => 'Ready to Donate',
 
     // profile.php
+    'donation_history_total' => 'Total',
     'donation_stats' => 'Donation Stats',
     'donations' => 'Donations',
     'lives_saved_stat' => 'Lives Saved',

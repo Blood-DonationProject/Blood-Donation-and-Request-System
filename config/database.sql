@@ -36,11 +36,13 @@ VALUES
 CREATE TABLE blood_request (
     id INT AUTO_INCREMENT PRIMARY KEY,
     users_id INT NOT NULL,
+    requester_name VARCHAR(100) DEFAULT NULL,
     blood_groups_id INT NOT NULL,
     units INT NOT NULL,
     hospital VARCHAR(100) NOT NULL,
     required_date DATE NOT NULL,
     status ENUM('Pending','Approved','Completed','Rejected') DEFAULT 'Pending',
+    assigned_donor_id INT DEFAULT NULL,
 
     FOREIGN KEY (users_id)
     REFERENCES users(id)
@@ -49,6 +51,10 @@ CREATE TABLE blood_request (
     FOREIGN KEY (blood_groups_id)
     REFERENCES blood_groups(id)
     ON DELETE CASCADE
+    ON UPDATE CASCADE,
+    FOREIGN KEY (assigned_donor_id)
+    REFERENCES donor(id)
+    ON DELETE SET NULL
     ON UPDATE CASCADE
 );
 

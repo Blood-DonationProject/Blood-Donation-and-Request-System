@@ -152,29 +152,31 @@ if ($donorData) {
     $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
     $userData['phone'] = $donorData['phone'] ?? '';
     $userData['address'] = $donorData['address'] ?? '';
+}
 
-    // Fetch donation history for all users with donor record
-    $stmt = $conn->prepare("SELECT dh.*, bg.blood_gp_name, dh.status AS dh_status
-                            FROM donation_history dh
-                            LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
-                            WHERE dh.donor_id = ?
-                            ORDER BY dh.donation_date DESC");
-    $stmt->bind_param("i", $donorId);
-    $stmt->execute();
-    $donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+// Fetch donation history by donor_id or users_id
+$stmt = $conn->prepare("SELECT dh.*, bg.blood_gp_name, br.hospital
+                        FROM donation_history dh
+                        LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
+                        LEFT JOIN blood_request br ON br.id = dh.request_id AND dh.request_id > 0
+                        WHERE " . ($donorId > 0 ? "dh.donor_id = ?" : "dh.users_id = ?") . "
+                        ORDER BY dh.donation_date DESC");
+$param = $donorId > 0 ? $donorId : $userId;
+$stmt->bind_param("i", $param);
+$stmt->execute();
+$donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 
-    $donationCount = count($donations);
-    foreach ($donations as $d) {
-        $totalUnits += (int)($d['units'] ?? 1);
-    }
-    $livesSaved = $totalUnits * 3;
+$donationCount = count($donations);
+foreach ($donations as $d) {
+    $totalUnits += (int)($d['units'] ?? 1);
+}
+$livesSaved = $totalUnits * 3;
 
-    if ($donationCount > 0 && !empty($donations[0]['donation_date'])) {
-        $lastDate = new DateTime($donations[0]['donation_date']);
-        $now = new DateTime();
-        $daysSinceLast = $now->diff($lastDate)->days;
-    }
+if ($donationCount > 0 && !empty($donations[0]['donation_date'])) {
+    $lastDate = new DateTime($donations[0]['donation_date']);
+    $now = new DateTime();
+    $daysSinceLast = $now->diff($lastDate)->days;
 }
 
 // Fetch blood request history for any user
@@ -440,30 +442,57 @@ $stmt->close();
 
             <!-- Donation History Tab -->
             <div id="tab-history" class="tab-panel">
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="border-b border-gray-100">
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                    <?php if (count($donations) > 0): ?>
+              <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">📋</span>
+                  <h3 class="font-bold text-gray-900" data-i18n="donation_history">Donation History</h3>
+                  <?php if ($donationCount > 0): ?>
+                    <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full ml-2"><?= $donationCount ?></span>
+                  <?php endif; ?>
+                </div>
+              </div>
+
+              <?php if (count($donations) > 0): ?>
+                <div class="overflow-x-auto rounded-xl border border-gray-100">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="bg-gray-50 border-b border-gray-100">
+                        <th class="text-left text-gray-500 font-semibold px-4 py-3" data-i18n="date">Date</th>
+                        <th class="text-left text-gray-500 font-semibold px-4 py-3" data-i18n="blood_type">Blood Type</th>
+                        <th class="text-left text-gray-500 font-semibold px-4 py-3" data-i18n="units">Units</th>
+                        <th class="text-left text-gray-500 font-semibold px-4 py-3" data-i18n="hospital_col">Hospital</th>
+                        <th class="text-left text-gray-500 font-semibold px-4 py-3" data-i18n="status">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
                       <?php foreach ($donations as $d): ?>
-                        <tr class="hover:bg-gray-50">
-                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($d['donation_date'])) ?></td>
-                          <td class="py-3 text-gray-600"><?= (int)($d['units'] ?? 1) ?> unit</td>
-                          <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($d['dh_status'] ?? $d['status'] ?? 'Completed') ?></span></td>
+                        <tr class="hover:bg-gray-50 transition">
+                          <td class="px-4 py-3 text-gray-700 font-medium whitespace-nowrap"><?= date('M j, Y', strtotime($d['donation_date'])) ?></td>
+                          <td class="px-4 py-3">
+                            <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($d['blood_gp_name'] ?? '-') ?></span>
+                          </td>
+                          <td class="px-4 py-3 text-gray-600"><?= (int)($d['units'] ?? 1) ?> <?= (int)($d['units'] ?? 1) > 1 ? 'units' : 'unit' ?></td>
+                          <td class="px-4 py-3 text-gray-600"><?= htmlspecialchars($d['hospital'] ?? '-') ?></td>
+                          <td class="px-4 py-3">
+                            <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full"><?= htmlspecialchars($d['status'] ?? 'Completed') ?></span>
+                          </td>
                         </tr>
                       <?php endforeach; ?>
-                    <?php else: ?>
-                      <tr><td colspan="3" class="py-8 text-center text-gray-500" data-i18n="no_donation_history">No donation history found.</td></tr>
-                    <?php endif; ?>
-                  </tbody>
-                </table>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="mt-4 bg-gray-50 rounded-xl px-5 py-3 flex flex-wrap items-center justify-between text-sm">
+                  <span class="text-gray-500"><span data-i18n="donation_history_total">Total</span>: <strong class="text-gray-900"><?= number_format($totalUnits) ?></strong> <?= $totalUnits > 1 ? 'units' : 'unit' ?> <?= !empty($bloodGroup) && $bloodGroup !== '-' ? "($bloodGroup)" : '' ?></span>
+                  <span class="text-green-600 font-semibold">🩸 <span data-i18n="lives_saved_stat">Lives Saved</span>: <?= $livesSaved ?></span>
+                </div>
+              <?php else: ?>
+                <div class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                  <div class="text-5xl mb-4">🩸</div>
+                  <p class="text-gray-500 font-semibold" data-i18n="no_donation_history">No donation history found.</p>
+                  <p class="text-gray-400 text-sm mt-1" data-i18n="donation_history_empty_desc">When you make your first donation, your history will appear here.</p>
+                </div>
+              <?php endif; ?>
             </div>
 
             <!-- Blood Requests Tab -->
@@ -741,12 +770,12 @@ $stmt->close();
   </div>
 
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-300 py-12">
+  <footer class="bg-white text-gray-600 py-12 border-t border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid md:grid-cols-4 gap-8 mb-8">
-        <div><h3 class="text-white font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
+        <div><h3 class="text-red-600 font-bold text-lg mb-4">BloodLife</h3><p class="text-sm">Connecting donors with those who need help. Save lives today.</p></div>
         <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
+          <h4 class="text-red-600 font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
           <ul class="space-y-2 text-sm">
             <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
             <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
@@ -754,7 +783,7 @@ $stmt->close();
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="contact">Contact</h4>
+          <h4 class="text-red-600 font-bold mb-4" data-i18n="contact">Contact</h4>
           <ul class="space-y-2 text-sm">
             <li>📧 info@bloodlife.com</li>
             <li>📱 1-800-BLOOD-999</li>
@@ -762,7 +791,7 @@ $stmt->close();
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
+          <h4 class="text-red-600 font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
           <div class="flex space-x-4">
             <a href="#" class="hover:text-red-400 transition">Facebook</a>
             <a href="#" class="hover:text-red-400 transition">Twitter</a>

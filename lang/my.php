@@ -354,6 +354,7 @@ $translations = [
     'member_since' => 'အသင်းဝင်ချိန်',
     'blood_requests_tab' => 'သွေးတောင်းဆိုမှုများ',
     'no_donation_history' => 'သွေးလှူဒါန်းမှု မှတ်တမ်း မတွေ့ပါ။',
+    'donation_history_empty_desc' => 'သင့်ပထမဆုံး သွေးလှူဒါန်းမှု ပြုလုပ်သောအခါ သင့်မှတ်တမ်းသည် ဤနေရာတွင် ပေါ်လာပါမည်။',
     'no_blood_request_history' => 'သွေးတောင်းဆိုမှု မှတ်တမ်း မတွေ့ပါ။',
     'pending' => 'အတည်ပြုစောင့်ဆိုင်းနေသည်',
     'approved' => 'အတည်ပြုပြီး',
@@ -366,6 +367,7 @@ $translations = [
     'ready_to_donate' => 'သွေးလှူဒါန်းနိုင်ပါပြီ',
 
     // profile.php
+    'donation_history_total' => 'စုစုပေါင်း',
     'donation_stats' => 'သွေးလှူဒါန်းမှု စာရင်းအင်း',
     'donations' => 'သွေးလှူဒါန်းမှု',
     'lives_saved_stat' => 'ကယ်တင်ခဲ့သည့် အသက်များ',

@@ -114,7 +114,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
     </style>
 </head>
 
-<body class="bg-gradient-to-b from-gray-50 to-gray-100 font-family: 'Pyidaungsu', Noto Sans Myanmar, sans-serif;">
+<body class="bg-gradient-to-b from-gray-50 to-gray-100">
 
     <!-- Mobile Menu Toggle -->
     <div id="mobileMenuToggle" class="fixed top-4 right-4 z-50 md:hidden bg-red-600 text-white p-2 rounded-lg cursor-pointer">
@@ -223,7 +223,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     </p>
 
                     <div class="flex flex-col sm:flex-row gap-4">
-                        <a href="becomedonor.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-4 rounded-xl font-bold hover:shadow-xl hover:from-red-700 hover:to-red-800 transition transform hover:scale-105 text-center" data-i18n="become_a_donor">
+                        <a href="donor.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-4 rounded-xl font-bold hover:shadow-xl hover:from-red-700 hover:to-red-800 transition transform hover:scale-105 text-center" data-i18n="become_a_donor">
                             Become a Donor
                         </a>
                         <a href="requestblood.php" class="border-2 border-red-600 text-red-600 px-8 py-4 rounded-xl font-bold hover:bg-red-50 transition text-center" data-i18n="search_blood_type">
@@ -350,15 +350,15 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
         </div>
     </section>
  <!-- Footer -->
-    <footer class="bg-gray-900 text-gray-300 py-12">
+    <footer class="bg-white text-gray-600 py-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid md:grid-cols-4 gap-8 mb-8">
                 <div>
-                    <h3 class="text-white font-bold text-lg mb-4">BloodLife</h3>
+                    <h3 class="text-red-600 font-bold text-lg mb-4">BloodLife</h3>
                     <p class="text-sm" data-i18n="save_lives_together">Connecting donors with those who need help. Save lives today.</p>
                 </div>
                 <div>
-                    <h4 class="text-white font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
+                    <h4 class="text-red-600 font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
                     <ul class="space-y-2 text-sm">
                         <li><a href="#" class="hover:text-red-600 transition" data-i18n="about_us">About Us</a></li>
                         <li><a href="donor.php" class="hover:text-red-600 transition" data-i18n="donors">Donors</a></li>
@@ -366,7 +366,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     </ul>
                 </div>
                 <div>
-                    <h4 class="text-white font-bold mb-4" data-i18n="contact">Contact</h4>
+                    <h4 class="text-red-600 font-bold mb-4" data-i18n="contact">Contact</h4>
                     <ul class="space-y-2 text-sm">
                         <li>📧 info@bloodlife.com</li>
                         <li>📱 1-800-BLOOD-999</li>
@@ -374,7 +374,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     </ul>
                 </div>
                 <div>
-                    <h4 class="text-white font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
+                    <h4 class="text-red-600 font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
                     <div class="flex space-x-4">
                         <a href="#" class="hover:text-red-600 transition">Facebook</a>
                         <a href="#" class="hover:text-red-600 transition">Twitter</a>

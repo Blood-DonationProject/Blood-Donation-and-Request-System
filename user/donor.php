@@ -141,7 +141,7 @@ if ($isLoggedIn) {
     html.dark .section-pink { background: linear-gradient(180deg, rgba(236,72,153,0.08) 0%, #1f2937 100%) !important; }
   </style>
 </head>
-<body class="bg-white min-h-screen" style="font-family: 'Pyidaungsu', Noto Sans Myanmar, sans-serif;">
+<body class="bg-white min-h-screen">
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- NAVBAR -->
@@ -233,7 +233,7 @@ if ($isLoggedIn) {
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- 1. HERO BANNER -->
   <!-- ═══════════════════════════════════════════════════ -->
-  <section class="hero-bg text-white py-20 sm:py-28 relative">
+  <section class="section-pink text-white py-20 sm:py-28 relative">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       <div class="grid md:grid-cols-2 gap-12 items-center">
         <!-- Left: Text -->
@@ -241,23 +241,23 @@ if ($isLoggedIn) {
           <div class="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white px-5 py-2 rounded-full text-sm font-semibold mb-6">
             <i class="fas fa-heart-pulse"></i> <span>Save Lives Today</span>
           </div>
-          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight mb-6">
+          <h1 class="text-4xl text-pink-500 sm:text-5xl lg:text-6xl font-extrabold leading-tight mb-6">
             Become a<br>
-            <span class="text-pink-200" >Blood Donor</span>
+            <span class="text-red-600" >Blood Donor</span>
           </h1>
-          <p class="text-lg sm:text-xl text-red-100 mb-8 leading-relaxed max-w-lg" data-i18n="hero_desc">
+          <p class="text-lg sm:text-xl text-gray-500 mb-8 leading-relaxed max-w-lg" data-i18n="hero_desc">
             Every drop of blood is a gift of life. Your donation can save someone's life today.
           </p>
 
           <?php if ($isAlreadyDonor): ?>
-            <div class="bg-white/15 backdrop-blur-sm rounded-2xl p-6 border border-white/20 mb-6">
+            <div class="bg-gray-700/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 mb-6">
               <div class="flex items-center gap-3 mb-3">
                 <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
                   <i class="fas fa-check text-white"></i>
                 </div>
-                <p class="font-bold text-white text-lg">You are already registered as a donor.</p>
+                <p class="font-bold text-red-600 text-lg">You are already registered as a donor.</p>
               </div>
-              <a href="donateform.php?edit=<?= $donorId ?>" class="inline-flex items-center gap-2 bg-white text-red-700 px-8 py-3 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl transition transform hover:scale-105">
+              <a href="donateform.php?edit=<?= $donorId ?>" class="inline-flex items-center bg-pink-300 gap-2 text-red-700 px-8 py-3 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl transition transform hover:scale-105">
                 <i class="fas fa-user-pen"></i> View Donor Profile
               </a>
             </div>
@@ -266,7 +266,7 @@ if ($isLoggedIn) {
               <a href="donateform.php" class="bg-white text-red-700 px-8 py-4 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl transition transform hover:scale-105 text-center">
                 <i class="fas fa-hand-holding-heart mr-2"></i> <span data-i18n="register_as_donor">Register as Donor</span>
               </a>
-              <a href="#process" class="border-2 border-white/50 text-white px-8 py-4 rounded-xl font-bold hover:bg-white/10 transition text-center">
+              <a href="#process" class="border-2 border-white/50 text-red-500 px-8 py-4 rounded-xl font-bold hover:bg-red-50/10 transition text-center">
                 <i class="fas fa-circle-info mr-2"></i> <span data-i18n="learn_more">Learn More</span>
               </a>
             </div>
@@ -278,15 +278,15 @@ if ($isLoggedIn) {
           <div class="relative">
             <!-- Decorative rings -->
             <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-72 h-72 rounded-full border-2 border-white/10 pulse-ring"></div>
-              <div class="absolute w-56 h-56 rounded-full border-2 border-white/10 pulse-ring" style="animation-delay: 0.5s;"></div>
+              <div class="w-72 h-72 rounded-full border-2 border-pink-500/10 pulse-ring"></div>
+              <div class="absolute w-56 h-56 rounded-full border-2 border-pink-500/10 pulse-ring" style="animation-delay: 0.5s;"></div>
             </div>
             <!-- Blood drop icon -->
-            <div class="relative w-72 h-72 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center float-anim">
+            <div class="relative w-72 h-72 bg-pink-400/10 backdrop-blur-sm rounded-full flex items-center justify-center float-anim">
               <div class="text-center">
-                <i class="fas fa-droplet text-8xl text-pink-200 mb-4 drop-shadow-lg heartbeat"></i>
-                <p class="text-2xl font-bold text-white">Give Blood</p>
-                <p class="text-pink-200 text-sm mt-1">Save a Life</p>
+                <i class="fas fa-droplet text-8xl text-red-500 mb-4 drop-shadow-lg heartbeat"></i>
+                <p class="text-2xl font-bold text-red-600">Give Blood</p>
+                <p class="text-pink-400 text-sm mt-1">Save a Life</p>
               </div>
             </div>
           </div>
@@ -295,17 +295,17 @@ if ($isLoggedIn) {
 
       <!-- Stats -->
       <div class="grid grid-cols-3 gap-4 sm:gap-8 mt-16 max-w-2xl mx-auto">
-        <div class="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
+        <div class="text-center bg-red-600 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
           <i class="fas fa-users text-2xl text-pink-200 mb-2"></i>
           <p class="text-3xl sm:text-4xl font-extrabold">50+</p>
           <p class="text-sm text-red-100 mt-1" >Active Donors</p>
         </div>
-        <div class="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
+        <div class="text-center bg-red-600 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
           <i class="fas fa-hand-holding-medical text-2xl text-pink-200 mb-2"></i>
           <p class="text-3xl sm:text-4xl font-extrabold">15+</p>
           <p class="text-sm text-red-100 mt-1" >Lives Saved</p>
         </div>
-        <div class="text-center bg-white/10 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
+        <div class="text-center bg-red-600 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
           <i class="fas fa-calendar-check text-2xl text-pink-200 mb-2"></i>
           <p class="text-3xl sm:text-4xl font-extrabold">8</p>
           <p class="text-sm text-red-100 mt-1">Blood Types</p>
@@ -863,22 +863,22 @@ if ($isLoggedIn) {
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- FOOTER -->
   <!-- ═══════════════════════════════════════════════════ -->
-  <footer class="bg-gray-900 text-gray-300 py-12">
+  <footer class="bg-white text-gray-600 py-12">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid md:grid-cols-4 gap-8 mb-8">
         <div>
-          <h3 class="text-white font-bold text-lg mb-4">BloodLife</h3>
+          <h3 class="text-red-600 font-bold text-lg mb-4">BloodLife</h3>
           <p class="text-sm">Connecting donors with those who need help. Save lives today.</p>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Quick Links</h4>
+          <h4 class="text-red-600 font-bold mb-4">Quick Links</h4>
           <ul class="space-y-2 text-sm">
             <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
             <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Contact</h4>
+          <h4 class="text-red-600 font-bold mb-4">Contact</h4>
           <ul class="space-y-2 text-sm">
             <li>📧 info@bloodlife.com</li>
             <li>📱 1-800-BLOOD-999</li>
@@ -886,7 +886,7 @@ if ($isLoggedIn) {
           </ul>
         </div>
         <div>
-          <h4 class="text-white font-bold mb-4">Follow Us</h4>
+          <h4 class="text-red-600 font-bold mb-4">Follow Us</h4>
           <div class="flex space-x-4 text-sm">
             <a href="#" class="hover:text-red-400 transition">Facebook</a>
             <a href="#" class="hover:text-red-400 transition">Twitter</a>
