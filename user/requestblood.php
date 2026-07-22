@@ -176,8 +176,6 @@ if ($isLoggedIn) {
     tailwind.config = { darkMode: 'class' }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../assets/js/translations.js"></script>
-  <script src="../assets/js/i18n.js"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
   <style>
     @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
@@ -224,10 +222,6 @@ if ($isLoggedIn) {
           <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
           <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-          <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-            <option value="en">EN</option>
-            <option value="my">MY</option>
-          </select>
           <?php if ($isLoggedIn): ?>
             <div class="relative" id="userMenu">
               <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">

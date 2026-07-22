@@ -58,8 +58,6 @@ if (isset($_POST['update']))
     tailwind.config = { darkMode: 'class' }
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="../assets/js/translations.js"></script>
-<script src="../assets/js/i18n.js"></script>
 <link rel="stylesheet" href="../assets/css/myanmar-font.css">
 <style id="dark-mode-styles">
     html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }

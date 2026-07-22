@@ -122,8 +122,6 @@ if (isset($_GET['edit'])) {
         tailwind.config = { darkMode: 'class' }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../assets/js/translations.js"></script>
-    <script src="../assets/js/i18n.js"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
@@ -154,90 +152,13 @@ if (isset($_GET['edit'])) {
 <div class="flex min-h-screen">
 
     <!-- Sidebar -->
-    <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
-        <div class="p-6 border-b border-gray-200">
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">🩸</span>
-                <div>
-                    <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                    <p class="text-xs text-gray-500">Dashboard</p>
-                </div>
-            </div>
-        </div>
-
-        <nav class="flex-1 px-4 py-6 space-y-2">
-                <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
-                    <span>📊</span>
-                    <span data-i18n="overview">Overview</span>
-                </a>
-                <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
-                    <span>📊</span>
-                    <span data-i18n="users">Users</span>
-                </a>
-                <a href="donors.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700  hover:bg-gray-100 rounded-lg transition">
-                    <span>👥</span>
-                    <span data-i18n="donors">Donors</span>
-                </a>
-                
-                <a href="donation_histories.php" class="flex items-center space-x-3 px-4 py-3  bg-red-50 text-red-700 rounded-lg font-semibold">
-                    <span>⚡</span>
-                    <span data-i18n="donation_histories">Donation Histories</span>
-                </a>
-                
-                <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>📋</span>
-                    <span data-i18n="blood_requests">Blood Requests</span>
-                </a>
-            </nav>
-
-        <div class="p-4 border-t border-gray-200">
-            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">
-                Logout
-            </a>
-        </div>
-    </div>
+     <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
     <!-- Main Content -->
     <main class="flex-1">
 
         <!-- Top Bar -->
-        <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
-            <div>
-                <h2 class="text-3xl font-bold text-red-800" data-i18n="donation_histories_title">Donation Histories</h2>
-                <p class="text-gray-500 mt-1">Track and manage all donation-related actions.</p>
-            </div>
-            <div class="flex items-center gap-4">
-<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-                <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-                    <option value="en">EN</option>
-                    <option value="my">MY</option>
-                </select>
-            </div>
-            <div class="relative" id="adminMenu">
-                <div class="flex items-center gap-2 cursor-pointer" onclick="toggleAdminDropdown()">
-                    <div class="w-10 h-10 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold">
-                        <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                    </div>
-                    <span class="font-medium"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></span>
-                </div>
-                <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                    <div class="p-4 border-b border-gray-100">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
-                                <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                            </div>
-                            <div>
-                                <p class="font-semibold text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                <p class="text-sm text-gray-500"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="p-3">
-                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-                    </div>
-                </div>
-            </div>
-        </header>
+        <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
         <div class="p-8">
 
@@ -402,30 +323,6 @@ if (isset($_GET['edit'])) {
         form.classList.toggle('hidden');
     }
 </script>
-
-<script>
-    (function() {
-      var KEY = 'bloodlife-theme';
-      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-      function apply(t) {
-        if (t === 'dark') document.documentElement.classList.add('dark');
-        else document.documentElement.classList.remove('dark');
-        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
-          var sun = btn.querySelector('.theme-icon-sun');
-          var moon = btn.querySelector('.theme-icon-moon');
-          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
-          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
-        });
-      }
-      apply(getTheme());
-      window.toggleTheme = function() {
-        var current = localStorage.getItem(KEY) || 'light';
-        var next = current === 'dark' ? 'light' : 'dark';
-        localStorage.setItem(KEY, next);
-        apply(next);
-      };
-    })();
-    </script>
 
 </body>
 </html>

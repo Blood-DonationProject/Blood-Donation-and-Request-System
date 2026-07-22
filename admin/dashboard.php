@@ -293,8 +293,6 @@ $current_time = date('h:i A');
         tailwind.config = { darkMode: 'class' }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../assets/js/translations.js"></script>
-    <script src="../assets/js/i18n.js"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -362,119 +360,12 @@ $current_time = date('h:i A');
     <!-- Sidebar Navigation -->
     <div class="flex">
         <!-- Sidebar -->
-        <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
-            <div class="p-6 border-b border-gray-100">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center">
-                        <i class="fas fa-tint text-white text-lg"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                        <p class="text-xs text-gray-400">Admin Panel</p>
-                    </div>
-                </div>
-            </div>
-
-            <nav class="flex-1 px-4 py-6 space-y-1">
-                <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-xl font-semibold border border-red-100">
-                    <i class="fas fa-th-large w-5 text-center"></i>
-                    <span data-i18n="overview">Overview</span>
-                </a>
-                <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl transition">
-                    <i class="fas fa-users w-5 text-center"></i>
-                    <span data-i18n="users">Users</span>
-                </a>
-                <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl transition">
-                    <i class="fas fa-hand-holding-heart w-5 text-center"></i>
-                    <span data-i18n="donors">Donors</span>
-                </a>
-                <a href="donation_histories.php" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl transition">
-                    <i class="fas fa-history w-5 text-center"></i>
-                    <span data-i18n="donation_histories">Donation Histories</span>
-                </a>
-                <a href="requests.php" class="flex items-center space-x-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl transition">
-                    <i class="fas fa-file-medical w-5 text-center"></i>
-                    <span data-i18n="blood_requests">Blood Requests</span>
-                </a>
-            </nav>
-
-            <div class="p-4 border-t border-gray-100">
-                <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center items-center gap-2 py-2.5 rounded-xl font-semibold hover:bg-red-700 transition">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span data-i18n="logout">Logout</span>
-                </a>
-            </div>
-        </div>
+         <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
         <!-- Main Content -->
         <div class="flex-1 min-h-screen">
             <!-- Top Navigation Bar -->
-            <nav class="bg-white shadow-sm sticky top-0 z-40 border-b border-gray-100">
-                <div class="px-6 py-4 flex justify-between items-center">
-                    <div class="flex items-center space-x-4">
-                        <h2 class="text-2xl font-bold text-gray-900">Dashboard</h2>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        <!-- Theme Toggle -->
-                        <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-300 hover:bg-red-50 transition" aria-label="Toggle theme" onclick="toggleTheme()">
-                            <span class="theme-icon-sun"><i class="fas fa-sun text-gray-600"></i></span>
-                            <span class="theme-icon-moon" style="display:none"><i class="fas fa-moon text-gray-600"></i></span>
-                        </button>
-                        <!-- Language -->
-                        <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.75rem;border:1px solid #e5e7eb;background-color:#f9fafb;color:#374151;padding:8px 12px;cursor:pointer;">
-                            <option value="en">EN</option>
-                            <option value="my">MY</option>
-                        </select>
-                        <!-- Notifications Bell -->
-                        <button onclick="toggleNotifications()" class="relative w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition">
-                            <i class="fas fa-bell text-gray-600"></i>
-                            <?php if ($stats['pending'] > 0): ?>
-                            <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm pulse-dot"><?= $stats['pending'] ?></span>
-                            <?php endif; ?>
-                        </button>
-                        <!-- Date & Time -->
-                        <div class="hidden lg:flex items-center gap-2 border-l border-gray-200 pl-4">
-                            <div class="flex items-center space-x-1.5 text-sm text-gray-600">
-                                <i class="fas fa-calendar-alt text-red-500 text-xs"></i>
-                                <span class="font-medium" id="welcomeDate"><?= $current_date ?></span>
-                            </div>
-                            <div class="w-px h-4 bg-gray-200"></div>
-                            <div class="flex items-center space-x-1.5 text-sm text-gray-600">
-                                <i class="fas fa-clock text-red-500 text-xs"></i>
-                                <span class="font-medium" id="welcomeTime"><?= $current_time ?></span>
-                            </div>
-                        </div>
-                        <!-- Admin Profile -->
-                        <div class="relative" id="adminMenu">
-                            <div class="flex items-center space-x-3 cursor-pointer pl-3 border-l border-gray-200" onclick="toggleAdminDropdown()">
-                                <div class="text-right">
-                                    <p class="font-semibold text-sm text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                    <p class="text-xs text-gray-400" data-i18n="administrator">Administrator</p>
-                                </div>
-                                <div class="w-10 h-10 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
-                                    <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                                </div>
-                            </div>
-                            <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 z-50">
-                                <div class="p-4 border-b border-gray-100">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-lg">
-                                            <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                                        </div>
-                                        <div>
-                                            <p class="font-semibold text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                            <p class="text-sm text-gray-400"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="p-3">
-                                    <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-xl font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </nav>
+            <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
             <!-- Notifications Dropdown Panel -->
             <div id="notificationsPanel" class="hidden mx-6 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 animate-fade-in">
@@ -1139,30 +1030,6 @@ $current_time = date('h:i A');
                 if (dd) dd.classList.add('hidden');
             }
         });
-    </script>
-
-    <script>
-        (function() {
-          var KEY = 'bloodlife-theme';
-          function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-          function apply(t) {
-            if (t === 'dark') document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
-            document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
-              var sun = btn.querySelector('.theme-icon-sun');
-              var moon = btn.querySelector('.theme-icon-moon');
-              if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
-              if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
-            });
-          }
-          apply(getTheme());
-          window.toggleTheme = function() {
-            var current = localStorage.getItem(KEY) || 'light';
-            var next = current === 'dark' ? 'light' : 'dark';
-            localStorage.setItem(KEY, next);
-            apply(next);
-          };
-        })();
     </script>
 
     <script>

@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Verify credentials against the database
         if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE email = ?  LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, username, password, status FROM users WHERE email = ?  LIMIT 1");
             if ($stmt) {
                 $stmt->bind_param('s', $email);
                 $stmt->execute();
@@ -78,20 +78,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($result && $result->num_rows > 0) {
                     $row = $result->fetch_assoc();
                     $storedPassword = $row['password'];
+                    $userStatus = $row['status'] ?? 'Active';
 
-                    if (password_verify($password, $storedPassword)) {
-                        $_SESSION['logged_in'] = true;
-                        $_SESSION['username'] = $row['username'];
-                        $_SESSION['user_id'] = $row['id'];
-                        $_SESSION['user_role'] = $row['role'];
-                        $_SESSION['myanmar_name'] = $row['myanmar_name'] ?? '';
-                        $loginSuccess = true;
+                    // Check status first - block inactive accounts regardless of password
+                    if ($userStatus !== 'Active') {
+                        $errorMessage = 'Your account is inactive. Login access has been disabled.';
+                    } else {
+                        // Account is active, verify password
+                        if (password_verify($password, $storedPassword)) {
+                            $_SESSION['logged_in'] = true;
+                            $_SESSION['username'] = $row['username'];
+                            $_SESSION['user_id'] = $row['id'];
+                            $_SESSION['user_role'] = 'User';
+                            $loginSuccess = true;
 
-                        // Redirect based on role
-                        $role = $row['role'];
-                        if ($role === 'Admin') {
-                            $targetPath = '../admin/dashboard.php';
-                        } else {
+                            // Redirect to donor dashboard
                             $targetPath = 'donordashboard.php';
                         }
                     }
@@ -137,8 +138,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     tailwind.config = { darkMode: 'class' }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../assets/js/translations.js"></script>
-  <script src="../assets/js/i18n.js"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
   <style>
     @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
@@ -169,30 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
-  <nav class="bg-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
-        <a href="index.php" class="flex items-center space-x-3 animate-fade-down">
-          <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩸</span>
-          <div>
-            <h1 class="font-bold text-xl text-red-700">BloodLife</h1>
-            <p class="text-xs text-gray-500">Save Lives Together</p>
-          </div>
-        </a>
-        <div class="hidden md:flex items-center space-x-8">
-          <a href="index.php"    class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-          <a href="donor.php"      class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>          
-          <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-          <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-            <option value="en">EN</option>
-            <option value="my">MY</option>
-          </select>
-          <a href="register.php" class="border-2 border-red-600 text-red-600 px-6 py-2 rounded-lg font-semibold hover:bg-red-50 transition" data-i18n="register">Register</a>
-        </div>
-      </div>
-    </div>
-  </nav>
+ <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- Main Content -->
   <div class="min-h-[calc(100vh-4rem)] flex items-center justify-center py-16 px-4">
@@ -297,11 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-300 py-8">
-    <div class="max-w-7xl mx-auto px-4 text-center text-sm">
-      <p>&copy; BloodLife. All rights reserved. | <a href="#" class="hover:text-red-400">Privacy Policy</a> | <a href="#" class="hover:text-red-400">Terms of Service</a></p>
-    </div>
-  </footer>
+ <?php include __DIR__ . '/../includes/footer.php'; ?>
 
   <script>
     function setRole(role) {

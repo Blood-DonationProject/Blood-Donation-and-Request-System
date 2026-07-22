@@ -93,6 +93,7 @@ $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0,
     'available' => $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Available'")->fetch_assoc()['c'] ?? 0,
     'unavailable' => $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Unavailable'")->fetch_assoc()['c'] ?? 0,
+    'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
 ];
 
 // Fetch available donors for the dedicated section
@@ -117,8 +118,6 @@ $availableDonors = $conn->query("
         tailwind.config = { darkMode: 'class' }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../assets/js/translations.js"></script>
-    <script src="../assets/js/i18n.js"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
     <style>
         @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
@@ -158,82 +157,13 @@ $availableDonors = $conn->query("
 <div class="flex min-h-screen">
 
     <!-- Sidebar -->
-    <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
-        <div class="p-6 border-b border-gray-200">
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">🩸</span>
-                <div>
-                    <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                    <p class="text-xs text-gray-500">CRUD Panel</p>
-                </div>
-            </div>
-        </div>
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>📊</span> <span data-i18n="overview">Overview</span>
-            </a>
-            <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>👥</span> <span>Users</span>
-            </a>
-            <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                <span>🩸</span> <span>Donors</span>
-            </a>
-            
-            
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>⚡</span> <span>Donation History</span>
-            </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>📋</span> <span>Blood Requests</span>
-            </a>
-            
-        </nav>
-        <div class="p-4 border-t border-gray-200">
-            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-        </div>
-    </div>
+    <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
     <!-- Main Content -->
-    <main class="flex-1">
-        <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
-            <div>
-                <h2 class="text-3xl font-bold text-red-800">Manage Donors</h2>
-                <p class="text-gray-500 mt-1">Manage and monitor the blood donor network.</p>
-            </div>
-            <div class="flex items-center gap-4">
-                <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-                <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-                    <option value="en">EN</option>
-                    <option value="my">MY</option>
-                </select>
-                <div class="relative" id="adminMenu">
-                    <div class="flex items-center gap-2 cursor-pointer" onclick="toggleAdminDropdown()">
-                        <div class="w-10 h-10 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold">
-                            <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                        </div>
-                        <span class="font-medium"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></span>
-                    </div>
-                    <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                        <div class="p-4 border-b border-gray-100">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
-                                    <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                                </div>
-                                <div>
-                                    <p class="font-semibold text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                    <p class="text-sm text-gray-500"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="p-3">
-                            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
+    <main class="flex-1 min-w-0 flex flex-col">
+        <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
-        <div class="p-8">
+        <div class="p-4 md:p-8 overflow-x-auto flex-1">
 
             <?php if ($error): ?>
                 <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded mb-6"><p class="text-red-700"><?= htmlspecialchars($error) ?></p></div>
@@ -355,67 +285,8 @@ $availableDonors = $conn->query("
                 </form>
             </div>
 
-            <!-- Data Table -->
-            <div class="bg-white rounded-2xl shadow-lg p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-800">Donor Records</h3>
-                        <p class="text-sm text-gray-500">All registered donors.</p>
-                    </div>
-                    <span class="text-sm text-gray-500">Total: <?= count($donors) ?></span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm border-collapse">
-                        <thead>
-                            <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-3">ID</th>
-                                <th class="p-3">Username</th>                                
-                                <th class="p-3">Gender</th>
-                                <th class="p-3">Date of birth</th>
-                                <th class="p-3">Age</th>
-                                <th class="p-3">Weight</th>
-                                <th class="p-3">Blood Group</th>                              
-                                <th class="p-3">Phone</th>                               
-                                <th class="p-3">Address</th>                                
-                                <th class="p-3">Last Donation Date</th>
-                                <th class="p-3">Status</th>
-                                <th class="p-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (count($donors) > 0): ?>
-                                <?php foreach ($donors as $d): ?>
-                                    <?php $availColor = ($d['available_status'] ?? 'Available') === 'Available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>
-                                    <tr class="donor-row border-t border-slate-200 hover:bg-gray-50">
-                                        <td class="p-3 font-medium">#<?= $d['id'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['username'] ?? '-') ?></td>                                        
-                                        <td class="p-3"><?= htmlspecialchars($d['gender']) ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['date_of_birth']) ?></td>
-                                        <td class="p-3"><?= (int)$d['age'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['weight']) ?></td>
-                                        <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($d['blood_groups']) ?></span></td>
-                                        <td class="p-3"><?= htmlspecialchars($d['phone']) ?></td>                                        
-                                        <td class="p-3"><?= htmlspecialchars($d['address']) ?></td>                                        
-                                        <td class="p-3"><?= htmlspecialchars($d['last_donation_date'] ?? '-') ?></td>
-                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $availColor ?>"><?= htmlspecialchars($d['available_status']) ?></span></td>
-                                        <td class="p-3">
-                                            <div class="flex gap-2">
-                                                <a href="donor_crud.php?edit=<?= $d['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                <a href="donor_crud.php?delete=<?= $d['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this donor?')">Delete</a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr><td colspan="9" class="p-8 text-center text-gray-500">No donors found.</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <!-- Available Donors Section -->
-            <div class="mt-8 bg-white rounded-2xl shadow-lg p-6">
+            <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
                 <div class="flex items-center justify-between mb-6">
                     <div>
                         <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -479,6 +350,65 @@ $availableDonors = $conn->query("
                 <?php endif; ?>
             </div>
 
+            <!-- Data Table -->
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">Donor Records</h3>
+                        <p class="text-sm text-gray-500">All registered donors.</p>
+                    </div>
+                    <span class="text-sm text-gray-500">Total: <?= count($donors) ?></span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 text-slate-600">
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Username</th>                                
+                                <th class="p-3">Gender</th>
+                                <th class="p-3">Date of birth</th>
+                                <th class="p-3">Age</th>
+                                <th class="p-3">Weight</th>
+                                <th class="p-3">Blood Group</th>                              
+                                <th class="p-3">Phone</th>                               
+                                <th class="p-3">Address</th>                                
+                                <th class="p-3">Last Donation Date</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($donors) > 0): ?>
+                                <?php foreach ($donors as $d): ?>
+                                    <?php $availColor = ($d['available_status'] ?? 'Available') === 'Available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>
+                                    <tr class="donor-row border-t border-slate-200 hover:bg-gray-50">
+                                        <td class="p-3 font-medium">#<?= $d['id'] ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['username'] ?? '-') ?></td>                                        
+                                        <td class="p-3"><?= htmlspecialchars($d['gender']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['date_of_birth']) ?></td>
+                                        <td class="p-3"><?= (int)$d['age'] ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['weight']) ?></td>
+                                        <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($d['blood_groups']) ?></span></td>
+                                        <td class="p-3"><?= htmlspecialchars($d['phone']) ?></td>                                        
+                                        <td class="p-3"><?= htmlspecialchars($d['address']) ?></td>                                        
+                                        <td class="p-3"><?= htmlspecialchars($d['last_donation_date'] ?? '-') ?></td>
+                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $availColor ?>"><?= htmlspecialchars($d['available_status']) ?></span></td>
+                                        <td class="p-3">
+                                            <div class="flex gap-2">
+                                                <a href="donor_crud.php?edit=<?= $d['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
+                                                <a href="donor_crud.php?delete=<?= $d['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this donor?')">Delete</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr><td colspan="9" class="p-8 text-center text-gray-500">No donors found.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </main>
 </div>
@@ -497,6 +427,20 @@ document.addEventListener('click', function(e) {
 function toggleForm() {
     document.getElementById('crudForm').classList.toggle('hidden');
 }
+function toggleMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    sidebar.classList.toggle('hidden');
+    sidebar.classList.toggle('fixed');
+    sidebar.classList.toggle('inset-0');
+    sidebar.classList.toggle('z-50');
+    sidebar.classList.toggle('md:relative');
+    sidebar.classList.remove('md:flex');
+    overlay.classList.toggle('hidden');
+}
+document.getElementById('mobileOverlay')?.addEventListener('click', function() {
+    toggleMobileSidebar();
+});
 const searchInput = document.getElementById('searchInput');
 const rows = document.querySelectorAll('.donor-row');
 searchInput.addEventListener('keyup', function() {
@@ -507,31 +451,8 @@ searchInput.addEventListener('keyup', function() {
 });
 </script>
 
-<script>
-(function() {
-  var KEY = 'bloodlife-theme';
-  function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-  function apply(t) {
-    if (t === 'dark') document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-    document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
-      var sun = btn.querySelector('.theme-icon-sun');
-      var moon = btn.querySelector('.theme-icon-moon');
-      if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
-      if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
-    });
-  }
-  apply(getTheme());
-  window.toggleTheme = function() {
-    var current = localStorage.getItem(KEY) || 'light';
-    var next = current === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(KEY, next);
-    apply(next);
-  };
-})();
-</script>
-
-
+<!-- Mobile Sidebar Overlay -->
+<div id="mobileOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"></div>
 
 </body>
 </html>

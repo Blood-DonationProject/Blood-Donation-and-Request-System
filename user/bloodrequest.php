@@ -28,8 +28,6 @@ try {
     tailwind.config = { darkMode: 'class' }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../assets/js/translations.js"></script>
-  <script src="../assets/js/i18n.js"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
   <style>
     @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
@@ -61,64 +59,7 @@ try {
 <body class="bg-gradient-to-b from-pink-50 to-pink-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
-  <nav class="bg-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
-        <div class="flex items-center space-x-3 animate-fade-down">
-          <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩸</span>
-          <div>
-            <h1 class="font-bold text-xl text-red-700">BloodLife</h1>
-            <p class="text-xs text-gray-500">Save Lives Together</p>
-          </div>
-        </div>
-
-
-         <!-- Desktop Menu -->
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-                    <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-                    
-                    <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-
-                      <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-                    <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-                        <option value="en">EN</option>
-                        <option value="my">MY</option>
-                    </select>
-
-                    <?php if ($isLoggedIn): ?>
-                        <div class="relative" id="userMenu">
-                            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
-                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
-                                    <?= strtoupper(substr($username, 0, 1)) ?>
-                                </div>
-                                <span class="font-medium text-gray-700"><?= $username ?></span>
-                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                                <div class="p-4 border-b border-gray-100">
-                                    <p class="font-semibold text-gray-800"><?= $username ?></p>
-                                    <p class="text-sm text-gray-500">Logged in</p>
-                                </div>
-                                <div class="p-2">
-                                    <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                                        <span>👤</span> <span data-i18n="profile">Profile</span>
-                                    </a>
-                                    <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
-                                        <span>🚪</span> <span data-i18n="logout">Logout</span>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer">
-                            Login
-                        </a>
-                    <?php endif; ?>
-                </div>
-      </div>
-    </div>
-  </nav>
+  <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- Hero Banner -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-16">
@@ -146,43 +87,7 @@ try {
   </section>
 
   <!-- Footer -->
-  <footer class="bg-white text-gray-600 py-12 border-t border-gray-300">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid md:grid-cols-4 gap-8 mb-8">
-        <div>
-          <h3 class="text-red-600 font-bold text-lg mb-4">BloodLife</h3>
-          <p class="text-sm">Connecting donors with those who need help. Save lives today.</p>
-        </div>
-        <div>
-          <h4 class="text-red-600 font-bold mb-4">Quick Links</h4>
-          <ul class="space-y-2 text-sm">
-            <li><a href="#" class="hover:text-red-400 transition">About Us</a></li>
-            <li><a href="#" class="hover:text-red-400 transition">Donors</a></li>
-            <li><a href="#" class="hover:text-red-400 transition">Hospitals</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="text-red-600 font-bold mb-4">Contact</h4>
-          <ul class="space-y-2 text-sm">
-            <li>📧 info@bloodlife.com</li>
-            <li>📱 1-800-BLOOD-999</li>
-            <li>📍 123 Health Street, City</li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="text-red-600 font-bold mb-4">Follow Us</h4>
-          <div class="flex space-x-4">
-            <a href="#" class="hover:text-red-400 transition">Facebook</a>
-            <a href="#" class="hover:text-red-400 transition">Twitter</a>
-            <a href="#" class="hover:text-red-400 transition">Instagram</a>
-          </div>
-        </div>
-      </div>
-      <div class="border-t border-gray-700 pt-8 text-center text-sm">
-        <p>&copy; BloodLife. All rights reserved. | Privacy Policy | Terms of Service</p>
-      </div>
-    </div>
-  </footer>
+ <?php include __DIR__ . '/../includes/footer.php'; ?>
 
   <script>
     function toggleUserDropdown() {

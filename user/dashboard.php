@@ -55,8 +55,6 @@ $livesSaved = $totalDonations * 3;
   <script>(function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();</script>
   <script>tailwind.config = { darkMode: 'class' }</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../assets/js/translations.js"></script>
-  <script src="../assets/js/i18n.js"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -126,7 +124,6 @@ $livesSaved = $totalDonations * 3;
           <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
           <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-          <select class="lang-toggle-select" aria-label="Language" style="font-size:.8125rem;font-weight:600;border-radius:.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer"><option value="en">EN</option><option value="my">MY</option></select>
           <div class="relative" id="userMenu">
             <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
               <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700"><?= strtoupper(substr($username, 0, 1)) ?></div>

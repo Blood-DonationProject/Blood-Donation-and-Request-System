@@ -5,6 +5,28 @@ require_once __DIR__ . '/../config/db.php';
 $error = '';
 $success = '';
 
+// Check if role column exists
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+$hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+
+// Handle status toggle
+if (isset($_POST['toggle_status'])) {
+    $id = (int)$_POST['id'];
+    $newStatus = $_POST['new_status'];
+    if ($newStatus === 'Active' || $newStatus === 'Inactive') {
+        $stmt = $conn->prepare("UPDATE users SET status=? WHERE id=?");
+        $stmt->bind_param("si", $newStatus, $id);
+        if ($stmt->execute()) {
+            $success = "User status updated to {$newStatus}.";
+        } else {
+            $error = 'Error: ' . $conn->error;
+        }
+        $stmt->close();
+        header('Location: users_crud.php');
+        exit;
+    }
+}
+
 if (isset($_POST['add'])) {
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
@@ -13,8 +35,13 @@ if (isset($_POST['add'])) {
     $status = $_POST['status'];
 
     if ($username !== '' && $_POST['password'] !== '') {
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssss", $username, $email, $password, $role, $status);
+        if ($hasRoleColumn) {
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssss", $username, $email, $password, $role, $status);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, status) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssss", $username, $email, $password, $status);
+        }
         if ($stmt->execute()) {
             $success = 'User created successfully.';
         } else {
@@ -36,11 +63,21 @@ if (isset($_POST['update'])) {
     if ($username !== '') {
         if (!empty(trim($_POST['password']))) {
             $password = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("UPDATE users SET username=?, email=?, password=?, role=?, status=? WHERE id=?");
-            $stmt->bind_param("sssssi", $username, $email, $password, $role, $status, $id);
+            if ($hasRoleColumn) {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, password=?, role=?, status=? WHERE id=?");
+                $stmt->bind_param("sssssi", $username, $email, $password, $role, $status, $id);
+            } else {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, password=?, status=? WHERE id=?");
+                $stmt->bind_param("ssssi", $username, $email, $password, $status, $id);
+            }
         } else {
-            $stmt = $conn->prepare("UPDATE users SET username=?, email=?, role=?, status=? WHERE id=?");
-            $stmt->bind_param("ssssi", $username, $email, $role, $status, $id);
+            if ($hasRoleColumn) {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, role=?, status=? WHERE id=?");
+                $stmt->bind_param("ssssi", $username, $email, $role, $status, $id);
+            } else {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, status=? WHERE id=?");
+                $stmt->bind_param("sssi", $username, $email, $status, $id);
+            }
         }
         if ($stmt->execute()) {
             $success = 'User updated successfully.';
@@ -51,13 +88,6 @@ if (isset($_POST['update'])) {
     } else {
         $error = 'Username is required.';
     }
-}
-
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    $conn->query("DELETE FROM users WHERE id = $id");
-    header('Location: users_crud.php');
-    exit;
 }
 
 $users = [];
@@ -82,9 +112,11 @@ $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0,
     'users' => 0,
     'admins' => 0,
+    'active' => $conn->query("SELECT COUNT(*) AS c FROM users WHERE status='Active'")->fetch_assoc()['c'] ?? 0,
+    'inactive' => $conn->query("SELECT COUNT(*) AS c FROM users WHERE status='Inactive'")->fetch_assoc()['c'] ?? 0,
+    'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
 ];
-$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
-if ($roleCheck && $roleCheck->num_rows > 0) {
+if ($hasRoleColumn) {
     $stats['users'] = $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='User'")->fetch_assoc()['c'] ?? 0;
     $stats['admins'] = $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='Admin'")->fetch_assoc()['c'] ?? 0;
 }
@@ -102,8 +134,6 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
         tailwind.config = { darkMode: 'class' }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../assets/js/translations.js"></script>
-    <script src="../assets/js/i18n.js"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
     <style>
         @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
@@ -142,79 +172,11 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
 <div class="flex min-h-screen">
 
     <!-- Sidebar -->
-    <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
-        <div class="p-6 border-b border-gray-200">
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">🩸</span>
-                <div>
-                    <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                    <p class="text-xs text-gray-500">CRUD Panel</p>
-                </div>
-            </div>
-        </div>
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>📊</span> <span data-i18n="overview">Overview</span>
-            </a>
-            <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
-                <span>👥</span> <span>Users</span>
-            </a>
-            <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>🩸</span> <span>Donors</span>
-            </a>
-            
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>⚡</span> <span>Donation History</span>
-            </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                <span>🩸</span> <span>Blood Requests</span>
-            </a>
-            
-        </nav>
-        <div class="p-4 border-t border-gray-200">
-            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-        </div>
-    </div>
+     <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
     <!-- Main Content -->
     <main class="flex-1">
-        <header class="bg-white border-b px-8 py-4 flex justify-between items-center sticky top-0 z-30">
-            <div>
-                <h2 class="text-3xl font-bold text-red-800">Manage Users</h2>
-                <p class="text-gray-500 mt-1">Manage and monitor the user network.</p>
-            </div>
-            <div class="flex items-center gap-4">
-                <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
-                <select class="lang-toggle-select" aria-label="Language" style="font-size:0.8125rem;font-weight:600;border-radius:0.5rem;border:1px solid #d1d5db;background-color:#f9fafb;color:#374151;padding:6px 10px;cursor:pointer;">
-                    <option value="en">EN</option>
-                    <option value="my">MY</option>
-                </select>
-                <div class="relative" id="adminMenu">
-                    <div class="flex items-center gap-2 cursor-pointer" onclick="toggleAdminDropdown()">
-                        <div class="w-10 h-10 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold">
-                            <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                        </div>
-                        <span class="font-medium"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></span>
-                    </div>
-                    <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                        <div class="p-4 border-b border-gray-100">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
-                                    <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
-                                </div>
-                                <div>
-                                    <p class="font-semibold text-gray-800"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                    <p class="text-sm text-gray-500"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="p-3">
-                            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
+        <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
         <div class="p-8">
 
@@ -226,24 +188,46 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
             <?php endif; ?>
 
             <!-- Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="grid grid-cols-1 <?= $hasRoleColumn ? 'md:grid-cols-4' : 'md:grid-cols-3' ?> gap-6 mb-8">
                 <div class="bg-white rounded-xl border p-5 stat-card">
                     <p class="text-gray-500 text-sm">Total Users</p>
                     <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
                 </div>
+                <?php if ($hasRoleColumn): ?>
                 <div class="bg-white rounded-xl border p-5 stat-card">
                     <p class="text-gray-500 text-sm">Admins</p>
                     <h3 class="text-3xl font-bold mt-2 text-purple-600"><?= $stats['admins'] ?></h3>
                 </div>
+                <?php endif; ?>
                 <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Users</p>
-                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['users'] ?></h3>
+                    <p class="text-gray-500 text-sm">Active Users</p>
+                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['active'] ?></h3>
+                </div>
+                <div class="bg-white rounded-xl border p-5 stat-card">
+                    <p class="text-gray-500 text-sm">Inactive Users</p>
+                    <h3 class="text-3xl font-bold mt-2 text-red-600"><?= $stats['inactive'] ?></h3>
                 </div>
             </div>
 
-            <!-- Search -->
-            <div class="w-96 mb-6">
-                <input id="searchInput" type="text" placeholder="Search by username or email..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+            <!-- Search and Filter -->
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                <div class="flex-1">
+                    <input id="searchInput" type="text" placeholder="Search by username, email, or name..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+                </div>
+                <div class="flex gap-4">
+                    <?php if ($hasRoleColumn): ?>
+                    <select id="roleFilter" class="border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All Roles</option>
+                        <option value="Admin">Admin</option>
+                        <option value="User">User</option>
+                    </select>
+                    <?php endif; ?>
+                    <select id="statusFilter" class="border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Toggle Form -->
@@ -275,6 +259,7 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Password <?= $edit_row ? '(leave blank to keep)' : '*' ?></label>
                         <input type="password" name="password" value="" <?= $edit_row ? '' : 'required' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
+                    <?php if ($hasRoleColumn): ?>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
                         <select name="role" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
@@ -283,6 +268,7 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <?php endif; ?>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
                         <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
@@ -309,15 +295,19 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
                         <h3 class="text-xl font-bold text-gray-800">User Records</h3>
                         <p class="text-sm text-gray-500">All registered users.</p>
                     </div>
-                    <span class="text-sm text-gray-500">Total: <?= count($users) ?></span>
+                    <span class="text-sm text-gray-500">Total: <span id="filteredCount"><?= count($users) ?></span></span>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
+                                <th class="p-3">Name</th>
                                 <th class="p-3">Username</th>
-                                <th class="p-3">Email</th>                                
+                                <th class="p-3">Email</th>
+                                <?php if ($hasRoleColumn): ?>
+                                <th class="p-3">Role</th>
+                                <?php endif; ?>
                                 <th class="p-3">Status</th>
                                 <th class="p-3">Created</th>
                                 <th class="p-3">Actions</th>
@@ -327,25 +317,42 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
                             <?php if (count($users) > 0): ?>
                                 <?php foreach ($users as $u): ?>
                                     <?php
-                                    $roleBadges = ['Admin'=>'bg-purple-100 text-purple-700','User'=>'bg-green-100 text-green-700'];                                    
+                                    $roleBadges = ['Admin'=>'bg-purple-100 text-purple-700','User'=>'bg-green-100 text-green-700'];
                                     $statusColor = ($u['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                                    $displayName = $u['name'] ?? $u['username'] ?? '-';
                                     ?>
-                                    <tr class="user-row border-t border-slate-200 hover:bg-gray-50">
+                                    <tr class="user-row border-t border-slate-200 hover:bg-gray-50" data-role="<?= htmlspecialchars($u['role'] ?? 'User') ?>" data-status="<?= htmlspecialchars($u['status'] ?? 'Active') ?>">
                                         <td class="p-3 font-medium">#<?= $u['id'] ?></td>
-                                        <td class="p-3 font-medium"><?= htmlspecialchars($u['username']) ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($u['email'] ?? '-') ?></td>                                        
-                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($u['status']) ?></span></td>
+                                        <td class="p-3">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-xs font-bold text-red-700">
+                                                    <?= strtoupper(substr(htmlspecialchars($displayName), 0, 1)) ?>
+                                                </div>
+                                                <span class="font-medium"><?= htmlspecialchars($displayName) ?></span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3"><?= htmlspecialchars($u['username']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($u['email'] ?? '-') ?></td>
+                                        <?php if ($hasRoleColumn): ?>
+                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $roleBadges[$u['role'] ?? 'User'] ?? 'bg-gray-100 text-gray-700' ?>"><?= htmlspecialchars($u['role'] ?? 'User') ?></span></td>
+                                        <?php endif; ?>
+                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($u['status'] ?? 'Active') ?></span></td>
                                         <td class="p-3 text-gray-500"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                         <td class="p-3">
-                                            <div class="flex gap-2">
-                                                <a href="users_crud.php?edit=<?= $u['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                <a href="users_crud.php?delete=<?= $u['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this user?')">Delete</a>
+                                            <div class="flex gap-2 items-center">
+                                                <button onclick="viewUser(<?= htmlspecialchars(json_encode($u)) ?>)" class="text-gray-600 hover:text-gray-800 font-semibold" title="View Details">View</button>
+                                                <a href="users_crud.php?edit=<?= $u['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold" title="Edit User">Edit</a>
+                                                <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to <?= ($u['status'] ?? 'Active') === 'Active' ? 'deactivate' : 'activate' ?> this user?')">
+                                                    <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                                                    <input type="hidden" name="new_status" value="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Inactive' : 'Active' ?>">
+                                                    <button type="submit" name="toggle_status" class="<?= ($u['status'] ?? 'Active') === 'Active' ? 'text-orange-600 hover:text-orange-800' : 'text-green-600 hover:text-green-800' ?> font-semibold" title="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>"><?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?></button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="7" class="p-8 text-center text-gray-500">No users found.</td></tr>
+                                <tr><td colspan="<?= $hasRoleColumn ? 8 : 7 ?>" class="p-8 text-center text-gray-500">No users found.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -354,6 +361,47 @@ if ($roleCheck && $roleCheck->num_rows > 0) {
 
         </div>
     </main>
+</div>
+
+<!-- View User Modal -->
+<div id="viewUserModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800">User Details</h3>
+            <button onclick="closeViewModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-6">
+            <div class="flex items-center gap-4 mb-6">
+                <div id="modalAvatar" class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-2xl font-bold text-red-700"></div>
+                <div>
+                    <h4 id="modalName" class="text-lg font-bold text-gray-800"></h4>
+                    <p id="modalUsername" class="text-sm text-gray-500"></p>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span class="text-gray-500 text-sm">Email</span>
+                    <span id="modalEmail" class="font-medium text-gray-800"></span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span class="text-gray-500 text-sm">Role</span>
+                    <span id="modalRole" class="font-semibold text-sm"></span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span class="text-gray-500 text-sm">Status</span>
+                    <span id="modalStatus" class="font-semibold text-sm"></span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span class="text-gray-500 text-sm">Created</span>
+                    <span id="modalCreated" class="text-gray-800"></span>
+                </div>
+            </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+            <button onclick="closeViewModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">Close</button>
+            <a id="modalEditLink" href="#" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">Edit User</a>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -370,38 +418,75 @@ document.addEventListener('click', function(e) {
 function toggleForm() {
     document.getElementById('crudForm').classList.toggle('hidden');
 }
-const searchInput = document.getElementById('searchInput');
-const rows = document.querySelectorAll('.user-row');
-searchInput.addEventListener('keyup', function() {
-    const q = this.value.toLowerCase();
-    rows.forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-});
-</script>
 
-<script>
-(function() {
-  var KEY = 'bloodlife-theme';
-  function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-  function apply(t) {
-    if (t === 'dark') document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-    document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
-      var sun = btn.querySelector('.theme-icon-sun');
-      var moon = btn.querySelector('.theme-icon-moon');
-      if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
-      if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+// View User Modal
+function viewUser(user) {
+    const modal = document.getElementById('viewUserModal');
+    const displayName = user.name || user.username || '-';
+    document.getElementById('modalAvatar').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('modalName').textContent = displayName;
+    document.getElementById('modalUsername').textContent = '@' + (user.username || '-');
+    document.getElementById('modalEmail').textContent = user.email || '-';
+    
+    const roleBadges = {'Admin':'bg-purple-100 text-purple-700','User':'bg-green-100 text-green-700'};
+    const roleBadge = roleBadges[user.role] || 'bg-gray-100 text-gray-700';
+    document.getElementById('modalRole').innerHTML = '<span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ' + roleBadge + '">' + (user.role || 'User') + '</span>';
+    
+    const statusColor = user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+    document.getElementById('modalStatus').innerHTML = '<span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ' + statusColor + '">' + (user.status || 'Active') + '</span>';
+    
+    const createdDate = new Date(user.created_at);
+    document.getElementById('modalCreated').textContent = createdDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    
+    document.getElementById('modalEditLink').href = 'users_crud.php?edit=' + user.id;
+    modal.classList.remove('hidden');
+}
+
+function closeViewModal() {
+    document.getElementById('viewUserModal').classList.add('hidden');
+}
+
+// Close modal on backdrop click
+document.getElementById('viewUserModal').addEventListener('click', function(e) {
+    if (e.target === this) closeViewModal();
+});
+
+// Search and Filter
+const searchInput = document.getElementById('searchInput');
+const roleFilter = document.getElementById('roleFilter');
+const statusFilter = document.getElementById('statusFilter');
+const rows = document.querySelectorAll('.user-row');
+const filteredCount = document.getElementById('filteredCount');
+
+function applyFilters() {
+    const q = searchInput.value.toLowerCase();
+    const role = roleFilter ? roleFilter.value : '';
+    const status = statusFilter.value;
+    let count = 0;
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const rowRole = row.getAttribute('data-role');
+        const rowStatus = row.getAttribute('data-status');
+        
+        const matchesSearch = text.includes(q);
+        const matchesRole = !role || rowRole === role;
+        const matchesStatus = !status || rowStatus === status;
+        
+        if (matchesSearch && matchesRole && matchesStatus) {
+            row.style.display = '';
+            count++;
+        } else {
+            row.style.display = 'none';
+        }
     });
-  }
-  apply(getTheme());
-  window.toggleTheme = function() {
-    var current = localStorage.getItem(KEY) || 'light';
-    var next = current === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(KEY, next);
-    apply(next);
-  };
-})();
+    
+    filteredCount.textContent = count;
+}
+
+searchInput.addEventListener('keyup', applyFilters);
+if (roleFilter) roleFilter.addEventListener('change', applyFilters);
+statusFilter.addEventListener('change', applyFilters);
 </script>
 
 </body>
