@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkEmail->store_result();
 
     if ($checkEmail->num_rows > 0) {
-      $message = 'An account with this email already exists.';
+      $message = 'An account with this email already exists. Please use a different email address.';
       $messageType = 'error';
     } else {
       $role = 'User';
@@ -169,7 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition">Donors</a>
           
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition">Requests</a>
-<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()"><span class="theme-icon-sun">☀️</span><span class="theme-icon-moon" style="display:none">🌙</span></button>
+<button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
+                    <span class="theme-icon-sun"><svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
+                    <span class="theme-icon-moon" style="display:none"><svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
+                </button>
           <a href="login.php<?= !empty($redirectTo) ? '?redirect_to=' . htmlspecialchars($redirectTo) : '' ?>" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition">Login</a>
         </div>
       </div>
@@ -266,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-300 py-6">
+  <footer class="bg-white border-t border-gray-300 text-gray-400 py-6">
     <div class="max-w-7xl mx-auto px-4 text-center text-sm">
       <p>&copy; BloodLife. <span data-i18n="all_rights_reserved">All rights reserved.</span> |
         <a href="#" class="hover:text-red-400" data-i18n="privacy_policy">Privacy Policy</a> ·

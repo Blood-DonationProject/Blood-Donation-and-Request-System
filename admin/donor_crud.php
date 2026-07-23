@@ -65,6 +65,24 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
+// Assign donor to blood request
+if (isset($_POST['assign_donor'])) {
+    $donorId = (int)$_POST['donor_id'];
+    $requestId = (int)$_POST['request_id'];
+    if ($donorId > 0 && $requestId > 0) {
+        $stmt = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Approved' WHERE id = ? AND status = 'Pending'");
+        $stmt->bind_param("ii", $donorId, $requestId);
+        if ($stmt->execute()) {
+            $success = 'Donor assigned to blood request successfully.';
+        } else {
+            $error = 'Error assigning donor.';
+        }
+        $stmt->close();
+    }
+    header('Location: donor_crud.php');
+    exit;
+}
+
 $donors = [];
 $edit_row = null;
 
@@ -104,6 +122,36 @@ $availableDonors = $conn->query("
     WHERE d.available_status = 'Available'
     ORDER BY d.created_at DESC
 ");
+
+// Fetch pending blood requests for assign modal
+$pendingRequests = $conn->query("
+    SELECT br.id, br.requester_name, br.units, br.hospital, br.required_date, br.status,
+           bg.blood_gp_name
+    FROM blood_request br
+    JOIN blood_groups bg ON br.blood_groups_id = bg.id
+    WHERE br.status = 'Pending'
+    ORDER BY br.required_date ASC
+");
+
+// Fetch donation history grouped by donor
+$donationHistory = [];
+$dhResult = $conn->query("
+    SELECT dh.donor_id, dh.donation_date, dh.units, dh.status,
+           bg.blood_gp_name,
+           u.username AS donor_name,
+           br.requester_name, br.hospital
+    FROM donation_history dh
+    JOIN blood_groups bg ON dh.blood_groups_id = bg.id
+    JOIN donor d ON dh.donor_id = d.id
+    JOIN users u ON d.user_id = u.id
+    LEFT JOIN blood_request br ON dh.request_id = br.id
+    ORDER BY dh.donation_date DESC
+");
+if ($dhResult && $dhResult->num_rows > 0) {
+    while ($dhRow = $dhResult->fetch_assoc()) {
+        $donationHistory[$dhRow['donor_id']][] = $dhRow;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -394,9 +442,13 @@ $availableDonors = $conn->query("
                                         <td class="p-3"><?= htmlspecialchars($d['last_donation_date'] ?? '-') ?></td>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $availColor ?>"><?= htmlspecialchars($d['available_status']) ?></span></td>
                                         <td class="p-3">
-                                            <div class="flex gap-2">
-                                                <a href="donor_crud.php?edit=<?= $d['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                <a href="donor_crud.php?delete=<?= $d['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this donor?')">Delete</a>
+                                            <div class="flex gap-2 flex-wrap">
+                                                <a href="donor_crud.php?edit=<?= $d['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold text-xs">Edit</a>
+                                                <button onclick="openHistoryModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['username'] ?? '') ?>')" class="text-purple-600 hover:text-purple-800 font-semibold text-xs">History</button>
+                                                <?php if (($d['available_status'] ?? '') === 'Available'): ?>
+                                                <button onclick="openAssignModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['username'] ?? '') ?>', '<?= htmlspecialchars($d['blood_groups'] ?? '') ?>')" class="text-green-600 hover:text-green-800 font-semibold text-xs">Assign</button>
+                                                <?php endif; ?>
+                                                <a href="donor_crud.php?delete=<?= $d['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold text-xs" onclick="return confirm('Delete this donor?')">Delete</a>
                                             </div>
                                         </td>
                                     </tr>
@@ -451,8 +503,107 @@ searchInput.addEventListener('keyup', function() {
 });
 </script>
 
+<!-- Donation History Modal -->
+<div id="historyModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+        <div class="flex items-center justify-between p-6 border-b border-gray-200">
+            <div>
+                <h3 class="text-xl font-bold text-gray-800">Donation History</h3>
+                <p id="historyDonorName" class="text-sm text-gray-500"></p>
+            </div>
+            <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[60vh]">
+            <div id="historyContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Donor Modal -->
+<div id="assignModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-gray-200">
+            <div>
+                <h3 class="text-xl font-bold text-gray-800">Assign Donor to Request</h3>
+                <p id="assignDonorInfo" class="text-sm text-gray-500"></p>
+            </div>
+            <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <form method="POST" class="p-6">
+            <input type="hidden" name="assign_donor" value="1">
+            <input type="hidden" name="donor_id" id="assignDonorId">
+            <?php if ($pendingRequests && $pendingRequests->num_rows > 0): ?>
+            <div class="space-y-3 mb-6">
+                <label class="block text-sm font-semibold text-gray-700">Select Blood Request</label>
+                <select name="request_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                    <option value="">-- Select Request --</option>
+                    <?php mysqli_data_seek($pendingRequests, 0); while ($req = $pendingRequests->fetch_assoc()): ?>
+                        <option value="<?= $req['id'] ?>">
+                            #<?= $req['id'] ?> — <?= htmlspecialchars($req['requester_name'] ?? 'N/A') ?> | <?= htmlspecialchars($req['blood_gp_name']) ?> | <?= $req['units'] ?> unit(s) | <?= htmlspecialchars($req['hospital']) ?> | <?= htmlspecialchars($req['required_date']) ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit" class="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold py-3 rounded-xl hover:shadow-lg transition">Assign Donor</button>
+                <button type="button" onclick="closeAssignModal()" class="flex-1 bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-300 transition">Cancel</button>
+            </div>
+            <?php else: ?>
+            <div class="text-center py-8 text-gray-500">
+                <p>No pending blood requests available.</p>
+            </div>
+            <div class="flex justify-end">
+                <button type="button" onclick="closeAssignModal()" class="bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl hover:bg-gray-300 transition">Close</button>
+            </div>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
+
 <!-- Mobile Sidebar Overlay -->
 <div id="mobileOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"></div>
+
+<script>
+var donationHistory = <?= json_encode($donationHistory) ?>;
+
+function openHistoryModal(donorId, donorName) {
+    document.getElementById('historyDonorName').textContent = donorName;
+    var content = document.getElementById('historyContent');
+    var records = donationHistory[donorId];
+    if (records && records.length > 0) {
+        var html = '<table class="w-full text-sm border-collapse"><thead><tr class="bg-gray-50 text-gray-600"><th class="p-3 text-left">Date</th><th class="p-3 text-left">Blood Group</th><th class="p-3 text-left">Units</th><th class="p-3 text-left">Requester</th><th class="p-3 text-left">Hospital</th><th class="p-3 text-left">Status</th></tr></thead><tbody>';
+        records.forEach(function(r) {
+            html += '<tr class="border-t border-gray-100 hover:bg-gray-50"><td class="p-3">' + (r.donation_date || '-') + '</td><td class="p-3"><span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">' + (r.blood_gp_name || '') + '</span></td><td class="p-3">' + r.units + '</td><td class="p-3">' + (r.requester_name || '-') + '</td><td class="p-3">' + (r.hospital || '-') + '</td><td class="p-3"><span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">' + r.status + '</span></td></tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    } else {
+        content.innerHTML = '<div class="text-center py-8 text-gray-500"><p>No donation history found for this donor.</p></div>';
+    }
+    document.getElementById('historyModal').classList.remove('hidden');
+}
+
+function closeHistoryModal() {
+    document.getElementById('historyModal').classList.add('hidden');
+}
+
+function openAssignModal(donorId, donorName, bloodGroup) {
+    document.getElementById('assignDonorId').value = donorId;
+    document.getElementById('assignDonorInfo').textContent = donorName + ' (' + bloodGroup + ')';
+    document.getElementById('assignModal').classList.remove('hidden');
+}
+
+function closeAssignModal() {
+    document.getElementById('assignModal').classList.add('hidden');
+}
+
+document.getElementById('historyModal').addEventListener('click', function(e) {
+    if (e.target === this) closeHistoryModal();
+});
+document.getElementById('assignModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAssignModal();
+});
+</script>
 
 </body>
 </html>

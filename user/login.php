@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $loginSuccess = false;
         $targetPath = '';
 
-        // Hardcoded admin credentials (constant)
+        // Hardcoded admin credentials
         if ($email === 'admin@gmail.com' && $password === 'password123') {
             $_SESSION['logged_in'] = true;
             $_SESSION['user_id'] = 0;
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Verify credentials against the database
         if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password, status FROM users WHERE email = ?  LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, username, password, status FROM users WHERE email = ? LIMIT 1");
             if ($stmt) {
                 $stmt->bind_param('s', $email);
                 $stmt->execute();
@@ -78,21 +78,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($result && $result->num_rows > 0) {
                     $row = $result->fetch_assoc();
                     $storedPassword = $row['password'];
-                    $userStatus = $row['status'] ?? 'Active';
 
-                    // Check status first - block inactive accounts regardless of password
-                    if ($userStatus !== 'Active') {
-                        $errorMessage = 'Your account is inactive. Login access has been disabled.';
-                    } else {
-                        // Account is active, verify password
-                        if (password_verify($password, $storedPassword)) {
+                    if (password_verify($password, $storedPassword)) {
+                        $userStatus = $row['status'] ?? 'Active';
+                        if ($userStatus !== 'Active') {
+                            $errorMessage = 'Your account is inactive. Login access has been disabled.';
+                        } else {
                             $_SESSION['logged_in'] = true;
                             $_SESSION['username'] = $row['username'];
                             $_SESSION['user_id'] = $row['id'];
                             $_SESSION['user_role'] = 'User';
                             $loginSuccess = true;
-
-                            // Redirect to donor dashboard
                             $targetPath = 'donordashboard.php';
                         }
                     }
@@ -116,7 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $errorMessage = 'Invalid email or password.';
+        if (empty($errorMessage)) {
+            $errorMessage = 'Invalid email or password.';
+        }
     }
 
     if ($isAjax) {
@@ -273,7 +271,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 
   <!-- Footer -->
- <?php include __DIR__ . '/../includes/footer.php'; ?>
+  <footer class="bg-white border-t border-gray-300 text-gray-400 py-6">
+    <div class="max-w-7xl mx-auto px-4 text-center text-sm">
+      <p>&copy; BloodLife. <span data-i18n="all_rights_reserved">All rights reserved.</span> |
+        <a href="#" class="hover:text-red-400" data-i18n="privacy_policy">Privacy Policy</a> ·
+        <a href="#" class="hover:text-red-400" data-i18n="terms_of_service">Terms of Service</a>
+      </p>
+    </div>
+  </footer>
 
   <script>
     function setRole(role) {
