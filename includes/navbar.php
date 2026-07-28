@@ -43,7 +43,7 @@ if (typeof toggleTheme === 'undefined') {
   })();
 }
 </script>
- <nav class="bg-white shadow-sm sticky top-0 z-30 border-b border-gray-100">
+ <nav class="bg-slate-200 shadow-sm sticky top-0 z-30 border-b border-gray-100">
                 <div class="px-8 py-4 flex justify-between items-center">
                     <div class="flex items-center space-x-4">
                         <div>

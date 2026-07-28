@@ -148,7 +148,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                         <a href="donor.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-4 rounded-xl font-bold hover:shadow-xl hover:from-red-700 hover:to-red-800 transition transform hover:scale-105 text-center" data-i18n="become_a_donor">
                             Become a Donor
                         </a>
-                        <a href="requestblood.php" class="border-2 border-red-600 text-red-600 px-8 py-4 rounded-xl font-bold hover:bg-red-50 transition text-center" data-i18n="search_blood_type">
+                        <a href="<?= $isLoggedIn ? 'requestblood.php' : 'login.php?redirect_to=requestblood' ?>" class="border-2 border-red-600 text-red-600 px-8 py-4 rounded-xl font-bold hover:bg-red-50 transition text-center" data-i18n="search_blood_type">
                             Search Blood Type
                         </a>
                     </div>
@@ -207,9 +207,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                             </div>
                         </div>
 
-                        <button class="w-full bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition" data-i18n="view_full_inventory">
-                            View Full Inventory
-                        </button>
+                        
                     </div>
                 </div>
             </div>

@@ -114,15 +114,6 @@ $stats = [
     'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
 ];
 
-// Fetch available donors for the dedicated section
-$availableDonors = $conn->query("
-    SELECT u.username AS donor_name, d.blood_groups, d.phone, d.address, d.available_status
-    FROM donor d
-    JOIN users u ON d.user_id = u.id
-    WHERE d.available_status = 'Available'
-    ORDER BY d.created_at DESC
-");
-
 // Fetch pending blood requests for assign modal
 $pendingRequests = $conn->query("
     SELECT br.id, br.requester_name, br.units, br.hospital, br.required_date, br.status,
@@ -236,9 +227,39 @@ if ($dhResult && $dhResult->num_rows > 0) {
                 </div>
             </div>
 
-            <!-- Search -->
-            <div class="w-96 mb-6">
-                <input id="searchInput" type="text" placeholder="Search by name, blood group, or phone..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition">
+            <!-- Filters -->
+            <div class="flex flex-wrap items-end gap-4 mb-6">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
+                    <input id="searchInput" type="text" placeholder="Search by name, phone, or address..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                </div>
+                <div class="w-40">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                    <select id="filterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All</option>
+                        <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
+                            <option value="<?= $bg ?>"><?= $bg ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="w-36">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Gender</label>
+                    <select id="filterGender" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="w-40">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                    <select id="filterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All</option>
+                        <option value="Available">Available</option>
+                        <option value="Unavailable">Unavailable</option>
+                    </select>
+                </div>
+                <button onclick="clearFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear Filters</button>
             </div>
 
             <!-- Toggle Form -->
@@ -333,71 +354,6 @@ if ($dhResult && $dhResult->num_rows > 0) {
                 </form>
             </div>
 
-            <!-- Available Donors Section -->
-            <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
-                <div class="flex items-center justify-between mb-6">
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                            Available Donors
-                        </h3>
-                        <p class="text-sm text-gray-500">Donors currently available to donate blood.</p>
-                    </div>
-                    <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
-                        <?= $stats['available'] ?> available
-                    </span>
-                </div>
-                <?php if ($availableDonors && $availableDonors->num_rows > 0): ?>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm border-collapse">
-                        <thead>
-                            <tr class="bg-green-50 text-green-800">
-                                <th class="p-3">#</th>
-                                <th class="p-3">Donor Name</th>
-                                <th class="p-3">Blood Group</th>
-                                <th class="p-3">Phone</th>
-                                <th class="p-3">Address</th>
-                                <th class="p-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php $i = 1; while ($row = $availableDonors->fetch_assoc()): ?>
-                            <tr class="border-t border-slate-200 hover:bg-green-50 transition">
-                                <td class="p-3 text-gray-500"><?= $i++ ?></td>
-                                <td class="p-3">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-xs font-bold text-red-700">
-                                            <?= strtoupper(substr(htmlspecialchars($row['donor_name']), 0, 1)) ?>
-                                        </div>
-                                        <span class="font-semibold text-gray-800"><?= htmlspecialchars($row['donor_name']) ?></span>
-                                    </div>
-                                </td>
-                                <td class="p-3">
-                                    <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs">
-                                        <?= htmlspecialchars($row['blood_groups']) ?>
-                                    </span>
-                                </td>
-                                <td class="p-3"><?= htmlspecialchars($row['phone']) ?></td>
-                                <td class="p-3 max-w-[200px] truncate"><?= htmlspecialchars($row['address']) ?></td>
-                                <td class="p-3">
-                                    <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-                                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                                        <?= htmlspecialchars($row['available_status']) ?>
-                                    </span>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php else: ?>
-                <div class="text-center py-8 text-gray-500">
-                    <i class="fas fa-user-slash text-3xl text-gray-300 mb-3"></i>
-                    <p>No donors are currently available.</p>
-                </div>
-                <?php endif; ?>
-            </div>
-
             <!-- Data Table -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
                 <div class="flex items-center justify-between mb-6">
@@ -429,7 +385,7 @@ if ($dhResult && $dhResult->num_rows > 0) {
                             <?php if (count($donors) > 0): ?>
                                 <?php foreach ($donors as $d): ?>
                                     <?php $availColor = ($d['available_status'] ?? 'Available') === 'Available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'; ?>
-                                    <tr class="donor-row border-t border-slate-200 hover:bg-gray-50">
+                                    <tr class="donor-row border-t border-slate-200 hover:bg-gray-50" data-bloodgroup="<?= htmlspecialchars($d['blood_groups']) ?>" data-gender="<?= htmlspecialchars($d['gender']) ?>" data-status="<?= htmlspecialchars($d['available_status'] ?? 'Available') ?>">
                                         <td class="p-3 font-medium">#<?= $d['id'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($d['username'] ?? '-') ?></td>                                        
                                         <td class="p-3"><?= htmlspecialchars($d['gender']) ?></td>
@@ -494,13 +450,40 @@ document.getElementById('mobileOverlay')?.addEventListener('click', function() {
     toggleMobileSidebar();
 });
 const searchInput = document.getElementById('searchInput');
+const filterBloodGroup = document.getElementById('filterBloodGroup');
+const filterGender = document.getElementById('filterGender');
+const filterStatus = document.getElementById('filterStatus');
 const rows = document.querySelectorAll('.donor-row');
-searchInput.addEventListener('keyup', function() {
-    const q = this.value.toLowerCase();
+
+function applyFilters() {
+    const q = searchInput.value.toLowerCase();
+    const bg = filterBloodGroup.value;
+    const gender = filterGender.value;
+    const status = filterStatus.value;
+    let visible = 0;
     rows.forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+        const matchSearch = !q || row.textContent.toLowerCase().includes(q);
+        const matchBg = !bg || row.dataset.bloodgroup === bg;
+        const matchGender = !gender || row.dataset.gender === gender;
+        const matchStatus = !status || row.dataset.status === status;
+        const show = matchSearch && matchBg && matchGender && matchStatus;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
-});
+}
+
+searchInput.addEventListener('keyup', applyFilters);
+filterBloodGroup.addEventListener('change', applyFilters);
+filterGender.addEventListener('change', applyFilters);
+filterStatus.addEventListener('change', applyFilters);
+
+function clearFilters() {
+    searchInput.value = '';
+    filterBloodGroup.value = '';
+    filterGender.value = '';
+    filterStatus.value = '';
+    applyFilters();
+}
 </script>
 
 <!-- Donation History Modal -->

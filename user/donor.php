@@ -22,6 +22,35 @@ if ($isLoggedIn) {
         $stmt->close();
     }
 }
+
+// Fetch all donors with username
+$donors = [];
+$donorResult = $conn->query("
+    SELECT d.id, d.user_id, d.gender, d.age, d.blood_groups, d.address, d.last_donation_date, d.available_status, u.username
+    FROM donor d
+    JOIN users u ON d.user_id = u.id
+    WHERE u.status = 'Active'
+    ORDER BY d.id DESC
+");
+if ($donorResult && $donorResult->num_rows > 0) {
+    $donors = $donorResult->fetch_all(MYSQLI_ASSOC);
+}
+
+// Count total donations per donor
+$donationCounts = [];
+if (count($donors) > 0) {
+    $donorIds = array_column($donors, 'id');
+    $placeholders = implode(',', array_fill(0, count($donorIds), '?'));
+    $types = str_repeat('i', count($donorIds));
+    $countStmt = $conn->prepare("SELECT donor_id, COUNT(*) AS total FROM donation_history WHERE donor_id IN ($placeholders) GROUP BY donor_id");
+    $countStmt->bind_param($types, ...$donorIds);
+    $countStmt->execute();
+    $countResult = $countStmt->get_result();
+    while ($row = $countResult->fetch_assoc()) {
+        $donationCounts[$row['donor_id']] = $row['total'];
+    }
+    $countStmt->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -117,26 +146,61 @@ if ($isLoggedIn) {
     }
   </style>
   <style id="dark-mode-styles">
+    /* Light mode resets */
     html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
     html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
     html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
+
+    /* Dark mode body & nav */
     html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
     html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
+
+    /* Dark mode backgrounds */
     html.dark .bg-white { background-color: #1f2937 !important; }
+    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+    html.dark .bg-red-50 { background-color: rgba(220, 38, 38, 0.15) !important; }
+    html.dark .bg-red-100 { background-color: rgba(220, 38, 38, 0.2) !important; }
+    html.dark .bg-pink-50 { background-color: rgba(236, 72, 153, 0.1) !important; }
+    html.dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.15) !important; }
+    html.dark footer { background-color: #1f2937 !important; }
+
+    /* Dark mode sections */
+    html.dark .section-pink { background: linear-gradient(180deg, rgba(236,72,153,0.08) 0%, #1f2937 100%) !important; }
+    html.dark .section-white { background-color: #111827 !important; }
+
+    /* Dark mode text */
     html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
     html.dark .text-gray-700 { color: #d1d5db !important; }
     html.dark .text-gray-600 { color: #9ca3af !important; }
     html.dark .text-gray-500 { color: #9ca3af !important; }
+    html.dark .text-gray-400 { color: #6b7280 !important; }
+
+    /* Dark mode forms */
     html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
     html.dark label { color: #d1d5db !important; }
-    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+
+    /* Dark mode borders */
     html.dark .border-gray-200, html.dark .border-2.border-gray-200 { border-color: #4b5563 !important; }
+    html.dark .border-gray-300 { border-color: #4b5563 !important; }
     html.dark .border-t { border-color: #374151 !important; }
-    html.dark .bg-red-50 { background-color: rgba(220, 38, 38, 0.15) !important; }
-    html.dark .bg-pink-50 { background-color: rgba(236, 72, 153, 0.1) !important; }
+    html.dark .border-pink-100 { border-color: rgba(236, 72, 153, 0.2) !important; }
+    html.dark .border-white\/50 { border-color: rgba(255, 255, 255, 0.25) !important; }
+    html.dark .divide-y.divide-gray-50 > * + * { border-color: #374151 !important; }
+
+    /* Dark mode table */
     html.dark tbody tr { border-color: #374151 !important; }
     html.dark tbody tr:hover { background-color: #374151 !important; }
-    html.dark .section-pink { background: linear-gradient(180deg, rgba(236,72,153,0.08) 0%, #1f2937 100%) !important; }
+
+    /* Dark mode FAQ */
+    html.dark .faq-item { background-color: #1f2937 !important; border-color: #4b5563 !important; }
+
+    /* Dark mode donor cards */
+    html.dark .donor-card { background-color: #1f2937 !important; border-color: #4b5563 !important; }
+    html.dark .donor-card:hover { box-shadow: 0 20px 40px rgba(220, 38, 38, 0.2) !important; }
+
+    /* Dark mode donor modal */
+    html.dark #donorDetailModal .bg-white { background-color: #1f2937 !important; }
+    html.dark #donorDetailModal .bg-gray-100 { background-color: #374151 !important; }
   </style>
 </head>
 <body class="bg-white min-h-screen">
@@ -202,7 +266,7 @@ if ($isLoggedIn) {
               <div class="absolute w-56 h-56 rounded-full border-2 border-pink-500/10 pulse-ring" style="animation-delay: 0.5s;"></div>
             </div>
             <!-- Blood drop icon -->
-            <div class="relative w-72 h-72 bg-pink-400/10 backdrop-blur-sm rounded-full flex items-center justify-center float-anim">
+            <div class="relative w-72 h-72 bg-pink-500/20 backdrop-blur-sm rounded-full flex items-center justify-center float-anim">
               <div class="text-center">
                 <i class="fas fa-droplet text-8xl text-red-500 mb-4 drop-shadow-lg heartbeat"></i>
                 <p class="text-2xl font-bold text-red-600">Give Blood</p>
@@ -214,23 +278,8 @@ if ($isLoggedIn) {
       </div>
 
       <!-- Stats -->
-      <div class="grid grid-cols-3 gap-4 sm:gap-8 mt-16 max-w-2xl mx-auto">
-        <div class="text-center bg-red-600 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
-          <i class="fas fa-users text-2xl text-pink-200 mb-2"></i>
-          <p class="text-3xl sm:text-4xl font-extrabold">50+</p>
-          <p class="text-sm text-red-100 mt-1" >Active Donors</p>
-        </div>
-        <div class="text-center bg-red-600 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
-          <i class="fas fa-hand-holding-medical text-2xl text-pink-200 mb-2"></i>
-          <p class="text-3xl sm:text-4xl font-extrabold">15+</p>
-          <p class="text-sm text-red-100 mt-1" >Lives Saved</p>
-        </div>
-        <div class="text-center bg-red-600 backdrop-blur-sm rounded-2xl p-4 sm:p-6">
-          <i class="fas fa-calendar-check text-2xl text-pink-200 mb-2"></i>
-          <p class="text-3xl sm:text-4xl font-extrabold">8</p>
-          <p class="text-sm text-red-100 mt-1">Blood Types</p>
-        </div>
-      </div>
+      
+      
     </div>
   </section>
 
@@ -612,7 +661,157 @@ if ($isLoggedIn) {
   </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 6. FAQ -->
+  <!-- 6. OUR DONORS -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section-white py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
+          <i class="fas fa-users mr-1"></i> <span>Our Heroes</span>
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Find Blood Donors</h2>
+        <p class="text-gray-600 max-w-2xl mx-auto text-lg">
+          Browse our registered donors and find the blood type you need.
+        </p>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap items-end gap-4 mb-8 max-w-4xl mx-auto">
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
+          <input id="donorSearchInput" type="text" placeholder="Search by name or township..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+        </div>
+        <div class="w-40">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+          <select id="donorFilterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+            <option value="">All</option>
+            <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
+              <option value="<?= $bg ?>"><?= $bg ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="w-40">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+          <select id="donorFilterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+            <option value="">All</option>
+            <option value="Available">Available</option>
+            <option value="Unavailable">Unavailable</option>
+          </select>
+        </div>
+        <button onclick="clearDonorFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear</button>
+      </div>
+
+      <!-- Donor Cards Grid -->
+      <div id="donorCardsGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <?php if (count($donors) > 0): ?>
+          <?php foreach ($donors as $d):
+            $isAvailable = ($d['available_status'] ?? 'Available') === 'Available';
+            $statusColor = $isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+            $statusIcon = $isAvailable ? 'fa-circle-check' : 'fa-circle-xmark';
+            $avatarBg = $isAvailable ? 'from-red-500 to-rose-500' : 'from-gray-400 to-gray-500';
+            $initials = strtoupper(substr($d['username'], 0, 1));
+          ?>
+            <div class="donor-card card-hover bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden"
+                 data-name="<?= htmlspecialchars(strtolower($d['username'])) ?>"
+                 data-bloodgroup="<?= htmlspecialchars($d['blood_groups']) ?>"
+                 data-status="<?= htmlspecialchars($d['available_status'] ?? 'Available') ?>"
+                 data-address="<?= htmlspecialchars(strtolower($d['address'])) ?>">
+              <!-- Avatar Header -->
+              <div class="relative bg-gradient-to-br <?= $avatarBg ?> p-6 text-center">
+                <div class="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-white/30">
+                  <span class="text-3xl font-bold text-white"><?= $initials ?></span>
+                </div>
+                <h3 class="text-lg font-bold text-white"><?= htmlspecialchars($d['username']) ?></h3>
+              </div>
+              <!-- Card Body -->
+              <div class="p-5 space-y-3">
+                <!-- Blood Group -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-droplet text-red-500 text-sm"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Blood Group</p>
+                    <p class="font-bold text-gray-900"><?= htmlspecialchars($d['blood_groups']) ?></p>
+                  </div>
+                </div>
+                <!-- Township -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 bg-pink-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-location-dot text-pink-500 text-sm"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs text-gray-500">Township</p>
+                    <p class="font-semibold text-gray-900 truncate" title="<?= htmlspecialchars($d['address']) ?>"><?= htmlspecialchars($d['address']) ?></p>
+                  </div>
+                </div>
+                <!-- Status Badge -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 <?= $isAvailable ? 'bg-green-50' : 'bg-red-50' ?> rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas <?= $statusIcon ?> <?= $isAvailable ? 'text-green-500' : 'text-red-500' ?> text-sm"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Status</p>
+                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($d['available_status']) ?></span>
+                  </div>
+                </div>
+                <!-- Last Donation Date -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-calendar-check text-rose-500 text-sm"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Last Donation</p>
+                    <p class="font-semibold text-gray-900"><?= $d['last_donation_date'] ? htmlspecialchars(date('M d, Y', strtotime($d['last_donation_date']))) : 'Never donated' ?></p>
+                  </div>
+                </div>
+              </div>
+              <!-- View Details Button -->
+              <div class="px-5 pb-5">
+                <button type="button" onclick="openDonorModal(this)" class="block w-full text-center bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold py-2.5 rounded-xl hover:from-red-600 hover:to-red-700 hover:shadow-lg transition transform hover:scale-[1.02]"
+                  data-name="<?= htmlspecialchars($d['username']) ?>"
+                  data-initial="<?= $initials ?>"
+                  data-bloodgroup="<?= htmlspecialchars($d['blood_groups']) ?>"
+                  data-gender="<?= htmlspecialchars($d['gender']) ?>"
+                  data-age="<?= (int)$d['age'] ?>"
+                  data-address="<?= htmlspecialchars($d['address']) ?>"
+                  data-status="<?= htmlspecialchars($d['available_status'] ?? 'Available') ?>"
+                  data-lastdonation="<?= $d['last_donation_date'] ? htmlspecialchars(date('M d, Y', strtotime($d['last_donation_date']))) : 'Never donated' ?>"
+                  data-donations="<?= $donationCounts[$d['id']] ?? 0 ?>"
+                  data-avatarbg="<?= $avatarBg ?>">
+                  <i class="fas fa-eye mr-2"></i> View Details
+                </button>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+
+      <!-- Empty State -->
+      <div id="donorEmptyState" class="hidden text-center py-16">
+        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-users-slash text-3xl text-gray-400"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Found</h3>
+        <p class="text-gray-500">Try adjusting your search filters.</p>
+      </div>
+      <?php if (count($donors) === 0): ?>
+        <div class="text-center py-16">
+          <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-users-slash text-3xl text-gray-400"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Yet</h3>
+          <p class="text-gray-500">Be the first to register as a blood donor!</p>
+          <a href="donateform.php" class="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-700 transition mt-4">
+            <i class="fas fa-hand-holding-heart"></i> Register as Donor
+          </a>
+        </div>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- 7. FAQ -->
   <!-- ═══════════════════════════════════════════════════ -->
   <section class="section-pink py-20">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -694,7 +893,7 @@ if ($isLoggedIn) {
   </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 7. CONTACT INFORMATION -->
+  <!-- 8. CONTACT INFORMATION -->
   <!-- ═══════════════════════════════════════════════════ -->
   <section class="section-white py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -740,7 +939,7 @@ if ($isLoggedIn) {
   </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 8. FINAL CTA -->
+  <!-- 9. FINAL CTA -->
   <!-- ═══════════════════════════════════════════════════ -->
   <section class="bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 text-white py-20 relative overflow-hidden">
     <div class="absolute top-0 left-0 w-72 h-72 bg-white/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
@@ -834,6 +1033,43 @@ if ($isLoggedIn) {
       }
     }
 
+    // Donor card filtering
+    var donorSearchInput = document.getElementById('donorSearchInput');
+    var donorFilterBloodGroup = document.getElementById('donorFilterBloodGroup');
+    var donorFilterStatus = document.getElementById('donorFilterStatus');
+    var donorCards = document.querySelectorAll('.donor-card');
+    var donorEmptyState = document.getElementById('donorEmptyState');
+    var donorCardsGrid = document.getElementById('donorCardsGrid');
+
+    function applyDonorFilters() {
+      var q = donorSearchInput.value.toLowerCase();
+      var bg = donorFilterBloodGroup.value;
+      var status = donorFilterStatus.value;
+      var visible = 0;
+      donorCards.forEach(function(card) {
+        var matchSearch = !q || card.dataset.name.includes(q) || card.dataset.address.includes(q);
+        var matchBg = !bg || card.dataset.bloodgroup === bg;
+        var matchStatus = !status || card.dataset.status === status;
+        var show = matchSearch && matchBg && matchStatus;
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      if (donorEmptyState) {
+        donorEmptyState.classList.toggle('hidden', visible > 0);
+      }
+    }
+
+    function clearDonorFilters() {
+      donorSearchInput.value = '';
+      donorFilterBloodGroup.value = '';
+      donorFilterStatus.value = '';
+      applyDonorFilters();
+    }
+
+    if (donorSearchInput) donorSearchInput.addEventListener('keyup', applyDonorFilters);
+    if (donorFilterBloodGroup) donorFilterBloodGroup.addEventListener('change', applyDonorFilters);
+    if (donorFilterStatus) donorFilterStatus.addEventListener('change', applyDonorFilters);
+
     // Scroll reveal animations
     var observer = new IntersectionObserver(function(entries) {
       entries.forEach(function(entry) {
@@ -874,6 +1110,130 @@ if ($isLoggedIn) {
         apply(next);
       };
     })();
+  </script>
+
+  <!-- Donor Detail Modal -->
+  <div id="donorDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div id="modalAvatar" class="p-8 text-center">
+        <div class="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white/30">
+          <span id="modalInitial" class="text-4xl font-bold text-white"></span>
+        </div>
+        <h3 id="modalName" class="text-2xl font-bold text-white"></h3>
+      </div>
+      <div class="p-6 space-y-4">
+        <!-- Blood Group -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-droplet text-red-500"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Blood Group</p>
+            <p id="modalBloodGroup" class="font-bold text-gray-900"></p>
+          </div>
+        </div>
+        <!-- Gender -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-venus-mars text-pink-500"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Gender</p>
+            <p id="modalGender" class="font-semibold text-gray-900"></p>
+          </div>
+        </div>
+        <!-- Age -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-cake-candles text-rose-500"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Age</p>
+            <p id="modalAge" class="font-semibold text-gray-900"></p>
+          </div>
+        </div>
+        <!-- Township -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-location-dot text-pink-500"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500">Township</p>
+            <p id="modalTownship" class="font-semibold text-gray-900"></p>
+          </div>
+        </div>
+        <!-- Status -->
+        <div class="flex items-center gap-3">
+          <div id="modalStatusIcon" class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Available Status</p>
+            <span id="modalStatus" class="inline-flex rounded-full px-3 py-1 text-xs font-semibold"></span>
+          </div>
+        </div>
+        <!-- Last Donation Date -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-calendar-check text-rose-500"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Last Donation</p>
+            <p id="modalLastDonation" class="font-semibold text-gray-900"></p>
+          </div>
+        </div>
+        <!-- Total Donations -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-hand-holding-heart text-red-500"></i>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-500">Total Donations</p>
+            <p id="modalDonations" class="font-bold text-gray-900 text-lg"></p>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 pb-6">
+        <button onclick="closeDonorModal()" class="w-full bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-200 transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openDonorModal(btn) {
+      var modal = document.getElementById('donorDetailModal');
+      var avatarBg = btn.dataset.avatarbg;
+
+      document.getElementById('modalInitial').textContent = btn.dataset.initial;
+      document.getElementById('modalName').textContent = btn.dataset.name;
+      document.getElementById('modalBloodGroup').textContent = btn.dataset.bloodgroup;
+      document.getElementById('modalGender').textContent = btn.dataset.gender;
+      document.getElementById('modalAge').textContent = btn.dataset.age + ' years';
+      document.getElementById('modalTownship').textContent = btn.dataset.address;
+      document.getElementById('modalLastDonation').textContent = btn.dataset.lastdonation;
+      document.getElementById('modalDonations').textContent = btn.dataset.donations;
+
+      var avatar = document.getElementById('modalAvatar');
+      avatar.className = 'p-8 text-center bg-gradient-to-br ' + avatarBg;
+
+      var isAvailable = btn.dataset.status === 'Available';
+      var statusEl = document.getElementById('modalStatus');
+      var statusIconEl = document.getElementById('modalStatusIcon');
+      statusEl.textContent = btn.dataset.status;
+      statusEl.className = 'inline-flex rounded-full px-3 py-1 text-xs font-semibold ' + (isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
+      statusIconEl.className = 'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ' + (isAvailable ? 'bg-green-50' : 'bg-red-50');
+      statusIconEl.querySelector('i').className = 'fas ' + (isAvailable ? 'fa-circle-check text-green-500' : 'fa-circle-xmark text-red-500');
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeDonorModal() {
+      document.getElementById('donorDetailModal').classList.add('hidden');
+    }
+
+    document.getElementById('donorDetailModal').addEventListener('click', function(e) {
+      if (e.target === this) closeDonorModal();
+    });
   </script>
 
 </body>

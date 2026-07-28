@@ -338,7 +338,7 @@ $stmt->close();
               <span data-i18n="notification_settings">Notification Settings</span> <span>›</span>
             </button>
             <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-red-600 flex items-center justify-between">
-              <span data-i18n="delete_account">Delete Account</span> <span>›</span>
+              <span data-i18n="logout">Logout</span> <span>›</span>
             </button>
           </div>
         </div>

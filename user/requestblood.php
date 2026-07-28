@@ -2,66 +2,14 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
-$username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
-$userId = $_SESSION['user_id'] ?? 0;
 
-// Handle inline login
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login_username'])) {
-    $loginUser = trim($_POST['login_user'] ?? '');
-    $loginPass = $_POST['login_pass'] ?? '';
-
-    if ($loginUser === '' || $loginPass === '') {
-        $loginError = 'Please enter both username and password.';
-    } else {
-        $loginSuccess = false;
-
-        if ($loginUser === 'admin' && $loginPass === 'password123') {
-            $_SESSION['logged_in'] = true;
-            $_SESSION['username'] = 'admin';
-            $_SESSION['user_email'] = 'admin@gmail.com';
-            $_SESSION['myanmar_name'] = '';
-            $loginSuccess = true;
-        }
-
-        if (!$loginSuccess && $loginUser === 'user' && $loginPass === '123456') {
-            $_SESSION['logged_in'] = true;
-            $_SESSION['username'] = 'user';
-            $_SESSION['myanmar_name'] = '';
-            $loginSuccess = true;
-        }
-
-        if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password, myanmar_name FROM users WHERE username = ? OR email = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('ss', $loginUser, $loginUser);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result && $result->num_rows > 0) {
-                    $row = $result->fetch_assoc();
-                    $storedPassword = $row['password'];
-                    if ($loginPass === $storedPassword || password_verify($loginPass, $storedPassword)) {
-                        $_SESSION['logged_in'] = true;
-                        $_SESSION['username'] = $row['username'];
-                        $_SESSION['user_id'] = $row['id'];
-                        $_SESSION['myanmar_name'] = $row['myanmar_name'] ?? '';
-                        $loginSuccess = true;
-                    }
-                }
-                $stmt->close();
-            }
-        }
-
-        if ($loginSuccess) {
-            $isLoggedIn = true;
-            $username = htmlspecialchars($_SESSION['username']);
-            $userId = $_SESSION['user_id'] ?? 0;
-            header('Location: requestblood.php');
-            exit;
-        } else {
-            $loginError = 'Invalid username or password.';
-        }
-    }
+if (!$isLoggedIn) {
+    header('Location: login.php?redirect_to=requestblood');
+    exit;
 }
+
+$username = htmlspecialchars($_SESSION['username']);
+$userId = $_SESSION['user_id'] ?? 0;
 
 $bloodGroups = [];
 try {
@@ -207,57 +155,7 @@ if ($isLoggedIn) {
 <body class="bg-gradient-to-b from-pink-50 to-pink-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
-  <nav class="bg-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
-        <div class="flex items-center space-x-3 animate-fade-down">
-          <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩸</span>
-          <div>
-            <h1 class="font-bold text-xl text-red-700">BloodLife</h1>
-            <p class="text-xs text-gray-500">Save Lives Together</p>
-          </div>
-        </div>
-        <div class="hidden md:flex items-center space-x-8">
-          <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-          <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-          <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-          <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
-                    <span class="theme-icon-sun"><svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
-                    <span class="theme-icon-moon" style="display:none"><svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
-                </button>
-          <?php if ($isLoggedIn): ?>
-            <div class="relative" id="userMenu">
-              <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
-                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
-                  <?= strtoupper(substr($username, 0, 1)) ?>
-                </div>
-                <span class="font-medium text-gray-700"><?= $username ?></span>
-                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
-              <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                <div class="p-4 border-b border-gray-100">
-                  <p class="font-semibold text-gray-800"><?= $username ?></p>
-                  <p class="text-sm text-gray-500">Logged in</p>
-                </div>
-                <div class="p-2">
-                  <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                    <span>👤</span> <span data-i18n="profile">Profile</span>
-                  </a>
-                  <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
-                    <span>🚪</span> <span data-i18n="logout">Logout</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-          <?php else: ?>
-            <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition">Login</a>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </nav>
-
-<?php if ($isLoggedIn): ?>
+  <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- Hero Banner -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-14">
@@ -425,117 +323,10 @@ if ($isLoggedIn) {
     </div>
   </section>
 
-<?php else: ?>
-
-  <!-- Login Form (shown when not logged in) -->
-  <div class="min-h-[calc(100vh-4rem)] flex items-center justify-center py-16 px-4">
-    <div class="w-full max-w-md animate-fade-up">
-      <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
-
-        <!-- Header -->
-        <div class="bg-gradient-to-r from-red-600 to-red-800 text-white px-8 py-8 text-center">
-          <span class="text-5xl mb-3 block">🩸</span>
-          <h1 class="text-2xl font-bold">Sign In</h1>
-          <p class="text-red-200 text-sm mt-1">Login to submit a blood request</p>
-        </div>
-
-        <!-- Form -->
-        <div class="px-8 py-8 space-y-5">
-
-          <div class="bg-blue-50 border-l-2 border-blue-500 p-4 rounded">
-            <p class="text-blue-700 text-sm">You must be logged in to submit a blood request. Please sign in below.</p>
-          </div>
-
-          <?php if (!empty($loginError)): ?>
-            <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded">
-              <p class="text-red-700 text-sm"><?= htmlspecialchars($loginError) ?></p>
-            </div>
-          <?php endif; ?>
-
-          <form method="POST" class="space-y-5">
-            <input type="hidden" name="login_username" value="1" />
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Username or Email <span class="text-red-500">*</span></label>
-              <input type="text" name="login_user" required
-                placeholder="Enter your username or email"
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
-              <div class="relative">
-                <input type="password" name="login_pass" id="loginPass" required
-                  placeholder="Enter your password"
-                  class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition text-sm" />
-                <button type="button" onclick="toggleLoginPass()" id="loginEyeBtn"
-                  class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">👁</button>
-              </div>
-            </div>
-
-            <button type="submit"
-              class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-3.5 rounded-xl font-bold hover:shadow-xl transition transform hover:scale-[1.02] text-sm">
-              Sign In →
-            </button>
-          </form>
-
-          <p class="text-center text-sm text-gray-500">
-            Don't have an account? <a href="register.php" class="text-red-600 font-bold hover:underline">Sign up free</a>
-          </p>
-          <p class="text-center text-sm text-gray-500">
-            <a href="index.php" class="text-red-600 font-semibold hover:underline">← Back to Home</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<?php endif; ?>
-
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-300 py-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid md:grid-cols-4 gap-8 mb-8">
-        <div>
-          <h3 class="text-white font-bold text-lg mb-4">BloodLife</h3>
-          <p class="text-sm">Connecting donors with those who need help. Save lives today.</p>
-        </div>
-        <div>
-          <h4 class="text-white font-bold mb-4">Quick Links</h4>
-          <ul class="space-y-2 text-sm">
-            <li><a href="index.php" class="hover:text-red-400 transition">Home</a></li>
-            <li><a href="donor.php" class="hover:text-red-400 transition">Donors</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="text-white font-bold mb-4">Contact</h4>
-          <ul class="space-y-2 text-sm">
-            <li>📧 info@bloodlife.com</li>
-            <li>📱 1-800-BLOOD-999</li>
-            <li>📍 123 Health Street, City</li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="text-white font-bold mb-4">Follow Us</h4>
-          <div class="flex space-x-4">
-            <a href="#" class="hover:text-red-400 transition">Facebook</a>
-            <a href="#" class="hover:text-red-400 transition">Twitter</a>
-            <a href="#" class="hover:text-red-400 transition">Instagram</a>
-          </div>
-        </div>
-      </div>
-      <div class="border-t border-gray-700 pt-8 text-center text-sm">
-        <p>&copy; BloodLife. All rights reserved.</p>
-      </div>
-    </div>
-  </footer>
+   <?php include __DIR__ . '/../includes/footer.php'; ?>
 
   <script>
-    function toggleLoginPass() {
-      const f = document.getElementById('loginPass');
-      const b = document.getElementById('loginEyeBtn');
-      f.type = f.type === 'password' ? 'text' : 'password';
-      b.textContent = f.type === 'password' ? '👁' : '🙈';
-    }
-
     function toggleUserDropdown() {
       document.getElementById('userDropdown').classList.toggle('hidden');
     }

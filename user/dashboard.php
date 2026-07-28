@@ -112,40 +112,7 @@ $livesSaved = $totalDonations * 3;
 <body class="bg-white min-h-screen" style="font-family:'Pyidaungsu',Noto Sans Myanmar,sans-serif">
 
   <!-- NAVBAR (same as other pages) -->
-  <nav class="bg-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
-        <a href="donordashboard.php" class="flex items-center space-x-3 animate-fade-down">
-          <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩹</span>
-          <div><h1 class="font-bold text-xl text-red-700">BloodLife</h1><p class="text-xs text-gray-500" data-i18n="save_lives_together">Save Lives Together</p></div>
-        </a>
-        <div class="hidden md:flex items-center space-x-8">
-          <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-          <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-          <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-          <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
-                    <span class="theme-icon-sun"><svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
-                    <span class="theme-icon-moon" style="display:none"><svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
-                </button>
-          <div class="relative" id="userMenu">
-            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
-              <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700"><?= strtoupper(substr($username, 0, 1)) ?></div>
-              <span class="font-medium text-gray-700"><?= $username ?></span>
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
-            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-              <div class="p-4 border-b border-gray-100"><p class="font-semibold text-gray-800"><?= $username ?></p><p class="text-sm text-gray-500">Logged in</p></div>
-              <div class="p-2">
-                <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"><i class="fas fa-user"></i> <span data-i18n="profile">Profile</span></a>
-                <a href="donordashboard.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"><i class="fas fa-gauge-high"></i> <span>Dashboard</span></a>
-                <a href="#" onclick="bloodlifeLogout(); return false;" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"><i class="fas fa-right-from-bracket"></i> <span data-i18n="logout">Logout</span></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </nav>
+ <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- 1. HERO BANNER -->
   <section class="hero-bg text-white py-16 sm:py-24 relative">

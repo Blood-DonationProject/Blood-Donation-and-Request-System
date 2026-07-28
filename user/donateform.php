@@ -146,22 +146,58 @@ if ($isLoggedIn) {
     }
   </style>
   <style id="dark-mode-styles">
+    /* Light mode resets */
     html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
     html:not(.dark) .bg-gray-50 { background-color: #fdf2f8 !important; }
     html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
+
+    /* Dark mode body & nav */
     html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
     html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
+
+    /* Dark mode backgrounds */
     html.dark .bg-white { background-color: #1f2937 !important; }
+    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+    html.dark .bg-gray-200 { background-color: #4b5563 !important; }
+    html.dark .bg-red-50 { background-color: rgba(220, 38, 38, 0.15) !important; }
+    html.dark .bg-red-100 { background-color: rgba(220, 38, 38, 0.2) !important; }
+    html.dark .bg-red-200 { background-color: rgba(220, 38, 38, 0.25) !important; }
+    html.dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.15) !important; }
+    html.dark .bg-green-100 { background-color: rgba(34, 197, 94, 0.2) !important; }
+    html.dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.15) !important; }
+    html.dark .bg-blue-200 { background-color: rgba(59, 130, 246, 0.2) !important; }
+    html.dark .bg-yellow-50 { background-color: rgba(234, 179, 8, 0.15) !important; }
+    html.dark .bg-pink-100 { background-color: rgba(236, 72, 153, 0.1) !important; }
+    html.dark .bg-pink-200 { background-color: rgba(236, 72, 153, 0.12) !important; }
+    html.dark footer { background-color: #1f2937 !important; }
+
+    /* Dark mode text */
     html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
     html.dark .text-gray-700 { color: #d1d5db !important; }
     html.dark .text-gray-600 { color: #9ca3af !important; }
     html.dark .text-gray-500 { color: #9ca3af !important; }
+    html.dark .text-gray-400 { color: #6b7280 !important; }
+    html.dark .text-green-700 { color: #4ade80 !important; }
+    html.dark .text-green-800 { color: #4ade80 !important; }
+    html.dark .text-red-700 { color: #f87171 !important; }
+    html.dark .text-blue-700 { color: #60a5fa !important; }
+
+    /* Dark mode forms */
     html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
     html.dark label { color: #d1d5db !important; }
-    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+
+    /* Dark mode borders */
+    html.dark .border-gray-100, html.dark .border-b.border-gray-100 { border-color: #374151 !important; }
     html.dark .border-gray-200, html.dark .border-2.border-gray-200 { border-color: #4b5563 !important; }
+    html.dark .border-gray-300 { border-color: #4b5563 !important; }
     html.dark .border-t { border-color: #374151 !important; }
-    html.dark .bg-red-50 { background-color: rgba(220, 38, 38, 0.15) !important; }
+    html.dark .border-green-200 { border-color: rgba(34, 197, 94, 0.3) !important; }
+    html.dark .border-red-200 { border-color: rgba(220, 38, 38, 0.3) !important; }
+    html.dark .border-blue-200 { border-color: rgba(59, 130, 246, 0.3) !important; }
+    html.dark .border-dashed.border-gray-200 { border-color: #4b5563 !important; }
+    html.dark .divide-y.divide-gray-50 > * + * { border-color: #374151 !important; }
+
+    /* Dark mode table */
     html.dark tbody tr { border-color: #374151 !important; }
     html.dark tbody tr:hover { background-color: #374151 !important; }
   </style>
@@ -170,58 +206,7 @@ if ($isLoggedIn) {
 <body class="bg-gradient-to-b from-pink-50 to-pink-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
-  <nav class="bg-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
-        <a href="donordashboard.php" class="flex items-center space-x-3 animate-fade-down">
-          <span class="text-2xl bg-red-200 p-1 rounded-full shadow-md">🩸</span>
-          <div>
-            <h1 class="font-bold text-xl text-red-700">BloodLife</h1>
-            <p class="text-xs text-gray-500">Save Lives Together</p>
-          </div>
-        </a>
-        <div class="hidden md:flex items-center space-x-8">
-          <a href="donordashboard.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-          <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
-          
-          <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-          <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
-                    <span class="theme-icon-sun"><svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
-                    <span class="theme-icon-moon" style="display:none"><svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
-                </button>
-          <?php if ($isLoggedIn): ?>
-                        <div class="relative" id="userMenu">
-                            <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserDropdown()">
-                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm font-bold text-red-700">
-                                    <?= strtoupper(substr($username, 0, 1)) ?>
-                                </div>
-                                <span class="font-medium text-gray-700"><?= $username ?></span>
-                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                            <div id="userDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                                <div class="p-4 border-b border-gray-100">
-                                    <p class="font-semibold text-gray-800"><?= $username ?></p>
-                                    <p class="text-sm text-gray-500">Logged in</p>
-                                </div>
-                                <div class="p-2">
-                                    <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
-                                        <span><?= strtoupper(substr($username, 0, 1)) ?></span> <span data-i18n="profile">Profile</span>
-                                    </a>
-                                    <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
-                                        <span>🚪</span> <span data-i18n="logout">Logout</span>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <a href="login.php" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:shadow-lg transition cursor-pointer">
-                            Login
-                        </a>
-                    <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </nav>
+ <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- Hero -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-12">
@@ -284,8 +269,8 @@ if ($isLoggedIn) {
   </div>
   <?php endif; ?>
 
-  <section class="py-12">
-    <div class="max-w-2xl mx-auto px-4 sm:px-6 space-y-6 animate-fade-up">
+  <section class="bg-pink-100 py-12">
+    <div class="max-w-2xl bg-pink-200 py-6 rounded-md mx-auto px-4 sm:px-6 mt-6 space-y-6 animate-fade-up">
 
       <?php if ($donorExists && !$editMode): ?>
       <!-- Already Registered Message -->
@@ -300,7 +285,7 @@ if ($isLoggedIn) {
       <?php else: ?>
 
       <?php if (!$donorExists || $donorStatus === 'Available'): ?>
-      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3 mb-6">
         <span class="text-xl">ℹ️</span>
         <p class="text-blue-700 text-sm font-medium">Please enter all information correctly. Double-check your details before submitting.</p>
       </div>
@@ -431,7 +416,7 @@ if ($isLoggedIn) {
   <!-- My Donor Records (CRUD Read) -->
   <section class="pb-16">
     <div class="max-w-4xl mx-auto px-4 sm:px-6">
-      <div class="bg-white rounded-2xl shadow p-6 sm:p-8">
+      <div class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <div class="flex items-center justify-between mb-6">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">📋</div>
@@ -508,42 +493,7 @@ if ($isLoggedIn) {
   </section>
 
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-300 py-12 mt-4">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid md:grid-cols-4 gap-8 mb-8">
-        <div>
-          <h3 class="text-white font-bold text-lg mb-4">BloodLife</h3>
-          <p class="text-sm" data-i18n="save_lives_together">Connecting donors with those who need help.</p>
-        </div>
-        <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="quick_links">Quick Links</h4>
-          <ul class="space-y-2 text-sm">
-            <li><a href="index.php" class="hover:text-red-400 transition" data-i18n="home">Home</a></li>
-            <li><a href="donor.php" class="hover:text-red-400 transition" data-i18n="donors">Donors</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="contact">Contact</h4>
-          <ul class="space-y-2 text-sm">
-            <li>📧 info@bloodlife.com</li>
-            <li>📱 1-800-BLOOD-999</li>
-            <li>📍 123 Health Street, City</li>
-          </ul>
-        </div>
-        <div>
-          <h4 class="text-white font-bold mb-4" data-i18n="follow_us">Follow Us</h4>
-          <div class="flex space-x-4 text-sm">
-            <a href="#" class="hover:text-red-400 transition">Facebook</a>
-            <a href="#" class="hover:text-red-400 transition">Twitter</a>
-            <a href="#" class="hover:text-red-400 transition">Instagram</a>
-          </div>
-        </div>
-      </div>
-      <div class="border-t border-gray-700 pt-8 text-center text-sm">
-        <p>&copy; BloodLife. <span data-i18n="all_rights_reserved">All rights reserved.</span></p>
-      </div>
-    </div>
-  </footer>
+   <?php include __DIR__ . '/../includes/footer.php'; ?>
 
   <script>
     function toggleUserDropdown() {

@@ -1,4 +1,57 @@
 <?php
+return [
+    // Brand / Navbar
+    'app_name'          => 'BloodLife',
+    'admin'             => 'admin',
+    'administrator'     => 'Administrator',
+    'logout'            => 'Logout',
+
+    // Sidebar Navigation
+    'nav_overview'      => 'Overview',
+    'nav_users'         => 'Users',
+    'nav_donors'        => 'Donors',
+    'nav_history'       => 'Donation History',
+    'nav_requests'      => 'Blood Requests',
+
+    // Page Header
+    'page_title'        => 'Blood Requests',
+    'page_subtitle'     => 'Manage blood request submissions from users.',
+    'btn_add_new'       => '+ Add New Request',
+
+    // Summary Cards
+    'card_total'        => 'Total Requests',
+    'card_pending'      => 'Pending',
+    'card_approved'     => 'Approved',
+    'card_completed'    => 'Completed',
+
+    // Table Section
+    'table_title'       => 'Blood Request Records',
+    'table_subtitle'    => 'All blood requests in the system.',
+    'table_total'       => 'Total',
+
+    // Table Headers
+    'th_id'             => 'ID',
+    'th_requester'      => 'Requester',
+    'th_blood_group'    => 'Blood Group',
+    'th_units'          => 'Units',
+    'th_hospital'       => 'Hospital',
+    'th_required_date'  => 'Required Date',
+    'th_status'         => 'Status',
+    'th_actions'        => 'Actions',
+
+    // Statuses
+    'status_pending'    => 'Pending',
+    'status_approved'   => 'Approved',
+    'status_completed'  => 'Completed',
+    'status_rejected'   => 'Rejected',
+
+    // Action Buttons
+    'btn_edit'          => 'Edit',
+    'btn_delete'        => 'Delete',
+];
+?>
+
+<?php
 /**
  * English translations - BloodLife
  * Add new keys here. Mirror in lang/my.php for Myanmar.
@@ -563,3 +616,4 @@ $translations = [
     'no_donation_histories' => 'No donation histories found.',
     'export_csv' => 'Export CSV',
 ];
+?>
