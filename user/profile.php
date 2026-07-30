@@ -110,7 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
         $messageType = 'error';
     } else {
         $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status = 'Pending');
+        $status = 'Pending';
+        $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
         if ($stmt->execute()) {
             $message = 'Blood request submitted successfully.';
             $messageType = 'success';
@@ -441,58 +442,58 @@ $stmt->close();
                   <span class="text-gray-500"><span data-i18n="donation_history_total">Total</span>: <strong class="text-gray-900"><?= number_format($totalUnits) ?></strong> <?= $totalUnits > 1 ? 'units' : 'unit' ?> <?= !empty($bloodGroup) && $bloodGroup !== '-' ? "($bloodGroup)" : '' ?></span>
                   <span class="text-green-600 font-semibold">🩸 <span data-i18n="lives_saved_stat">Lives Saved</span>: <?= $livesSaved ?></span>
                 </div>
-              <?php else: ?>
-                <div class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                  <div class="text-5xl mb-4">🩸</div>
-                  <p class="text-gray-500 font-semibold" data-i18n="no_donation_history">No donation history found.</p>
-                  <p class="text-gray-400 text-sm mt-1" data-i18n="donation_history_empty_desc">When you make your first donation, your history will appear here.</p>
-                </div>
-              <?php endif; ?>
-            </div>
-
-            <!-- Blood Requests Tab -->
-            <div id="tab-requests" class="tab-panel">
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="border-b border-gray-100">
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                    <?php if (count($bloodRequests) > 0): ?>
-                      <?php foreach ($bloodRequests as $br): ?>
-                        <tr class="hover:bg-gray-50">
-                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
-                          <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
-                          <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
-                          <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
-                          <td class="py-3">
-                            <?php
-                              $status = htmlspecialchars($br['status'] ?? 'Pending');
-                              $statusColors = [
-                                  'Pending'   => 'bg-yellow-100 text-yellow-700',
-                                  'Approved'  => 'bg-blue-100 text-blue-700',
-                                  'Completed' => 'bg-green-100 text-green-700',
-                                  'Rejected'  => 'bg-red-100 text-red-700',
-                              ];
-                              $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
-                            ?>
-                            <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
-                          </td>
-                        </tr>
-                      <?php endforeach; ?>
-                    <?php else: ?>
-                      <tr><td colspan="5" class="py-8 text-center text-gray-500" data-i18n="no_blood_request_history">No blood request history found.</td></tr>
-                    <?php endif; ?>
-                  </tbody>
-                </table>
+            <?php else: ?>
+              <div class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                <div class="text-5xl mb-4">🩸</div>
+                <p class="text-gray-500 font-semibold" data-i18n="no_donation_history">No donation history found.</p>
+                <p class="text-gray-400 text-sm mt-1" data-i18n="donation_history_empty_desc">When you make your first donation, your history will appear here.</p>
               </div>
+            <?php endif; ?>
+          </div>
+
+          <!-- Blood Requests Tab -->
+          <div id="tab-requests" class="tab-panel">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-100">
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <?php if (count($bloodRequests) > 0): ?>
+                    <?php foreach ($bloodRequests as $br): ?>
+                      <tr class="hover:bg-gray-50">
+                        <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
+                        <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
+                        <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
+                        <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
+                        <td class="py-3">
+                          <?php
+                            $status = htmlspecialchars($br['status'] ?? 'Pending');
+                            $statusColors = [
+                                'Pending'   => 'bg-yellow-100 text-yellow-700',
+                                'Approved'  => 'bg-blue-100 text-blue-700',
+                                'Completed' => 'bg-green-100 text-green-700',
+                                'Rejected'  => 'bg-red-100 text-red-700',
+                            ];
+                            $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
+                          ?>
+                          <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php else: ?>
+                    <tr><td colspan="5" class="py-8 text-center text-gray-500" data-i18n="no_blood_request_history">No blood request history found.</td></tr>
+                  <?php endif; ?>
+                </tbody>
+              </table>
             </div>
+          </div>
 
             <!-- Health Info Tab -->
             <div id="tab-health" class="tab-panel space-y-5">

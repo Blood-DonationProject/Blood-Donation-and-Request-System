@@ -284,6 +284,160 @@ if (count($donors) > 0) {
   </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
+  <!-- 6. OUR DONORS -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section-white py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
+          <i class="fas fa-users mr-1"></i> <span>Our Heroes</span>
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Find Blood Donors</h2>
+        <p class="text-gray-600 max-w-2xl mx-auto text-lg">
+          Browse our registered donors and find the blood type you need.
+        </p>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex flex-wrap items-end gap-4 mb-8 max-w-4xl mx-auto">
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
+          <input id="donorSearchInput" type="text" placeholder="Search by name or township..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+        </div>
+        <div class="w-40">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+          <select id="donorFilterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+            <option value="">All</option>
+            <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
+              <option value="<?= $bg ?>"><?= $bg ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="w-40">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+          <select id="donorFilterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+            <option value="">All</option>
+            <option value="Available">Available</option>
+            <option value="Unavailable">Unavailable</option>
+          </select>
+        </div>
+        <button onclick="clearDonorFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear</button>
+      </div>
+
+      <!-- Donor Carousel Wrapper -->
+      <div class="relative w-full max-w-7xl mx-auto group" id="donorCarouselWrapper">
+        <!-- Prev Button -->
+        <button id="donorPrevBtn" class="absolute left-0 top-1/2 -translate-y-1/2 -ml-4 md:-ml-6 z-10 bg-white shadow-lg text-red-600 rounded-full w-12 h-12 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition opacity-0 group-hover:opacity-100 hidden sm:flex">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <div id="donorCarouselViewport" class="overflow-hidden w-full px-2 py-4">
+          <!-- Donor Cards Track -->
+          <div id="donorCardsGrid" class="flex overflow-x-auto snap-x snap-mandatory gap-6 scroll-smooth" style="scrollbar-width: none; -ms-overflow-style: none;">
+            <style>#donorCardsGrid::-webkit-scrollbar { display: none; }</style>
+        <?php if (count($donors) > 0): ?>
+          <?php foreach ($donors as $d):
+            $isAvailable = ($d['available_status'] ?? 'Available') === 'Available';
+            $statusColor = $isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+            $statusIcon = $isAvailable ? 'fa-circle-check' : 'fa-circle-xmark';
+            $avatarBg = $isAvailable ? 'from-red-500 to-rose-500' : 'from-gray-400 to-gray-500';
+            $initials = strtoupper(substr($d['username'], 0, 1));
+          ?>
+            <div class="donor-slide donor-card flex-none w-[85%] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] snap-start bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden animate-fade-up hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
+                 data-name="<?= htmlspecialchars(strtolower($d['username'])) ?>"
+                 data-bloodgroup="<?= htmlspecialchars($d['blood_groups']) ?>"
+                 data-status="<?= htmlspecialchars($d['available_status'] ?? 'Available') ?>"
+                 data-address="<?= htmlspecialchars(strtolower($d['address'])) ?>">
+              <!-- Avatar Header -->
+              <div class="relative bg-gradient-to-br <?= $avatarBg ?> p-6 text-center">
+                <div class="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-white/30">
+                  <span class="text-3xl font-bold text-white"><?= $initials ?></span>
+                </div>
+                <h3 class="text-lg font-bold text-white"><?= htmlspecialchars($d['username']) ?></h3>
+              </div>
+              <!-- Card Body -->
+              <div class="p-5 space-y-3">
+                <!-- Blood Group -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-droplet text-red-500 text-sm"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Blood Group</p>
+                    <p class="font-bold text-gray-900"><?= htmlspecialchars($d['blood_groups']) ?></p>
+                  </div>
+                </div>
+                <!-- Township -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 bg-pink-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-location-dot text-pink-500 text-sm"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-xs text-gray-500">Township</p>
+                    <p class="font-semibold text-gray-900 truncate" title="<?= htmlspecialchars($d['address']) ?>"><?= htmlspecialchars($d['address']) ?></p>
+                  </div>
+                </div>
+                <!-- Status Badge -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 <?= $isAvailable ? 'bg-green-50' : 'bg-red-50' ?> rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas <?= $statusIcon ?> <?= $isAvailable ? 'text-green-500' : 'text-red-500' ?> text-sm"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Status</p>
+                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($d['available_status']) ?></span>
+                  </div>
+                </div>
+                <!-- Last Donation Date -->
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-calendar-check text-rose-500 text-sm"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">Last Donation</p>
+                    <p class="font-semibold text-gray-900"><?= $d['last_donation_date'] ? htmlspecialchars(date('M d, Y', strtotime($d['last_donation_date']))) : 'Never donated' ?></p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+          </div>
+        </div>
+
+        <!-- Next Button -->
+        <button id="donorNextBtn" class="absolute right-0 top-1/2 -translate-y-1/2 -mr-4 md:-mr-6 z-10 bg-white shadow-lg text-red-600 rounded-full w-12 h-12 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition opacity-0 group-hover:opacity-100 hidden sm:flex">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+      
+      <!-- Pagination Dots -->
+      <div class="flex justify-center items-center gap-2 mt-4 mb-8" id="donorCarouselDots"></div>
+
+      <!-- Empty State -->
+      <div id="donorEmptyState" class="hidden text-center py-16">
+        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-users-slash text-3xl text-gray-400"></i>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Found</h3>
+        <p class="text-gray-500">Try adjusting your search filters.</p>
+      </div>
+      <?php if (count($donors) === 0): ?>
+        <div class="text-center py-16">
+          <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-users-slash text-3xl text-gray-400"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Yet</h3>
+          <p class="text-gray-500">Be the first to register as a blood donor!</p>
+          <a href="donateform.php" class="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-700 transition mt-4">
+            <i class="fas fa-hand-holding-heart"></i> Register as Donor
+          </a>
+        </div>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
   <!-- 2. WHY DONATE BLOOD -->
   <!-- ═══════════════════════════════════════════════════ -->
   <section class="section-pink py-20">
@@ -657,156 +811,6 @@ if (count($donors) > 0) {
           <p class="text-gray-500 text-sm">Registered donors receive priority notifications for urgent blood requests and community events.</p>
         </div>
       </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 6. OUR DONORS -->
-  <!-- ═══════════════════════════════════════════════════ -->
-  <section class="section-white py-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-12">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-users mr-1"></i> <span>Our Heroes</span>
-        </span>
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Find Blood Donors</h2>
-        <p class="text-gray-600 max-w-2xl mx-auto text-lg">
-          Browse our registered donors and find the blood type you need.
-        </p>
-      </div>
-
-      <!-- Filters -->
-      <div class="flex flex-wrap items-end gap-4 mb-8 max-w-4xl mx-auto">
-        <div class="flex-1 min-w-[200px]">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
-          <input id="donorSearchInput" type="text" placeholder="Search by name or township..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-        </div>
-        <div class="w-40">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
-          <select id="donorFilterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-            <option value="">All</option>
-            <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
-              <option value="<?= $bg ?>"><?= $bg ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="w-40">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-          <select id="donorFilterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-            <option value="">All</option>
-            <option value="Available">Available</option>
-            <option value="Unavailable">Unavailable</option>
-          </select>
-        </div>
-        <button onclick="clearDonorFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear</button>
-      </div>
-
-      <!-- Donor Cards Grid -->
-      <div id="donorCardsGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <?php if (count($donors) > 0): ?>
-          <?php foreach ($donors as $d):
-            $isAvailable = ($d['available_status'] ?? 'Available') === 'Available';
-            $statusColor = $isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-            $statusIcon = $isAvailable ? 'fa-circle-check' : 'fa-circle-xmark';
-            $avatarBg = $isAvailable ? 'from-red-500 to-rose-500' : 'from-gray-400 to-gray-500';
-            $initials = strtoupper(substr($d['username'], 0, 1));
-          ?>
-            <div class="donor-card card-hover bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden"
-                 data-name="<?= htmlspecialchars(strtolower($d['username'])) ?>"
-                 data-bloodgroup="<?= htmlspecialchars($d['blood_groups']) ?>"
-                 data-status="<?= htmlspecialchars($d['available_status'] ?? 'Available') ?>"
-                 data-address="<?= htmlspecialchars(strtolower($d['address'])) ?>">
-              <!-- Avatar Header -->
-              <div class="relative bg-gradient-to-br <?= $avatarBg ?> p-6 text-center">
-                <div class="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-white/30">
-                  <span class="text-3xl font-bold text-white"><?= $initials ?></span>
-                </div>
-                <h3 class="text-lg font-bold text-white"><?= htmlspecialchars($d['username']) ?></h3>
-              </div>
-              <!-- Card Body -->
-              <div class="p-5 space-y-3">
-                <!-- Blood Group -->
-                <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-droplet text-red-500 text-sm"></i>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Blood Group</p>
-                    <p class="font-bold text-gray-900"><?= htmlspecialchars($d['blood_groups']) ?></p>
-                  </div>
-                </div>
-                <!-- Township -->
-                <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 bg-pink-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-location-dot text-pink-500 text-sm"></i>
-                  </div>
-                  <div class="min-w-0">
-                    <p class="text-xs text-gray-500">Township</p>
-                    <p class="font-semibold text-gray-900 truncate" title="<?= htmlspecialchars($d['address']) ?>"><?= htmlspecialchars($d['address']) ?></p>
-                  </div>
-                </div>
-                <!-- Status Badge -->
-                <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 <?= $isAvailable ? 'bg-green-50' : 'bg-red-50' ?> rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas <?= $statusIcon ?> <?= $isAvailable ? 'text-green-500' : 'text-red-500' ?> text-sm"></i>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Status</p>
-                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($d['available_status']) ?></span>
-                  </div>
-                </div>
-                <!-- Last Donation Date -->
-                <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 bg-rose-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-calendar-check text-rose-500 text-sm"></i>
-                  </div>
-                  <div>
-                    <p class="text-xs text-gray-500">Last Donation</p>
-                    <p class="font-semibold text-gray-900"><?= $d['last_donation_date'] ? htmlspecialchars(date('M d, Y', strtotime($d['last_donation_date']))) : 'Never donated' ?></p>
-                  </div>
-                </div>
-              </div>
-              <!-- View Details Button -->
-              <div class="px-5 pb-5">
-                <button type="button" onclick="openDonorModal(this)" class="block w-full text-center bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold py-2.5 rounded-xl hover:from-red-600 hover:to-red-700 hover:shadow-lg transition transform hover:scale-[1.02]"
-                  data-name="<?= htmlspecialchars($d['username']) ?>"
-                  data-initial="<?= $initials ?>"
-                  data-bloodgroup="<?= htmlspecialchars($d['blood_groups']) ?>"
-                  data-gender="<?= htmlspecialchars($d['gender']) ?>"
-                  data-age="<?= (int)$d['age'] ?>"
-                  data-address="<?= htmlspecialchars($d['address']) ?>"
-                  data-status="<?= htmlspecialchars($d['available_status'] ?? 'Available') ?>"
-                  data-lastdonation="<?= $d['last_donation_date'] ? htmlspecialchars(date('M d, Y', strtotime($d['last_donation_date']))) : 'Never donated' ?>"
-                  data-donations="<?= $donationCounts[$d['id']] ?? 0 ?>"
-                  data-avatarbg="<?= $avatarBg ?>">
-                  <i class="fas fa-eye mr-2"></i> View Details
-                </button>
-              </div>
-            </div>
-          <?php endforeach; ?>
-        <?php endif; ?>
-      </div>
-
-      <!-- Empty State -->
-      <div id="donorEmptyState" class="hidden text-center py-16">
-        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <i class="fas fa-users-slash text-3xl text-gray-400"></i>
-        </div>
-        <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Found</h3>
-        <p class="text-gray-500">Try adjusting your search filters.</p>
-      </div>
-      <?php if (count($donors) === 0): ?>
-        <div class="text-center py-16">
-          <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <i class="fas fa-users-slash text-3xl text-gray-400"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Yet</h3>
-          <p class="text-gray-500">Be the first to register as a blood donor!</p>
-          <a href="donateform.php" class="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-700 transition mt-4">
-            <i class="fas fa-hand-holding-heart"></i> Register as Donor
-          </a>
-        </div>
-      <?php endif; ?>
     </div>
   </section>
 
@@ -1236,5 +1240,130 @@ if (count($donors) > 0) {
     });
   </script>
 
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const track = document.getElementById('donorCardsGrid');
+        const prevBtn = document.getElementById('donorPrevBtn');
+        const nextBtn = document.getElementById('donorNextBtn');
+        const dotsContainer = document.getElementById('donorCarouselDots');
+        const wrapper = document.getElementById('donorCarouselWrapper');
+        let autoSlideInterval;
+
+        function getVisibleSlides() {
+            return Array.from(track.children).filter(el => el.classList.contains('donor-slide') && el.style.display !== 'none');
+        }
+
+        function updateCarousel() {
+            const slides = getVisibleSlides();
+            if (dotsContainer) dotsContainer.innerHTML = '';
+            
+            const maxScroll = track.scrollWidth - track.clientWidth;
+            const shouldShowControls = slides.length > 1 && maxScroll > 10;
+            
+            if (!shouldShowControls) {
+                if(prevBtn) prevBtn.style.display = 'none';
+                if(nextBtn) nextBtn.style.display = 'none';
+                return;
+            } else {
+                if(prevBtn) prevBtn.style.display = '';
+                if(nextBtn) nextBtn.style.display = '';
+            }
+
+            if (maxScroll > 0) {
+                const numDots = Math.ceil(track.scrollWidth / track.clientWidth);
+                for (let i = 0; i < numDots; i++) {
+                    const dot = document.createElement('button');
+                    dot.className = 'w-3 h-3 rounded-full transition-all bg-gray-300 hover:bg-red-400';
+                    dot.onclick = () => {
+                        track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
+                    };
+                    if (dotsContainer) dotsContainer.appendChild(dot);
+                }
+                updateDots();
+            }
+        }
+
+        function updateDots() {
+            if (!dotsContainer || !dotsContainer.children.length) return;
+            const index = Math.round(track.scrollLeft / track.clientWidth);
+            Array.from(dotsContainer.children).forEach((dot, i) => {
+                if (i === index) {
+                    dot.classList.remove('bg-gray-300');
+                    dot.classList.add('bg-red-600', 'w-6');
+                } else {
+                    dot.classList.add('bg-gray-300');
+                    dot.classList.remove('bg-red-600', 'w-6');
+                }
+            });
+        }
+
+        if(track) track.addEventListener('scroll', updateDots);
+
+        function scrollNext() {
+            if (!track) return;
+            const maxScroll = track.scrollWidth - track.clientWidth;
+            if (maxScroll <= 10) return; // Nothing to scroll
+            
+            const slides = getVisibleSlides();
+            const slideWidth = slides.length > 0 ? slides[0].offsetWidth + 24 : 0;
+            if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) {
+                track.scrollTo({ left: 0, behavior: 'smooth' });
+            } else {
+                track.scrollBy({ left: slideWidth, behavior: 'smooth' });
+            }
+        }
+
+        function scrollPrev() {
+            if (!track) return;
+            const maxScroll = track.scrollWidth - track.clientWidth;
+            if (maxScroll <= 10) return; // Nothing to scroll
+            
+            const slides = getVisibleSlides();
+            const slideWidth = slides.length > 0 ? slides[0].offsetWidth + 24 : 0;
+            if (track.scrollLeft <= 0) {
+                track.scrollTo({ left: track.scrollWidth, behavior: 'smooth' });
+            } else {
+                track.scrollBy({ left: -slideWidth, behavior: 'smooth' });
+            }
+        }
+
+        if(nextBtn) nextBtn.addEventListener('click', scrollNext);
+        if(prevBtn) prevBtn.addEventListener('click', scrollPrev);
+
+        function startAutoSlide() {
+            stopAutoSlide();
+            autoSlideInterval = setInterval(scrollNext, 3500);
+        }
+
+        function stopAutoSlide() {
+            clearInterval(autoSlideInterval);
+        }
+
+        if(wrapper) {
+            wrapper.addEventListener('mouseenter', stopAutoSlide);
+            wrapper.addEventListener('mouseleave', startAutoSlide);
+            // Touch events for mobile to pause
+            wrapper.addEventListener('touchstart', stopAutoSlide, {passive: true});
+            wrapper.addEventListener('touchend', startAutoSlide, {passive: true});
+        }
+
+        updateCarousel();
+        startAutoSlide();
+        window.addEventListener('resize', updateCarousel);
+
+        // Hook into existing filters if defined
+        if (typeof window.applyDonorFilters === 'function') {
+            const originalApply = window.applyDonorFilters;
+            window.applyDonorFilters = function() {
+                originalApply();
+                setTimeout(() => {
+                    track.scrollTo({ left: 0, behavior: 'smooth' });
+                    updateCarousel();
+                }, 100);
+            };
+        }
+    });
+  </script>
 </body>
 </html>
