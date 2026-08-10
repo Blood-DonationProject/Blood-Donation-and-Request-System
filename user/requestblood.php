@@ -67,21 +67,37 @@ if ($isLoggedIn) {
             $message = 'Please enter the hospital name.';
             $messageType = 'error';
         } else {
-            if ($updateId > 0) {
-                $stmt = $conn->prepare("UPDATE blood_request SET blood_groups_id=?, units=?, hospital=?, required_date=?, status=?, requester_name=? WHERE id=? AND users_id=?");
-                $stmt->bind_param("iissssii", $blood_groups_id, $units, $hospital, $required_date, $status, $username, $updateId, $userId);
-            } else {
-                $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
+            $hasActive = false;
+            if ($updateId === 0) {
+                $stmt = $conn->prepare("SELECT id FROM blood_request WHERE users_id = ? AND status IN ('Pending', 'Approved', 'Assigned', 'Accepted', 'Blood Received') LIMIT 1");
+                $stmt->bind_param("i", $userId);
+                $stmt->execute();
+                $stmt->store_result();
+                if ($stmt->num_rows > 0) {
+                    $hasActive = true;
+                    $message = 'You already have an active blood request. Please wait until it is completed.';
+                    $messageType = 'error';
+                }
+                $stmt->close();
             }
-            if ($stmt->execute()) {
-                $message = $updateId > 0 ? 'Blood request updated successfully!' : 'Blood request submitted successfully!';
-                $messageType = 'success';
-            } else {
-                $message = 'Failed to save request. Please try again.';
-                $messageType = 'error';
+
+            if (!$hasActive) {
+                if ($updateId > 0) {
+                    $stmt = $conn->prepare("UPDATE blood_request SET blood_groups_id=?, units=?, hospital=?, required_date=?, status=?, requester_name=? WHERE id=? AND users_id=?");
+                    $stmt->bind_param("iissssii", $blood_groups_id, $units, $hospital, $required_date, $status, $username, $updateId, $userId);
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
+                }
+                if ($stmt->execute()) {
+                    $message = $updateId > 0 ? 'Blood request updated successfully!' : 'Blood request submitted successfully!';
+                    $messageType = 'success';
+                } else {
+                    $message = 'Failed to save request. Please try again.';
+                    $messageType = 'error';
+                }
+                $stmt->close();
             }
-            $stmt->close();
         }
 
         if ($messageType === 'success') {

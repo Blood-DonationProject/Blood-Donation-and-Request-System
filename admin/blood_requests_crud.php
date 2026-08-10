@@ -866,12 +866,17 @@ $stats = [
                     </div>
                 </div>
                 <?php endif; ?>
-                                            
+                <!-- All Blood Requests Table -->
+                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+                    <div class="flex items-center justify-between px-6 py-5 border-b border-gray-50">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">All Blood Requests</h3>
+                            <p class="text-sm text-gray-400 mt-1">Complete list of all requests</p>
+                        </div>
+                        <span class="text-sm font-semibold text-gray-600 bg-gray-100 px-3 py-1 rounded-full">Total: <?= count($requests) ?></span>
                     </div>
-                    <span class="text-sm text-gray-500">Total: <?= count($requests) ?></span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm border-collapse">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3">ID</th>
