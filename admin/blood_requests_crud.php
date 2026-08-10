@@ -22,6 +22,7 @@ if (isset($_POST['add'])) {
     $hospital = trim($_POST['hospital']);
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
+    $urgency = $_POST['urgency'] ?? 'Normal';
 
     // Get the username for the selected user
     $requester_name = '';
@@ -35,8 +36,8 @@ if (isset($_POST['add'])) {
     $user_stmt->close();
 
     if ($users_id && $blood_groups_id && $units > 0 && $hospital !== '' && $required_date !== '') {
-        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("isiisss", $users_id, $requester_name, $blood_groups_id, $units, $hospital, $required_date, $status);
+        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isiissss", $users_id, $requester_name, $blood_groups_id, $units, $hospital, $required_date, $status, $urgency);
         if ($stmt->execute()) {
             $success = 'Blood request created successfully.';
         } else {
@@ -56,7 +57,7 @@ if (isset($_POST['update'])) {
     $hospital = trim($_POST['hospital']);
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
-
+    $urgency = $_POST['urgency'] ?? 'Normal';
     // Get the username for the selected user
     $requester_name = '';
     $user_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
@@ -230,7 +231,8 @@ try {
     $stats['pending']   = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
     $stats['approved']  = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Approved', 'Assigned')")->fetch_assoc()['c'] ?? 0;
     $stats['completed'] = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 $requests = [];
 $edit_row = null;
@@ -269,7 +271,8 @@ try {
     if ($result && $result->num_rows > 0) {
         $assignable_requests = $result->fetch_all(MYSQLI_ASSOC);
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 // Fetch available donors
 $available_donors = [];
@@ -285,7 +288,8 @@ try {
     if ($result && $result->num_rows > 0) {
         $available_donors = $result->fetch_all(MYSQLI_ASSOC);
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 // Pending blood requests for action cards
 $pending_requests = [];
@@ -301,7 +305,8 @@ try {
     if ($result && $result->num_rows > 0) {
         $pending_requests = $result->fetch_all(MYSQLI_ASSOC);
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 
 // Fetch already assigned requests for display
@@ -321,7 +326,8 @@ try {
     if ($result && $result->num_rows > 0) {
         $assigned_requests = $result->fetch_all(MYSQLI_ASSOC);
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 // Latest 5 blood requests for Recent section
 $recent_requests = [];
@@ -337,7 +343,8 @@ try {
     if ($rr_result && $rr_result->num_rows > 0) {
         $recent_requests = $rr_result->fetch_all(MYSQLI_ASSOC);
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
 $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0,
@@ -348,249 +355,445 @@ $stats = [
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blood Requests CRUD - BloodLife</title>
     <script>
-        (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
+        (function() {
+            var t = localStorage.getItem('bloodlife-theme');
+            if (t === 'dark') document.documentElement.classList.add('dark');
+        })();
     </script>
     <script>
-        tailwind.config = { darkMode: 'class' }
+        tailwind.config = {
+            darkMode: 'class'
+        }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
     <style>
-        @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
-        .animate-fade-down { animation: fadeInDown 0.6s ease-out; }
-        .animate-fade-up   { animation: fadeInUp   0.6s ease-out; }
-        .stat-card { transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
-            .action-card { transition: all 0.3s ease; }
-        .action-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -8px rgba(220, 38, 38, 0.25); }
-        .btn-approve { transition: all 0.2s ease; }
-        .btn-approve:hover { transform: scale(1.05); }
-        .btn-reject { transition: all 0.2s ease; }
-        .btn-reject:hover { transform: scale(1.05); }
-        .btn-assign { transition: all 0.2s ease; }
-        .btn-assign:hover { transform: scale(1.05); }
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-down {
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .animate-fade-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .stat-card {
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .action-card {
+            transition: all 0.3s ease;
+        }
+
+        .action-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -8px rgba(220, 38, 38, 0.25);
+        }
+
+        .btn-approve {
+            transition: all 0.2s ease;
+        }
+
+        .btn-approve:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-reject {
+            transition: all 0.2s ease;
+        }
+
+        .btn-reject:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-assign {
+            transition: all 0.2s ease;
+        }
+
+        .btn-assign:hover {
+            transform: scale(1.05);
+        }
+
         /* Assign Modal */
-        .assign-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .assign-modal-overlay.active { display: flex; }
-        .assign-modal { background: white; border-radius: 1rem; width: 90%; max-width: 520px; max-height: 85vh; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: fadeIn 0.3s ease; }
-        .assign-modal-body { max-height: 60vh; overflow-y: auto; padding: 1rem; }
-        .assign-modal-donor { padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 0.75rem; cursor: pointer; transition: all 0.2s ease; margin-bottom: 0.5rem; }
-        .assign-modal-donor:hover { border-color: #3b82f6; background: #eff6ff; }
-        .assign-modal-donor.selected { border-color: #16a34a; background: #f0fdf4; }
-        .assign-modal-donor.best-match { border-color: #22c55e; background: #f0fdf4; }
+        .assign-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .assign-modal-overlay.active {
+            display: flex;
+        }
+
+        .assign-modal {
+            background: white;
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 520px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .assign-modal-body {
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .assign-modal-donor {
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 0.5rem;
+        }
+
+        .assign-modal-donor:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .assign-modal-donor.selected {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+
+        .assign-modal-donor.best-match {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
     </style>
     <style id="dark-mode-styles">
-        html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-        html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
-        html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
-        html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-        html.dark .w-64.bg-white { background-color: #1f2937 !important; }
-        html.dark header.bg-white, html.dark header.bg-white.border-b { background-color: #1f2937 !important; }
-        html.dark .bg-white { background-color: #1f2937 !important; }
-        html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-        html.dark .text-gray-700 { color: #d1d5db !important; }
-        html.dark .text-gray-600 { color: #9ca3af !important; }
-        html.dark .text-gray-500 { color: #9ca3af !important; }
-        html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-        html.dark label { color: #d1d5db !important; }
-        html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
-        html.dark thead.bg-gray-50 { background-color: #111827 !important; }
-        html.dark .border-gray-200, html.dark .border-2.border-gray-200, html.dark .border { border-color: #4b5563 !important; }
-        html.dark .border-t { border-color: #374151 !important; }
-        html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
-        html.dark tbody tr { border-color: #374151 !important; }
-        html.dark tbody tr:hover { background-color: #374151 !important; }
-        html.dark .stat-card:hover { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
+        html:not(.dark) body {
+            background-color: #ffffff !important;
+            background-image: none !important;
+        }
+
+        html:not(.dark) .bg-gray-50 {
+            background-color: #ffffff !important;
+        }
+
+        html:not(.dark) .bg-gray-100 {
+            background-color: #ffffff !important;
+        }
+
+        html.dark body {
+            background-color: #111827 !important;
+            background-image: none !important;
+            color: #e5e7eb;
+        }
+
+        html.dark .w-64.bg-white {
+            background-color: #1f2937 !important;
+        }
+
+        html.dark header.bg-white,
+        html.dark header.bg-white.border-b {
+            background-color: #1f2937 !important;
+        }
+
+        html.dark .bg-white {
+            background-color: #1f2937 !important;
+        }
+
+        html.dark .text-gray-900,
+        html.dark .text-gray-800 {
+            color: #f3f4f6 !important;
+        }
+
+        html.dark .text-gray-700 {
+            color: #d1d5db !important;
+        }
+
+        html.dark .text-gray-600 {
+            color: #9ca3af !important;
+        }
+
+        html.dark .text-gray-500 {
+            color: #9ca3af !important;
+        }
+
+        html.dark input,
+        html.dark select,
+        html.dark textarea {
+            background-color: #374151 !important;
+            border-color: #4b5563 !important;
+            color: #e5e7eb !important;
+        }
+
+        html.dark label {
+            color: #d1d5db !important;
+        }
+
+        html.dark .bg-gray-50,
+        html.dark .bg-gray-100 {
+            background-color: #374151 !important;
+        }
+
+        html.dark thead.bg-gray-50 {
+            background-color: #111827 !important;
+        }
+
+        html.dark .border-gray-200,
+        html.dark .border-2.border-gray-200,
+        html.dark .border {
+            border-color: #4b5563 !important;
+        }
+
+        html.dark .border-t {
+            border-color: #374151 !important;
+        }
+
+        html.dark .bg-red-50 {
+            background-color: rgba(220, 38, 38, 0.15) !important;
+        }
+
+        html.dark tbody tr {
+            border-color: #374151 !important;
+        }
+
+        html.dark tbody tr:hover {
+            background-color: #374151 !important;
+        }
+
+        html.dark .stat-card:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
     </style>
 </head>
+
 <body class="bg-gray-100 dark:bg-gray-900">
 
-<div class="flex min-h-screen">
+    <div class="flex min-h-screen">
 
-    <!-- Sidebar -->
-    <?php include __DIR__ . '/../includes/sidebar.php'; ?>
+        <!-- Sidebar -->
+        <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
-    <!-- Main Content -->
-    <main class="flex-1 w-full min-w-0 overflow-x-hidden">
-        
-        <?php include __DIR__ . '/../includes/navbar.php'; ?>
+        <!-- Main Content -->
+        <main class="flex-1 w-full min-w-0 overflow-x-hidden">
 
-        <div class="p-8">
+            <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
-            <?php if ($error): ?>
-                <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded mb-6"><p class="text-red-700"><?= htmlspecialchars($error) ?></p></div>
-            <?php endif; ?>
-            <?php if ($success): ?>
-                <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
-            <?php endif; ?>
+            <div class="p-8">
 
-            <!-- Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Total Requests</p>
-                    <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Pending</p>
-                    <h3 class="text-3xl font-bold mt-2 text-yellow-600"><?= $stats['pending'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Approved</p>
-                    <h3 class="text-3xl font-bold mt-2 text-blue-600"><?= $stats['approved'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Completed</p>
-                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['completed'] ?></h3>
-                </div>
-            </div>
-
-            <!-- Toggle Form -->
-            <div class="mb-8">
-                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
-                    <span>+</span>
-                    <span><?= $edit_row ? 'Edit Request' : 'Add New Request' ?></span>
-                </button>
-            </div>
-
-            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Blood Request' : 'New Blood Request' ?></h3>
-                    <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                </div>
-                <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <?php if ($edit_row): ?>
-                        <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
-                    <?php endif; ?>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">User *</label>
-                        <select name="users_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select User --</option>
-                            <?php if ($users_list): mysqli_data_seek($users_list, 0); while ($u = $users_list->fetch_assoc()): ?>
-                                <option value="<?= $u['id'] ?>" <?= (($edit_row['users_id'] ?? 0) == $u['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($u['username']) ?>
-                                </option>
-                            <?php endwhile; endif; ?>
-                        </select>
+                <?php if ($error): ?>
+                    <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded mb-6">
+                        <p class="text-red-700"><?= htmlspecialchars($error) ?></p>
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group *</label>
-                        <select name="blood_groups_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select --</option>
-                            <?php if ($blood_groups_list): mysqli_data_seek($blood_groups_list, 0); while ($bg = $blood_groups_list->fetch_assoc()): ?>
-                                <option value="<?= $bg['id'] ?>" <?= (($edit_row['blood_groups_id'] ?? 0) == $bg['id']) ? 'selected' : '' ?>><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
-                            <?php endwhile; endif; ?>
-                        </select>
+                <?php endif; ?>
+                <?php if ($success): ?>
+                    <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6">
+                        <p class="text-green-700"><?= htmlspecialchars($success) ?></p>
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Units *</label>
-                        <input type="number" name="units" value="<?= htmlspecialchars($edit_row['units'] ?? '') ?>" required min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital *</label>
-                        <input type="text" name="hospital" value="<?= htmlspecialchars($edit_row['hospital'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Required Date *</label>
-                        <input type="date" name="required_date" value="<?= htmlspecialchars($edit_row['required_date'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
-                        <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <?php foreach (['Pending','Approved','Completed','Rejected'] as $st): ?>
-                                <option value="<?= $st ?>" <?= (($edit_row['status'] ?? 'Pending') === $st) ? 'selected' : '' ?>><?= $st ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
-                            <?= $edit_row ? 'Update' : 'Create' ?>
-                        </button>
-                        <?php if ($edit_row): ?>
-                            <a href="blood_requests_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
-
-            
-
-<!-- Pending Requests Action Section -->
-                <?php if (count($pending_requests) > 0): ?>
-                <div class="mb-8">
-                    <div class="flex items-center justify-between mb-5">
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900">
-                                <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>Pending Blood Requests
-                            </h3>
-                            <p class="text-sm text-gray-400 mt-1">Review and take action on incoming requests</p>
-                        </div>
-                        <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
-                            View All <i class="fas fa-arrow-right ml-1"></i>
-                        </a>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        <?php foreach ($pending_requests as $pr): ?>
-                        <div class="action-card bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                            <div class="flex items-start justify-between mb-4">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
-                                        <?= strtoupper(substr($pr['blood_group'], 0, 2)) ?>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-gray-900"><?= htmlspecialchars($pr['blood_group']) ?></p>
-                                        <p class="text-xs text-gray-400">Request #<?= $pr['id'] ?></p>
-                                    </div>
-                                </div>
-                                <span class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">
-                                    <i class="fas fa-clock mr-1"></i>Pending
-                                </span>
-                            </div>
-
-                            <div class="space-y-2 mb-5">
-                                <div class="flex items-center text-sm text-gray-600">
-                                    <i class="fas fa-user text-gray-400 w-5"></i>
-                                    <span class="ml-2"><?= htmlspecialchars($pr['requester_name'] ?? 'Unknown') ?></span>
-                                </div>
-                                <div class="flex items-center text-sm text-gray-600">
-                                    <i class="fas fa-hospital text-gray-400 w-5"></i>
-                                    <span class="ml-2"><?= htmlspecialchars($pr['hospital']) ?></span>
-                                </div>
-                                <div class="flex items-center text-sm text-gray-600">
-                                    <i class="fas fa-procedures text-gray-400 w-5"></i>
-                                    <span class="ml-2"><?= (int)$pr['units'] ?> Unit<?= (int)$pr['units'] > 1 ? 's' : '' ?></span>
-                                </div>
-                                <div class="flex items-center text-sm text-gray-600">
-                                    <i class="fas fa-calendar text-gray-400 w-5"></i>
-                                    <span class="ml-2"><?= htmlspecialchars($pr['required_date']) ?></span>
-                                </div>
-                            </div>
-
-                            <div class="flex gap-2">
-                                <a href="blood_requests_crud.php?approve=<?= $pr['id'] ?>" onclick="return confirm('Approve this blood request?')" class="btn-approve flex-1 bg-green-500 hover:bg-green-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm">
-                                    <i class="fas fa-check mr-1"></i>Approve
-                                </a>
-                                <button type="button" onclick="openAssignModal(<?= $pr['id'] ?>)" class="btn-assign flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm transition">
-                                    <i class="fas fa-user-plus mr-1"></i>Assign
-                                </button>
-                                <a href="blood_requests_crud.php?reject=<?= $pr['id'] ?>" onclick="return confirm('Reject this blood request?')" class="btn-reject flex-1 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 text-center py-2.5 rounded-xl font-semibold text-sm">
-                                    <i class="fas fa-times mr-1"></i>Reject
-                                </a>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
                 <?php endif; ?>
 
-                
-<!-- Donor Assignment Section -->
+                <!-- Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-xl border p-5 stat-card">
+                        <p class="text-gray-500 text-sm">Total Requests</p>
+                        <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
+                    </div>
+                    <div class="bg-white rounded-xl border p-5 stat-card">
+                        <p class="text-gray-500 text-sm">Pending</p>
+                        <h3 class="text-3xl font-bold mt-2 text-yellow-600"><?= $stats['pending'] ?></h3>
+                    </div>
+                    <div class="bg-white rounded-xl border p-5 stat-card">
+                        <p class="text-gray-500 text-sm">Approved</p>
+                        <h3 class="text-3xl font-bold mt-2 text-blue-600"><?= $stats['approved'] ?></h3>
+                    </div>
+                    <div class="bg-white rounded-xl border p-5 stat-card">
+                        <p class="text-gray-500 text-sm">Completed</p>
+                        <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['completed'] ?></h3>
+                    </div>
+                </div>
+
+                <!-- Toggle Form -->
+                <div class="mb-8">
+                    <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
+                        <span>+</span>
+                        <span><?= $edit_row ? 'Edit Request' : 'Add New Request' ?></span>
+                    </button>
+                </div>
+
+                <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Blood Request' : 'New Blood Request' ?></h3>
+                        <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                    </div>
+                    <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <?php if ($edit_row): ?>
+                            <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
+                        <?php endif; ?>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">User *</label>
+                            <select name="users_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                                <option value="">-- Select User --</option>
+                                <?php if ($users_list): mysqli_data_seek($users_list, 0);
+                                    while ($u = $users_list->fetch_assoc()): ?>
+                                        <option value="<?= $u['id'] ?>" <?= (($edit_row['users_id'] ?? 0) == $u['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($u['username']) ?>
+                                        </option>
+                                <?php endwhile;
+                                endif; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group *</label>
+                            <select name="blood_groups_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                                <option value="">-- Select --</option>
+                                <?php if ($blood_groups_list): mysqli_data_seek($blood_groups_list, 0);
+                                    while ($bg = $blood_groups_list->fetch_assoc()): ?>
+                                        <option value="<?= $bg['id'] ?>" <?= (($edit_row['blood_groups_id'] ?? 0) == $bg['id']) ? 'selected' : '' ?>><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
+                                <?php endwhile;
+                                endif; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Units *</label>
+                            <input type="number" name="units" value="<?= htmlspecialchars($edit_row['units'] ?? '') ?>" required min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital *</label>
+                            <input type="text" name="hospital" value="<?= htmlspecialchars($edit_row['hospital'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Required Date *</label>
+                            <input type="date" name="required_date" value="<?= htmlspecialchars($edit_row['required_date'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
+                            <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                                <?php foreach (['Pending', 'Approved', 'Completed', 'Rejected'] as $st): ?>
+                                    <option value="<?= $st ?>" <?= (($edit_row['status'] ?? 'Pending') === $st) ? 'selected' : '' ?>><?= $st ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
+                                <?= $edit_row ? 'Update' : 'Create' ?>
+                            </button>
+                            <?php if ($edit_row): ?>
+                                <a href="blood_requests_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
+                            <?php endif; ?>
+                        </div>
+                    </form>
+                </div>
+
+
+
+                <!-- Pending Requests Action Section -->
+                <?php if (count($pending_requests) > 0): ?>
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>Pending Blood Requests
+                                </h3>
+                                <p class="text-sm text-gray-400 mt-1">Review and take action on incoming requests</p>
+                            </div>
+                            <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
+                                View All <i class="fas fa-arrow-right ml-1"></i>
+                            </a>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            <?php foreach ($pending_requests as $pr): ?>
+                                <div class="action-card bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                                    <div class="flex items-start justify-between mb-4">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
+                                                <?= strtoupper(substr($pr['blood_group'], 0, 2)) ?>
+                                            </div>
+                                            <div>
+                                                <p class="font-bold text-gray-900"><?= htmlspecialchars($pr['blood_group']) ?></p>
+                                                <p class="text-xs text-gray-400">Request #<?= $pr['id'] ?></p>
+                                            </div>
+                                        </div>
+                                        <span class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">
+                                            <i class="fas fa-clock mr-1"></i>Pending
+                                        </span>
+                                    </div>
+
+                                    <div class="space-y-2 mb-5">
+                                        <div class="flex items-center text-sm text-gray-600">
+                                            <i class="fas fa-user text-gray-400 w-5"></i>
+                                            <span class="ml-2"><?= htmlspecialchars($pr['requester_name'] ?? 'Unknown') ?></span>
+                                        </div>
+                                        <div class="flex items-center text-sm text-gray-600">
+                                            <i class="fas fa-hospital text-gray-400 w-5"></i>
+                                            <span class="ml-2"><?= htmlspecialchars($pr['hospital']) ?></span>
+                                        </div>
+                                        <div class="flex items-center text-sm text-gray-600">
+                                            <i class="fas fa-procedures text-gray-400 w-5"></i>
+                                            <span class="ml-2"><?= (int)$pr['units'] ?> Unit<?= (int)$pr['units'] > 1 ? 's' : '' ?></span>
+                                        </div>
+                                        <div class="flex items-center text-sm text-gray-600">
+                                            <i class="fas fa-calendar text-gray-400 w-5"></i>
+                                            <span class="ml-2"><?= htmlspecialchars($pr['required_date']) ?></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex gap-2">
+                                        <a href="blood_requests_crud.php?approve=<?= $pr['id'] ?>" onclick="return confirm('Approve this blood request?')" class="btn-approve flex-1 bg-green-500 hover:bg-green-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm">
+                                            <i class="fas fa-check mr-1"></i>Approve
+                                        </a>
+                                        <button type="button" onclick="openAssignModal(<?= $pr['id'] ?>)" class="btn-assign flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm transition">
+                                            <i class="fas fa-user-plus mr-1"></i>Assign
+                                        </button>
+                                        <a href="blood_requests_crud.php?reject=<?= $pr['id'] ?>" onclick="return confirm('Reject this blood request?')" class="btn-reject flex-1 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 text-center py-2.5 rounded-xl font-semibold text-sm">
+                                            <i class="fas fa-times mr-1"></i>Reject
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+
+                <!-- Donor Assignment Section -->
                 <div class="mb-8">
                     <div class="flex items-center justify-between mb-5">
                         <div>
@@ -604,267 +807,267 @@ $stats = [
 
 
                     <?php if (count($assignable_requests) > 0): ?>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Requests List -->
-                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                            <h4 class="font-bold text-gray-900 mb-4 flex items-center">
-                                <span class="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center mr-2">
-                                    <i class="fas fa-file-medical text-sm"></i>
-                                </span>
-                                Requests Awaiting Assignment
-                                <span class="ml-auto bg-yellow-100 text-yellow-700 text-xs font-bold px-2.5 py-1 rounded-full"><?= count($assignable_requests) ?></span>
-                            </h4>
-                            <div class="space-y-3 max-h-96 overflow-y-auto" id="requestList">
-                                <?php foreach ($assignable_requests as $ar): ?>
-                                <div class="request-item p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 cursor-pointer transition group"
-                                     data-id="<?= $ar['id'] ?>"
-                                     data-blood-group="<?= htmlspecialchars($ar['blood_group']) ?>"
-                                     data-blood-groups-id="<?= (int)$ar['blood_groups_id'] ?>"
-                                     data-units="<?= (int)$ar['units'] ?>"
-                                     onclick="selectRequest(this)">
-                                    <div class="flex items-start justify-between">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
-                                                <?= strtoupper(substr($ar['blood_group'], 0, 2)) ?>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Requests List -->
+                            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                                <h4 class="font-bold text-gray-900 mb-4 flex items-center">
+                                    <span class="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center mr-2">
+                                        <i class="fas fa-file-medical text-sm"></i>
+                                    </span>
+                                    Requests Awaiting Assignment
+                                    <span class="ml-auto bg-yellow-100 text-yellow-700 text-xs font-bold px-2.5 py-1 rounded-full"><?= count($assignable_requests) ?></span>
+                                </h4>
+                                <div class="space-y-3 max-h-96 overflow-y-auto" id="requestList">
+                                    <?php foreach ($assignable_requests as $ar): ?>
+                                        <div class="request-item p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 cursor-pointer transition group"
+                                            data-id="<?= $ar['id'] ?>"
+                                            data-blood-group="<?= htmlspecialchars($ar['blood_group']) ?>"
+                                            data-blood-groups-id="<?= (int)$ar['blood_groups_id'] ?>"
+                                            data-units="<?= (int)$ar['units'] ?>"
+                                            onclick="selectRequest(this)">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex items-center space-x-3">
+                                                    <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
+                                                        <?= strtoupper(substr($ar['blood_group'], 0, 2)) ?>
+                                                    </div>
+                                                    <div>
+                                                        <p class="font-bold text-gray-900 text-sm"><?= htmlspecialchars($ar['blood_group']) ?> - <?= (int)$ar['units'] ?> Unit<?= (int)$ar['units'] > 1 ? 's' : '' ?></p>
+                                                        <p class="text-xs text-gray-400">Request #<?= $ar['id'] ?> - <?= htmlspecialchars($ar['requester_name'] ?? 'Unknown') ?></p>
+                                                    </div>
+                                                </div>
+                                                <span class="text-xs font-semibold <?= $ar['status'] === 'Pending' ? 'text-yellow-600 bg-yellow-50' : 'text-blue-600 bg-blue-50' ?> px-2.5 py-1 rounded-full">
+                                                    <?= htmlspecialchars($ar['status']) ?>
+                                                </span>
                                             </div>
-                                            <div>
-                                                <p class="font-bold text-gray-900 text-sm"><?= htmlspecialchars($ar['blood_group']) ?> - <?= (int)$ar['units'] ?> Unit<?= (int)$ar['units'] > 1 ? 's' : '' ?></p>
-                                                <p class="text-xs text-gray-400">Request #<?= $ar['id'] ?> - <?= htmlspecialchars($ar['requester_name'] ?? 'Unknown') ?></p>
+                                            <div class="mt-3 flex items-center text-xs text-gray-500 space-x-4">
+                                                <span><i class="fas fa-hospital mr-1"></i><?= htmlspecialchars($ar['hospital']) ?></span>
+                                                <span><i class="fas fa-calendar mr-1"></i><?= htmlspecialchars($ar['required_date']) ?></span>
                                             </div>
                                         </div>
-                                        <span class="text-xs font-semibold <?= $ar['status'] === 'Pending' ? 'text-yellow-600 bg-yellow-50' : 'text-blue-600 bg-blue-50' ?> px-2.5 py-1 rounded-full">
-                                            <?= htmlspecialchars($ar['status']) ?>
-                                        </span>
-                                    </div>
-                                    <div class="mt-3 flex items-center text-xs text-gray-500 space-x-4">
-                                        <span><i class="fas fa-hospital mr-1"></i><?= htmlspecialchars($ar['hospital']) ?></span>
-                                        <span><i class="fas fa-calendar mr-1"></i><?= htmlspecialchars($ar['required_date']) ?></span>
-                                    </div>
+                                    <?php endforeach; ?>
                                 </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-
-                        <!-- Donor Selection & Assignment -->
-                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                            <h4 class="font-bold text-gray-900 mb-4 flex items-center">
-                                <span class="w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mr-2">
-                                    <i class="fas fa-hand-holding-heart text-sm"></i>
-                                </span>
-                                Select Matching Donor
-                            </h4>
-
-                            <div id="noRequestSelected" class="text-center py-8">
-                                <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                                    <i class="fas fa-hand-pointer text-gray-300 text-2xl"></i>
-                                </div>
-                                <p class="text-gray-400 text-sm">Select a blood request from the left to see matching donors</p>
                             </div>
 
-                            <div id="donorSelection" class="hidden">
-                                <div class="mb-4 p-3 bg-blue-50 rounded-xl flex items-center">
-                                    <i class="fas fa-info-circle text-blue-500 mr-2"></i>
-                                    <p class="text-blue-700 text-sm font-medium">Donors with same blood type: <span id="selectedBloodType" class="font-bold"></span></p>
+                            <!-- Donor Selection & Assignment -->
+                            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                                <h4 class="font-bold text-gray-900 mb-4 flex items-center">
+                                    <span class="w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mr-2">
+                                        <i class="fas fa-hand-holding-heart text-sm"></i>
+                                    </span>
+                                    Select Matching Donor
+                                </h4>
+
+                                <div id="noRequestSelected" class="text-center py-8">
+                                    <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                        <i class="fas fa-hand-pointer text-gray-300 text-2xl"></i>
+                                    </div>
+                                    <p class="text-gray-400 text-sm">Select a blood request from the left to see matching donors</p>
                                 </div>
 
-                                <div id="matchInfoBox" class="mb-4 hidden">
-                                    <div class="p-3 bg-green-50 border border-green-200 rounded-xl">
-                                        <div class="flex items-center mb-2">
-                                            <i class="fas fa-magic text-green-600 mr-2"></i>
-                                            <p class="text-green-700 text-sm font-bold">Best Match Found</p>
+                                <div id="donorSelection" class="hidden">
+                                    <div class="mb-4 p-3 bg-blue-50 rounded-xl flex items-center">
+                                        <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                                        <p class="text-blue-700 text-sm font-medium">Donors with same blood type: <span id="selectedBloodType" class="font-bold"></span></p>
+                                    </div>
+
+                                    <div id="matchInfoBox" class="mb-4 hidden">
+                                        <div class="p-3 bg-green-50 border border-green-200 rounded-xl">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-magic text-green-600 mr-2"></i>
+                                                <p class="text-green-700 text-sm font-bold">Best Match Found</p>
+                                            </div>
+                                            <p class="text-green-600 text-xs" id="matchInfoText"></p>
                                         </div>
-                                        <p class="text-green-600 text-xs" id="matchInfoText"></p>
                                     </div>
-                                </div>
 
-                                <div class="mb-4">
-                                    <input type="text" id="donorSearch" placeholder="Search donor by name or phone..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition outline-none">
-                                </div>
+                                    <div class="mb-4">
+                                        <input type="text" id="donorSearch" placeholder="Search donor by name or phone..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition outline-none">
+                                    </div>
 
-                                <div class="space-y-2 max-h-64 overflow-y-auto" id="donorList">
-                                    <!-- Donors will be populated by JS -->
-                                </div>
+                                    <div class="space-y-2 max-h-64 overflow-y-auto" id="donorList">
+                                        <!-- Donors will be populated by JS -->
+                                    </div>
 
-                                <form method="POST" id="assignForm" class="mt-4">
-                                    <input type="hidden" name="request_id" id="assignRequestId">
-                                    <input type="hidden" name="donor_id" id="assignDonorId">
-                                    <button type="submit" name="assign_donor" id="assignBtn" disabled
-                                        class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold py-3 rounded-xl hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
-                                        <i class="fas fa-user-check mr-2"></i>Assign Selected Donor
-                                    </button>
-                                </form>
+                                    <form method="POST" id="assignForm" class="mt-4">
+                                        <input type="hidden" name="request_id" id="assignRequestId">
+                                        <input type="hidden" name="donor_id" id="assignDonorId">
+                                        <button type="submit" name="assign_donor" id="assignBtn" disabled
+                                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold py-3 rounded-xl hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                                            <i class="fas fa-user-check mr-2"></i>Assign Selected Donor
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
-                    </div>
                     <?php else: ?>
-                    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-                        <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                            <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+                            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+                            </div>
+                            <p class="text-gray-600 font-semibold">All requests have been assigned</p>
+                            <p class="text-gray-400 text-sm mt-1">No pending requests awaiting donor assignment</p>
                         </div>
-                        <p class="text-gray-600 font-semibold">All requests have been assigned</p>
-                        <p class="text-gray-400 text-sm mt-1">No pending requests awaiting donor assignment</p>
-                    </div>
                     <?php endif; ?>
                 </div>
 
-                
 
 
-                
 
-<!-- Assigned Donors Summary -->
+
+
+                <!-- Assigned Donors Summary -->
                 <?php if (count($assigned_requests) > 0): ?>
-                <div class="mb-8">
-                    <div class="flex items-center justify-between mb-5">
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900">
-                                <i class="fas fa-clipboard-check text-green-500 mr-2"></i>Active Assignments
-                            </h3>
-                            <p class="text-sm text-gray-400 mt-1">Requests with assigned donors</p>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr class="bg-gray-50 border-b border-gray-100">
-                                        <th class="px-5 py-3 text-left font-semibold text-gray-600">Request</th>
-                                        <th class="px-5 py-3 text-left font-semibold text-gray-600">Blood Type</th>
-                                        <th class="px-5 py-3 text-left font-semibold text-gray-600">Hospital</th>
-                                        <th class="px-5 py-3 text-left font-semibold text-gray-600">Assigned Donor</th>
-                                        <th class="px-5 py-3 text-left font-semibold text-gray-600">Donor Phone</th>
-                                        <th class="px-5 py-3 text-left font-semibold text-gray-600">Status</th>
-                                        <th class="px-5 py-3 text-center font-semibold text-gray-600">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($assigned_requests as $asr): ?>
-                                    <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
-                                        <td class="px-5 py-3">
-                                            <div class="flex items-center space-x-2">
-                                                <span class="font-bold text-gray-900">#<?= $asr['id'] ?></span>
-                                                <span class="text-gray-400">-</span>
-                                                <span class="text-gray-600"><?= htmlspecialchars($asr['requester_name'] ?? 'Unknown') ?></span>
-                                            </div>
-                                        </td>
-                                        <td class="px-5 py-3">
-                                            <span class="bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-full text-xs"><?= htmlspecialchars($asr['blood_group']) ?></span>
-                                        </td>
-                                        <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['hospital']) ?></td>
-                                        <td class="px-5 py-3">
-                                            <div class="flex items-center space-x-2">
-                                                <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
-                                                    <?= strtoupper(substr($asr['donor_name'] ?? 'U', 0, 2)) ?>
-                                                </div>
-                                                <div>
-                                                    <p class="font-semibold text-gray-900"><?= htmlspecialchars($asr['donor_name'] ?? '-') ?></p>
-                                                    <p class="text-xs text-gray-400"><?= htmlspecialchars($asr['donor_blood_group'] ?? '') ?></p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['donor_phone'] ?? '-') ?></td>
-                                        <td class="px-5 py-3">
-                                            <?php
-                                            $asStatusClass = $asr['status'] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
-                                            ?>
-                                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold <?= $asStatusClass ?>"><?= htmlspecialchars($asr['status']) ?></span>
-                                        </td>
-                                        <td class="px-5 py-3 text-center">
-                                            <a href="blood_requests_crud.php?unassign=<?= $asr['id'] ?>" onclick="return confirm('Remove this donor assignment? The request will return to Pending status.')" class="text-red-500 hover:text-red-700 text-xs font-semibold">
-                                                <i class="fas fa-user-minus mr-1"></i>Unassign
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                
-<!-- Recent Blood Requests -->
-                <?php if (count($recent_requests) > 0): ?>
-                <div class="mb-8">
-                    <div class="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
-                        <div class="flex items-center justify-between px-6 py-5 border-b border-pink-50">
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-5">
                             <div>
                                 <h3 class="text-lg font-bold text-gray-900">
-                                    <i class="fas fa-clock-rotate-left text-red-500 mr-2"></i>Recent Blood Requests
+                                    <i class="fas fa-clipboard-check text-green-500 mr-2"></i>Active Assignments
                                 </h3>
-                                <p class="text-sm text-gray-400 mt-1">Latest 5 blood requests from users</p>
+                                <p class="text-sm text-gray-400 mt-1">Requests with assigned donors</p>
                             </div>
-                            <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
-                                View All <i class="fas fa-arrow-right ml-1"></i>
-                            </a>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr class="bg-pink-50 border-b border-pink-100">
-                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Requester</th>
-                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Blood Group</th>
-                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Units</th>
-                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Required Date</th>
-                                        <th class="px-6 py-3 text-left font-semibold text-gray-600">Status</th>
-                                        <th class="px-6 py-3 text-center font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($recent_requests as $rr): ?>
-                                    <tr class="border-b border-pink-50 hover:bg-red-50/30 transition">
-                                        <td class="px-6 py-4">
-                                            <div class="flex items-center space-x-3">
-                                                <div class="w-9 h-9 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs">
-                                                    <?= strtoupper(substr($rr['requester_name'] ?? 'U', 0, 2)) ?>
-                                                </div>
-                                                <span class="font-semibold text-gray-800"><?= htmlspecialchars($rr['requester_name'] ?? 'Unknown') ?></span>
-                                            </div>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                                                <?= htmlspecialchars($rr['blood_group'] ?? '-') ?>
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 font-semibold text-gray-800"><?= (int)$rr['units'] ?></td>
-                                        <td class="px-6 py-4 text-gray-600"><?= htmlspecialchars($rr['required_date']) ?></td>
-                                        <td class="px-6 py-4">
-                                            <?php
-                                            $statusColors = [
-                                                'Pending'   => 'bg-yellow-100 text-yellow-700',
-                                                'Approved'  => 'bg-blue-100 text-blue-700',
-                                                'Completed' => 'bg-green-100 text-green-700',
-                                                'Rejected'  => 'bg-red-100 text-red-700',
-                                            ];
-                                            $statusColor = $statusColors[$rr['status']] ?? 'bg-gray-100 text-gray-700';
-                                            ?>
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold <?= $statusColor ?>">
-                                                <?= htmlspecialchars($rr['status']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <div class="flex items-center justify-center gap-2">
-                                                <a href="requests.php?view=<?= (int)$rr['id'] ?>"
-                                                   class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
-                                                    <i class="fas fa-eye mr-1"></i>View
-                                                </a>
-                                                <?php if (empty($rr['assigned_donor_id']) && in_array($rr['status'], ['Pending', 'Approved'])): ?>
-                                                <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>)"
-                                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
-                                                    <i class="fas fa-user-plus mr-1"></i>Assign Donor
-                                                </button>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
+
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="bg-gray-50 border-b border-gray-100">
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Request</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Blood Type</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Hospital</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Assigned Donor</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Donor Phone</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Status</th>
+                                            <th class="px-5 py-3 text-center font-semibold text-gray-600">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($assigned_requests as $asr): ?>
+                                            <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+                                                <td class="px-5 py-3">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="font-bold text-gray-900">#<?= $asr['id'] ?></span>
+                                                        <span class="text-gray-400">-</span>
+                                                        <span class="text-gray-600"><?= htmlspecialchars($asr['requester_name'] ?? 'Unknown') ?></span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-5 py-3">
+                                                    <span class="bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-full text-xs"><?= htmlspecialchars($asr['blood_group']) ?></span>
+                                                </td>
+                                                <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['hospital']) ?></td>
+                                                <td class="px-5 py-3">
+                                                    <div class="flex items-center space-x-2">
+                                                        <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                                                            <?= strtoupper(substr($asr['donor_name'] ?? 'U', 0, 2)) ?>
+                                                        </div>
+                                                        <div>
+                                                            <p class="font-semibold text-gray-900"><?= htmlspecialchars($asr['donor_name'] ?? '-') ?></p>
+                                                            <p class="text-xs text-gray-400"><?= htmlspecialchars($asr['donor_blood_group'] ?? '') ?></p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['donor_phone'] ?? '-') ?></td>
+                                                <td class="px-5 py-3">
+                                                    <?php
+                                                    $asStatusClass = $asr['status'] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
+                                                    ?>
+                                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold <?= $asStatusClass ?>"><?= htmlspecialchars($asr['status']) ?></span>
+                                                </td>
+                                                <td class="px-5 py-3 text-center">
+                                                    <a href="blood_requests_crud.php?unassign=<?= $asr['id'] ?>" onclick="return confirm('Remove this donor assignment? The request will return to Pending status.')" class="text-red-500 hover:text-red-700 text-xs font-semibold">
+                                                        <i class="fas fa-user-minus mr-1"></i>Unassign
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
-                </div>
+                <?php endif; ?>
+
+
+                <!-- Recent Blood Requests -->
+                <?php if (count($recent_requests) > 0): ?>
+                    <div class="mb-8">
+                        <div class="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
+                            <div class="flex items-center justify-between px-6 py-5 border-b border-pink-50">
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900">
+                                        <i class="fas fa-clock-rotate-left text-red-500 mr-2"></i>Recent Blood Requests
+                                    </h3>
+                                    <p class="text-sm text-gray-400 mt-1">Latest 5 blood requests from users</p>
+                                </div>
+                                <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
+                                    View All <i class="fas fa-arrow-right ml-1"></i>
+                                </a>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="bg-pink-50 border-b border-pink-100">
+                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Requester</th>
+                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Blood Group</th>
+                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Units</th>
+                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Required Date</th>
+                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Status</th>
+                                            <th class="px-6 py-3 text-center font-semibold text-gray-600">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($recent_requests as $rr): ?>
+                                            <tr class="border-b border-pink-50 hover:bg-red-50/30 transition">
+                                                <td class="px-6 py-4">
+                                                    <div class="flex items-center space-x-3">
+                                                        <div class="w-9 h-9 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                                                            <?= strtoupper(substr($rr['requester_name'] ?? 'U', 0, 2)) ?>
+                                                        </div>
+                                                        <span class="font-semibold text-gray-800"><?= htmlspecialchars($rr['requester_name'] ?? 'Unknown') ?></span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                                                        <?= htmlspecialchars($rr['blood_group'] ?? '-') ?>
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 font-semibold text-gray-800"><?= (int)$rr['units'] ?></td>
+                                                <td class="px-6 py-4 text-gray-600"><?= htmlspecialchars($rr['required_date']) ?></td>
+                                                <td class="px-6 py-4">
+                                                    <?php
+                                                    $statusColors = [
+                                                        'Pending'   => 'bg-yellow-100 text-yellow-700',
+                                                        'Approved'  => 'bg-blue-100 text-blue-700',
+                                                        'Completed' => 'bg-green-100 text-green-700',
+                                                        'Rejected'  => 'bg-red-100 text-red-700',
+                                                    ];
+                                                    $statusColor = $statusColors[$rr['status']] ?? 'bg-gray-100 text-gray-700';
+                                                    ?>
+                                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold <?= $statusColor ?>">
+                                                        <?= htmlspecialchars($rr['status']) ?>
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <div class="flex items-center justify-center gap-2">
+                                                        <a href="requests.php?view=<?= (int)$rr['id'] ?>"
+                                                            class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                                                            <i class="fas fa-eye mr-1"></i>View
+                                                        </a>
+                                                        <?php if (empty($rr['assigned_donor_id']) && in_array($rr['status'], ['Pending', 'Approved'])): ?>
+                                                            <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>)"
+                                                                class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
+                                                                <i class="fas fa-user-plus mr-1"></i>Assign Donor
+                                                            </button>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 <?php endif; ?>
                 <!-- All Blood Requests Table -->
                 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
@@ -877,75 +1080,87 @@ $stats = [
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm border-collapse">
-                        <thead>
-                            <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-3">ID</th>
-                                <th class="p-3">Requester</th>
-                                <th class="p-3">Blood Group</th>
-                                <th class="p-3">Units</th>
-                                <th class="p-3">Hospital</th>
-                                <th class="p-3">Required Date</th>
-                                <th class="p-3">Status</th>
-                                <th class="p-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (count($requests) > 0): ?>
-                                <?php foreach ($requests as $r): ?>
-                                    <?php
-                                    $statusColors = [
-                                        'Pending'   => 'bg-yellow-100 text-yellow-700',
-                                        'Approved'  => 'bg-blue-100 text-blue-700',
-                                        'Completed' => 'bg-green-100 text-green-700',
-                                        'Rejected'  => 'bg-red-100 text-red-700',
-                                    ];
-                                    $sc = $statusColors[$r['status']] ?? 'bg-gray-100 text-gray-700';
-                                    ?>
-                                    <tr class="border-t border-slate-200 hover:bg-gray-50">
-                                        <td class="p-3 font-medium">#<?= $r['id'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
-                                        <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
-                                        <td class="p-3"><?= (int)$r['units'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['hospital']) ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['required_date']) ?></td>
-                                        <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $sc ?>"><?= htmlspecialchars($r['status']) ?></span></td>
-                                        <td class="p-3">
-                                            <div class="flex gap-2">
-                                                <a href="blood_requests_crud.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                <a href="blood_requests_crud.php?delete=<?= $r['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this request?')">Delete</a>
-                                            </div>
-                                        </td>
+                            <thead>
+                                <tr class="bg-gray-50 text-slate-600">
+                                    <th class="p-3">ID</th>
+                                    <th class="p-3">Requester</th>
+                                    <th class="p-3">Blood Group</th>
+                                    <th class="p-3">Units</th>
+                                    <th class="p-3">Hospital</th>
+                                    <th class="p-3">Required Date</th>
+                                    <th class="p-3">Urgency</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($requests) > 0): ?>
+                                    <?php foreach ($requests as $r): ?>
+                                        <?php
+                                        $statusColors = [
+                                            'Pending'   => 'bg-yellow-100 text-yellow-700',
+                                            'Approved'  => 'bg-blue-100 text-blue-700',
+                                            'Completed' => 'bg-green-100 text-green-700',
+                                            'Rejected'  => 'bg-red-100 text-red-700',
+                                        ];
+                                        $sc = $statusColors[$r['status']] ?? 'bg-gray-100 text-gray-700';
+
+                                        $urgencyColors = [
+                                            'Normal' => 'bg-blue-100 text-blue-700',
+                                            'Urgent' => 'bg-red-100 text red-700',
+                                            'Emergency' => 'bg-red-100 text-red-700',
+                                        ];
+                                        $uc = $urgencyColors[$r['urgency'] ?? 'Normal'] ?? 'bg-gray-100 text-gray-700';
+                                        ?>
+                                        <tr class="border-t border-slate-200 hover:bg-gray-50">
+                                            <td class="p-3 font-medium">#<?= $r['id'] ?></td>
+                                            <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
+                                            <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
+                                            <td class="p-3"><?= (int)$r['units'] ?></td>
+                                            <td class="p-3"><?= htmlspecialchars($r['hospital']) ?></td>
+                                            <td class="p-3"><?= htmlspecialchars($r['required_date']) ?></td>
+                                            <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $uc ?>"><?= htmlspecialchars($r['urgency'] ?? 'Normal') ?></span></td>
+                                            <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $sc ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+                                            <td class="p-3">
+                                                <div class="flex gap-2">
+                                                    <a href="blood_requests_crud.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
+                                                    <a href="blood_requests_crud.php?delete=<?= $r['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this request?')">Delete</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="8" class="p-8 text-center text-gray-500">No blood requests found.</td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr><td colspan="8" class="p-8 text-center text-gray-500">No blood requests found.</td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
+
             </div>
+        </main>
+    </div>
 
-        </div>
-    </main>
-</div>
+    <script>
+        function toggleAdminDropdown() {
+            document.getElementById('adminDropdown').classList.toggle('hidden');
+        }
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('adminMenu');
+            const dropdown = document.getElementById('adminDropdown');
+            if (menu && dropdown && !menu.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
 
-<script>
-function toggleAdminDropdown() {
-    document.getElementById('adminDropdown').classList.toggle('hidden');
-}
-document.addEventListener('click', function(e) {
-    const menu = document.getElementById('adminMenu');
-    const dropdown = document.getElementById('adminDropdown');
-    if (menu && dropdown && !menu.contains(e.target)) {
-        dropdown.classList.add('hidden');
-    }
-});
-function toggleForm() {
-    document.getElementById('crudForm').classList.toggle('hidden');
-}
-</script>
+        function toggleForm() {
+            document.getElementById('crudForm').classList.toggle('hidden');
+        }
+    </script>
 
-<script>
+    <script>
         // Donor Assignment Logic with Blood Compatibility Matching
         var allDonors = <?= json_encode($available_donors) ?>;
         var pendingRequestsData = <?= json_encode($pending_requests) ?>;
@@ -1001,7 +1216,12 @@ function toggleForm() {
             score += timeBonus;
             if (timeBonus > 5) reasons.push('Extended recovery time');
 
-            return { score: score, reasons: reasons, canDonate: canDonate, daysSince: daysSinceLastDonation };
+            return {
+                score: score,
+                reasons: reasons,
+                canDonate: canDonate,
+                daysSince: daysSinceLastDonation
+            };
         }
 
         function selectRequest(el) {
@@ -1044,17 +1264,25 @@ function toggleForm() {
                 if (d.blood_groups !== bloodGroup) return;
                 var match = calculateMatchScore(d, bloodGroup);
                 if (!searchQuery) {
-                    scored.push({ donor: d, match: match });
+                    scored.push({
+                        donor: d,
+                        match: match
+                    });
                 } else {
                     var q = searchQuery.toLowerCase();
                     if (d.username.toLowerCase().indexOf(q) !== -1 || d.phone.toLowerCase().indexOf(q) !== -1) {
-                        scored.push({ donor: d, match: match });
+                        scored.push({
+                            donor: d,
+                            match: match
+                        });
                     }
                 }
             });
 
             // Sort by match score descending (best match first)
-            scored.sort(function(a, b) { return b.match.score - a.match.score; });
+            scored.sort(function(a, b) {
+                return b.match.score - a.match.score;
+            });
 
             if (scored.length === 0) {
                 matchInfoBox.classList.add('hidden');
@@ -1156,7 +1384,10 @@ function toggleForm() {
         function scrollToAssign(requestId) {
             var target = document.querySelector('.request-item[data-id="' + requestId + '"]');
             if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
                 setTimeout(function() {
                     selectRequest(target);
                 }, 400);
@@ -1224,16 +1455,24 @@ function toggleForm() {
                 if (d.blood_groups !== bloodGroup) return;
                 var match = calculateMatchScore(d, bloodGroup);
                 if (!searchQuery) {
-                    scored.push({ donor: d, match: match });
+                    scored.push({
+                        donor: d,
+                        match: match
+                    });
                 } else {
                     var q = searchQuery.toLowerCase();
                     if (d.username.toLowerCase().indexOf(q) !== -1 || d.phone.toLowerCase().indexOf(q) !== -1) {
-                        scored.push({ donor: d, match: match });
+                        scored.push({
+                            donor: d,
+                            match: match
+                        });
                     }
                 }
             });
 
-            scored.sort(function(a, b) { return b.match.score - a.match.score; });
+            scored.sort(function(a, b) {
+                return b.match.score - a.match.score;
+            });
 
             if (scored.length === 0) {
                 donorList.innerHTML = '';
@@ -1365,16 +1604,17 @@ function toggleForm() {
                     </div>
                 </div>
 
-<?php if (isset($_GET['auto_assign'])): ?>
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    setTimeout(function() {
-        openAssignModal(<?= (int)$_GET['auto_assign'] ?>);
-    }, 500);
-});
-</script>
-<?php endif; ?>
-    </main>
-</div>
+                <?php if (isset($_GET['auto_assign'])): ?>
+                    <script>
+                        document.addEventListener("DOMContentLoaded", function() {
+                            setTimeout(function() {
+                                openAssignModal(<?= (int)$_GET['auto_assign'] ?>);
+                            }, 500);
+                        });
+                    </script>
+                <?php endif; ?>
+                </main>
+            </div>
 </body>
+
 </html>
