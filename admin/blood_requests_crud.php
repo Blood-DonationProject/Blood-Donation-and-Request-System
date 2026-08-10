@@ -723,74 +723,7 @@ $stats = [
 
 
 
-                <!-- Pending Requests Action Section -->
-                <?php if (count($pending_requests) > 0): ?>
-                    <div class="mb-8">
-                        <div class="flex items-center justify-between mb-5">
-                            <div>
-                                <h3 class="text-lg font-bold text-gray-900">
-                                    <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>Pending Blood Requests
-                                </h3>
-                                <p class="text-sm text-gray-400 mt-1">Review and take action on incoming requests</p>
-                            </div>
-                            <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
-                                View All <i class="fas fa-arrow-right ml-1"></i>
-                            </a>
-                        </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            <?php foreach ($pending_requests as $pr): ?>
-                                <div class="action-card bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                                    <div class="flex items-start justify-between mb-4">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
-                                                <?= strtoupper(substr($pr['blood_group'], 0, 2)) ?>
-                                            </div>
-                                            <div>
-                                                <p class="font-bold text-gray-900"><?= htmlspecialchars($pr['blood_group']) ?></p>
-                                                <p class="text-xs text-gray-400">Request #<?= $pr['id'] ?></p>
-                                            </div>
-                                        </div>
-                                        <span class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">
-                                            <i class="fas fa-clock mr-1"></i>Pending
-                                        </span>
-                                    </div>
-
-                                    <div class="space-y-2 mb-5">
-                                        <div class="flex items-center text-sm text-gray-600">
-                                            <i class="fas fa-user text-gray-400 w-5"></i>
-                                            <span class="ml-2"><?= htmlspecialchars($pr['requester_name'] ?? 'Unknown') ?></span>
-                                        </div>
-                                        <div class="flex items-center text-sm text-gray-600">
-                                            <i class="fas fa-hospital text-gray-400 w-5"></i>
-                                            <span class="ml-2"><?= htmlspecialchars($pr['hospital']) ?></span>
-                                        </div>
-                                        <div class="flex items-center text-sm text-gray-600">
-                                            <i class="fas fa-procedures text-gray-400 w-5"></i>
-                                            <span class="ml-2"><?= (int)$pr['units'] ?> Unit<?= (int)$pr['units'] > 1 ? 's' : '' ?></span>
-                                        </div>
-                                        <div class="flex items-center text-sm text-gray-600">
-                                            <i class="fas fa-calendar text-gray-400 w-5"></i>
-                                            <span class="ml-2"><?= htmlspecialchars($pr['required_date']) ?></span>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex gap-2">
-                                        <a href="blood_requests_crud.php?approve=<?= $pr['id'] ?>" onclick="return confirm('Approve this blood request?')" class="btn-approve flex-1 bg-green-500 hover:bg-green-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm">
-                                            <i class="fas fa-check mr-1"></i>Approve
-                                        </a>
-                                        <button type="button" onclick="openAssignModal(<?= $pr['id'] ?>)" class="btn-assign flex-1 bg-blue-500 hover:bg-blue-600 text-white text-center py-2.5 rounded-xl font-semibold text-sm shadow-sm transition">
-                                            <i class="fas fa-user-plus mr-1"></i>Assign
-                                        </button>
-                                        <a href="blood_requests_crud.php?reject=<?= $pr['id'] ?>" onclick="return confirm('Reject this blood request?')" class="btn-reject flex-1 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 text-center py-2.5 rounded-xl font-semibold text-sm">
-                                            <i class="fas fa-times mr-1"></i>Reject
-                                        </a>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
 
 
                 <!-- Donor Assignment Section -->
