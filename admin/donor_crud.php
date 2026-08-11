@@ -404,7 +404,7 @@ if ($dhResult && $dhResult->num_rows > 0) {
                                                 <?php if (($d['available_status'] ?? '') === 'Available'): ?>
                                                 <button onclick="openAssignModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['username'] ?? '') ?>', '<?= htmlspecialchars($d['blood_groups'] ?? '') ?>')" class="text-green-600 hover:text-green-800 font-semibold text-xs">Assign</button>
                                                 <?php endif; ?>
-                                                <a href="donor_crud.php?delete=<?= $d['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold text-xs" onclick="return confirm('Delete this donor?')">Delete</a>
+                                                <button type="button" onclick="openDeleteModal('donor_crud.php?delete=<?= $d['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold text-xs">Delete</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -586,7 +586,38 @@ document.getElementById('historyModal').addEventListener('click', function(e) {
 document.getElementById('assignModal').addEventListener('click', function(e) {
     if (e.target === this) closeAssignModal();
 });
+
+// Delete Modal Logic
+function openDeleteModal(url) {
+    document.getElementById('confirmDeleteBtn').href = url;
+    document.getElementById('deleteConfirmModal').classList.remove('hidden');
+    document.getElementById('deleteConfirmModal').classList.add('flex');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteConfirmModal').classList.remove('flex');
+    document.getElementById('deleteConfirmModal').classList.add('hidden');
+}
 </script>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteConfirmModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+        <div class="p-8 text-center space-y-6">
+            <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+                <i class="fas fa-trash-alt"></i>
+            </div>
+            <div>
+                <h2 class="font-bold text-2xl text-gray-900 mb-2">Delete Record</h2>
+                <p class="text-gray-500">Are you sure you want to delete this? This action cannot be undone.</p>
+            </div>
+        </div>
+        <div class="px-8 pb-8 flex gap-3">
+            <button onclick="closeDeleteModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+            <a href="#" id="confirmDeleteBtn" onclick="this.classList.add('opacity-50', 'pointer-events-none');" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition text-center shadow-md flex items-center justify-center">Delete</a>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

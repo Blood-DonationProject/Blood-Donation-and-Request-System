@@ -19,7 +19,7 @@ try {
     $stats['total_users']          = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
     $stats['total_donors']         = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
     $stats['total_requests']       = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
-    $stats['pending']              = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
+    $stats['pending']              = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Accepted', 'Rejected')")->fetch_assoc()['c'] ?? 0;
     $stats['approved']             = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0;
     $stats['completed']            = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
     $stats['completed_donations']  = $conn->query("SELECT COUNT(*) AS c FROM donation_history WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
@@ -69,7 +69,7 @@ try {
         SELECT r.id, r.requester_name, bg.blood_gp_name AS blood_group, r.units, r.hospital, r.required_date, r.status
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        WHERE r.status = 'Pending'
+        WHERE r.status IN ('Pending', 'Accepted', 'Rejected')
         ORDER BY r.required_date ASC
         LIMIT 10
     ");
@@ -198,15 +198,21 @@ $current_time = date('h:i A');
                                 </div>
                             </div>
                             <div class="flex items-center space-x-2">
+                                <?php if ($pr['status'] === 'Pending'): ?>
                                 <a href="blood_requests_crud.php?approve=<?= $pr['id'] ?>" class="btn-approve bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg" onclick="return confirm('Approve this request?')">
                                     <i class="fas fa-check mr-1"></i>Approve
                                 </a>
-                                <button type="button" onclick="window.location.href='blood_requests_crud.php?auto_assign='+<?= $pr['id'] ?>);" class="btn-assign bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+                                <button type="button" onclick="window.location.href='blood_requests_crud.php?auto_assign='+<?= $pr['id'] ?>;" class="btn-assign bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
                                     <i class="fas fa-user-plus mr-1"></i>Assign
                                 </button>
                                 <a href="blood_requests_crud.php?reject=<?= $pr['id'] ?>" class="btn-reject bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold px-3 py-1.5 rounded-lg" onclick="return confirm('Reject this request?')">
                                     <i class="fas fa-times mr-1"></i>Reject
                                 </a>
+                                <?php elseif ($pr['status'] === 'Accepted'): ?>
+                                <span class="text-green-600 text-xs font-bold px-2"><i class="fas fa-check-circle mr-1"></i>Donor Accepted</span>
+                                <?php elseif ($pr['status'] === 'Rejected'): ?>
+                                <span class="text-red-600 text-xs font-bold px-2"><i class="fas fa-times-circle mr-1"></i>Donor Rejected</span>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <?php endforeach; ?>

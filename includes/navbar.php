@@ -9,15 +9,60 @@ $pageTitles = [
 ];
 $pageData = $pageTitles[$currentPage] ?? ['title' => 'Dashboard', 'description' => ''];
 
-// Ensure $stats['pending'] is always set for the notification badge
-if (!isset($stats['pending'])) {
-    $stats['pending'] = 0;
+// Fetch admin notifications
+$admin_notifs = [];
+if (isset($_SESSION['user_id'])) {
+    if (isset($_GET['read_notifs'])) {
+        $stmt_read = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+        if ($stmt_read) {
+            $stmt_read->bind_param('i', $_SESSION['user_id']);
+            $stmt_read->execute();
+            $stmt_read->close();
+        }
+        $current_url = strtok($_SERVER["REQUEST_URI"], '?');
+        echo "<script>window.location.href = '" . addslashes($current_url) . "';</script>";
+        exit;
+    }
+
+    if (isset($_GET['mark_read'])) {
+        $notif_id = (int)$_GET['mark_read'];
+        $stmt_mark = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+        if ($stmt_mark) {
+            $stmt_mark->bind_param('ii', $notif_id, $_SESSION['user_id']);
+            $stmt_mark->execute();
+            $stmt_mark->close();
+        }
+        if (isset($_GET['redirect'])) {
+            $redirect = $_GET['redirect'];
+            echo "<script>window.location.href = '" . addslashes($redirect) . "';</script>";
+            exit;
+        }
+        $current_url = strtok($_SERVER["REQUEST_URI"], '?');
+        echo "<script>window.location.href = '" . addslashes($current_url) . "';</script>";
+        exit;
+    }
+
+    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 15");
+    $notifCount = 0;
+    if ($stmt_notif) {
+        $stmt_notif->bind_param('i', $_SESSION['user_id']);
+        $stmt_notif->execute();
+        $res_notif = $stmt_notif->get_result();
+        while ($n = $res_notif->fetch_assoc()) {
+            $admin_notifs[] = $n;
+            if ($n['is_read'] == 0) $notifCount++;
+        }
+        $stmt_notif->close();
+    }
 }
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script>
 if (typeof toggleNotifications === 'undefined') {
-    window.toggleNotifications = function() {};
+    window.toggleNotifications = function() {
+        var dropdown = document.getElementById('adminNotifDropdown');
+        if (dropdown) dropdown.classList.toggle('hidden');
+    };
 }
 if (typeof toggleTheme === 'undefined') {
   (function() {
@@ -60,12 +105,66 @@ if (typeof toggleTheme === 'undefined') {
                             <span class="theme-icon-moon" style="display:none"><i class="fas fa-moon text-gray-600"></i></span>
                         </button>
                         <!-- Notifications Bell -->
-                        <button onclick="toggleNotifications()" class="relative w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition">
-                            <i class="fas fa-bell text-gray-600"></i>
-                            <?php if ($stats['pending'] > 0): ?>
-                            <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm pulse-dot"><?= $stats['pending'] ?></span>
-                            <?php endif; ?>
-                        </button>
+                        <div class="relative">
+                            <button onclick="toggleNotifications()" class="relative w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center hover:bg-red-50 hover:border-red-300 transition">
+                                <i class="fas fa-bell text-gray-600"></i>
+                                <?php if ($notifCount > 0): ?>
+                                <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm pulse-dot"><?= $notifCount ?></span>
+                                <?php endif; ?>
+                            </button>
+                            <!-- Dropdown -->
+                            <div id="adminNotifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                                <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                                    <p class="font-semibold text-gray-800">Notifications</p>
+                                    <div>
+                                        <span class="text-xs text-gray-400 mr-2"><?= $notifCount ?> new</span>
+                                        <?php if ($notifCount > 0): ?>
+                                        <a href="?read_notifs=1" class="text-xs text-blue-600 hover:underline">Mark all as read</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php if (count($admin_notifs) > 0): ?>
+                                    <div class="max-h-80 overflow-y-auto">
+                                        <?php foreach ($admin_notifs as $n): 
+                                            $is_read = $n['is_read'] == 1;
+                                            $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100';
+                                            $link = "blood_requests_crud.php?view=" . (int)$n['request_id'];
+                                            $read_link = "?mark_read=" . $n['id'] . "&redirect=" . urlencode($link);
+                                            
+                                            $action_text = "View Request →";
+                                            if ($n['title'] == 'New Assignment' || strpos($n['title'], 'Assignment') !== false) {
+                                                $action_text = "View Assignment →";
+                                            }
+                                            if ($n['title'] == 'Donor Declined') {
+                                                $action_text = "Assign Another Donor →";
+                                            }
+                                        ?>
+                                            <div class="block p-4 border-b border-gray-100 transition <?= $bgClass ?>">
+                                                <div class="flex items-start justify-between">
+                                                    <p class="text-sm text-gray-900 font-bold flex items-center">
+                                                        <i class="fas fa-bell text-red-500 mr-2"></i> <?= htmlspecialchars($n['title'] ?? 'Notification') ?>
+                                                    </p>
+                                                    <?php if (!$is_read): ?>
+                                                    <span class="w-2 h-2 rounded-full bg-red-600 mt-1"></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <p class="text-xs text-gray-700 mt-1 font-medium"><?= htmlspecialchars($n['message']) ?></p>
+                                                <div class="mt-2 flex items-center justify-between">
+                                                    <p class="text-[11px] text-gray-500 font-semibold"><?= date('M j, Y · g:i A', strtotime($n['created_at'])) ?></p>
+                                                    <a href="<?= htmlspecialchars($read_link) ?>" class="text-[11px] font-bold text-red-600 hover:text-red-700">
+                                                        <?= $action_text ?>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="p-4 text-center text-gray-400 text-sm">
+                                        No new notifications
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                        
                         <!-- Admin Profile -->
                         <div class="relative" id="adminMenu">

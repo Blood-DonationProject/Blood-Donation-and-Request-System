@@ -105,6 +105,74 @@ if (isset($_GET['reject'])) {
     exit;
 }
 
+// Complete action
+if (isset($_GET['complete'])) {
+    $id = (int)$_GET['complete'];
+    $stmt = $conn->prepare("UPDATE blood_request SET status='Completed' WHERE id=? AND status='Received'");
+    $stmt->bind_param("i", $id);
+    if ($stmt->execute()) {
+        $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status='Completed' WHERE request_id=? AND status='Received'");
+        $stmt_assign->bind_param("i", $id);
+        $stmt_assign->execute();
+        $stmt_assign->close();
+        
+        // Insert into donation history
+        $req_stmt = $conn->prepare("SELECT users_id, assigned_donor_id, blood_groups_id, units FROM blood_request WHERE id=?");
+        $req_stmt->bind_param("i", $id);
+        $req_stmt->execute();
+        $req_res = $req_stmt->get_result();
+        if ($req_res && $req_res->num_rows > 0) {
+            $req = $req_res->fetch_assoc();
+            if ($req['assigned_donor_id']) {
+                $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Completed')");
+                $dhDate = date('Y-m-d');
+                $dhStmt->bind_param("iiiiis", $req['assigned_donor_id'], $req['users_id'], $id, $req['blood_groups_id'], $req['units'], $dhDate);
+                $dhStmt->execute();
+                $dhStmt->close();
+
+                // Get assignment_id for notification
+                $assignment_id = null;
+                $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
+                $get_assign->bind_param("ii", $id, $req['assigned_donor_id']);
+                $get_assign->execute();
+                if ($row_assign = $get_assign->get_result()->fetch_assoc()) {
+                    $assignment_id = $row_assign['id'];
+                }
+                $get_assign->close();
+
+                // Get donor's user_id
+                $donorUser = $conn->prepare("SELECT user_id FROM donor WHERE id = ?");
+                $donorUser->bind_param("i", $req['assigned_donor_id']);
+                $donorUser->execute();
+                $donorUserRow = $donorUser->get_result()->fetch_assoc();
+                $donorUser->close();
+
+                $notifType = 'StatusUpdate';
+                $notifTitle = 'Request Completed';
+                $notifMsg = "Request #" . $id . " has been successfully completed and recorded in your history.";
+                
+                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+                
+                // Notify requester
+                $notifStmt->bind_param("iiisss", $req['users_id'], $id, $assignment_id, $notifType, $notifTitle, $notifMsg);
+                $notifStmt->execute();
+
+                // Notify donor
+                if ($donorUserRow) {
+                    $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $id, $assignment_id, $notifType, $notifTitle, $notifMsg);
+                    $notifStmt->execute();
+                }
+                $notifStmt->close();
+            }
+        }
+        $req_stmt->close();
+        $_SESSION['success'] = 'Request marked as completed and recorded in history.';
+    }
+    $stmt->close();
+    header('Location: blood_requests_crud.php');
+    exit;
+}
+
 // Assign donor action
 if (isset($_POST['assign_donor'])) {
     $request_id = (int)$_POST['request_id'];
@@ -137,27 +205,29 @@ if (isset($_POST['assign_donor'])) {
                             $donorUpdate->execute();
                             $donorUpdate->close();
 
-                            // Create donation_history record for the verified assignment
-                            $reqDetail = $conn->prepare("SELECT users_id, blood_groups_id, units FROM blood_request WHERE id = ?");
-                            $reqDetail->bind_param("i", $request_id);
-                            $reqDetail->execute();
-                            $reqRow = $reqDetail->get_result()->fetch_assoc();
-                            $reqDetail->close();
+                            // Create donor_assignments record
+                            $assign_admin_id = $_SESSION['user_id'] ?? 1; // get admin user id
+                            $assignStmt = $conn->prepare("INSERT INTO donor_assignments (request_id, donor_id, assigned_by, status) VALUES (?, ?, ?, 'Assigned')");
+                            $assignStmt->bind_param("iii", $request_id, $donor_id, $assign_admin_id);
+                            $assignStmt->execute();
+                            $assignment_id = $conn->insert_id;
+                            $assignStmt->close();
 
-                            if ($reqRow) {
-                                $donorUser = $conn->prepare("SELECT user_id FROM donor WHERE id = ?");
-                                $donorUser->bind_param("i", $donor_id);
-                                $donorUser->execute();
-                                $donorUserRow = $donorUser->get_result()->fetch_assoc();
-                                $donorUser->close();
+                            // Get donor's user_id for notification
+                            $donorUser = $conn->prepare("SELECT user_id FROM donor WHERE id = ?");
+                            $donorUser->bind_param("i", $donor_id);
+                            $donorUser->execute();
+                            $donorUserRow = $donorUser->get_result()->fetch_assoc();
+                            $donorUser->close();
 
-                                if ($donorUserRow) {
-                                    $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Completed')");
-                                    $dhDate = date('Y-m-d');
-                                    $dhStmt->bind_param("iiiiis", $donor_id, $reqRow['users_id'], $request_id, $reqRow['blood_groups_id'], $reqRow['units'], $dhDate);
-                                    $dhStmt->execute();
-                                    $dhStmt->close();
-                                }
+                            if ($donorUserRow) {
+                                $notifMsg = "You have a new blood donation assignment for Request #" . $request_id . ". Please accept or decline on your dashboard.";
+                                $notifType = 'Assignment';
+                                $notifTitle = 'New Assignment';
+                                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
+                                $notifStmt->execute();
+                                $notifStmt->close();
                             }
 
                             $_SESSION['success'] = 'Donor assigned successfully!';
@@ -254,6 +324,36 @@ if (isset($_GET['edit'])) {
             $edit_row = $r;
             break;
         }
+    }
+}
+
+$view_row = null;
+if (isset($_GET['view'])) {
+    $view_id = (int)$_GET['view'];
+    $stmt = $conn->prepare("
+        SELECT br.*, bg.blood_gp_name, 
+               u.username as requester_username, 
+               d_u.username as donor_username,
+               da.created_at as assigned_date,
+               da.responded_at as responded_date,
+               da.status as assignment_status
+        FROM blood_request br
+        LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
+        LEFT JOIN users u ON br.users_id = u.id
+        LEFT JOIN donor d ON br.assigned_donor_id = d.id
+        LEFT JOIN users d_u ON d.user_id = d_u.id
+        LEFT JOIN donor_assignments da ON da.request_id = br.id AND da.donor_id = br.assigned_donor_id
+        WHERE br.id = ?
+        ORDER BY da.id DESC LIMIT 1
+    ");
+    if ($stmt) {
+        $stmt->bind_param("i", $view_id);
+        $stmt->execute();
+        $v_res = $stmt->get_result();
+        if ($v_res && $v_res->num_rows > 0) {
+            $view_row = $v_res->fetch_assoc();
+        }
+        $stmt->close();
     }
 }
 
@@ -657,6 +757,147 @@ $stats = [
                     </button>
                 </div>
 
+                <!-- View Assignment Details -->
+                <?php if ($view_row): ?>
+                <div id="viewDetails" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-gray-800">Assignment Details (Request #<?= $view_row['id'] ?>)</h3>
+                        <a href="blood_requests_crud.php" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</a>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Requester Name</p>
+                            <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['requester_name'] ?: $view_row['requester_username']) ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Donor Name</p>
+                            <p class="text-gray-900 font-medium"><?= $view_row['assigned_donor_id'] ? htmlspecialchars($view_row['donor_username']) : '<span class="text-gray-400 italic">Not Assigned</span>' ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Blood Group</p>
+                            <p class="text-red-600 font-bold bg-red-50 inline-block px-3 py-1 rounded-lg"><?= htmlspecialchars($view_row['blood_gp_name']) ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Units</p>
+                            <p class="text-gray-900 font-medium"><?= (int)$view_row['units'] ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Hospital</p>
+                            <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['hospital']) ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Required Date</p>
+                            <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['required_date']) ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Urgency</p>
+                            <?php $urgency = $view_row['Urgency'] ?? 'Normal'; ?>
+                            <p class="font-medium <?= $urgency == 'Urgent' ? 'text-red-600' : 'text-green-600' ?>"><?= htmlspecialchars($urgency) ?></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-semibold mb-1">Assignment Status</p>
+                            <?php
+                                $st = $view_row['status'];
+                                $stClasses = 'bg-yellow-100 text-yellow-700';
+                                if ($st == 'Approved') $stClasses = 'bg-blue-100 text-blue-700';
+                                if ($st == 'Assigned') $stClasses = 'bg-indigo-100 text-indigo-700';
+                                if ($st == 'Accepted') $stClasses = 'bg-purple-100 text-purple-700';
+                                if ($st == 'Received') $stClasses = 'bg-teal-100 text-teal-700';
+                                if ($st == 'Completed') $stClasses = 'bg-green-100 text-green-700';
+                                if ($st == 'Rejected') $stClasses = 'bg-red-100 text-red-700';
+                            ?>
+                            <p class="inline-block px-3 py-1 rounded-full text-xs font-bold <?= $stClasses ?>"><?= htmlspecialchars($st) ?></p>
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <?php
+                        $st = $view_row['status'];
+                        $ast = $view_row['assignment_status'] ?? '';
+                        
+                        $steps = [
+                            'Assigned' => ['status' => 'Pending', 'date' => null, 'label' => 'Assigned', 'color' => 'bg-gray-200'],
+                            'Accepted' => ['status' => 'Pending', 'date' => null, 'label' => 'Accepted / Rejected', 'color' => 'bg-gray-200'],
+                            'Donation' => ['status' => 'Pending', 'date' => null, 'label' => 'Blood Donation', 'color' => 'bg-gray-200'],
+                            'Received' => ['status' => 'Pending', 'date' => null, 'label' => 'Blood Received', 'color' => 'bg-gray-200'],
+                            'Completed' => ['status' => 'Pending', 'date' => null, 'label' => 'Completed', 'color' => 'bg-gray-200']
+                        ];
+
+                        if (in_array($st, ['Assigned', 'Accepted', 'Received', 'Completed']) || $ast) {
+                            $steps['Assigned']['status'] = 'Completed';
+                            $steps['Assigned']['date'] = $view_row['assigned_date'];
+                            $steps['Assigned']['color'] = 'bg-indigo-500';
+                        }
+                        
+                        if (in_array($st, ['Accepted', 'Received', 'Completed']) || $ast == 'Accepted') {
+                            $steps['Accepted']['status'] = 'Completed';
+                            $steps['Accepted']['label'] = 'Accepted';
+                            $steps['Accepted']['date'] = $view_row['responded_date'];
+                            $steps['Accepted']['color'] = 'bg-purple-500';
+                        } else if ($st == 'Rejected' || $ast == 'Rejected') {
+                            $steps['Accepted']['status'] = 'Rejected';
+                            $steps['Accepted']['label'] = 'Rejected';
+                            $steps['Accepted']['date'] = $view_row['responded_date'];
+                            $steps['Accepted']['color'] = 'bg-red-500';
+                        }
+
+                        if (in_array($st, ['Received', 'Completed'])) {
+                            $steps['Donation']['status'] = 'Completed';
+                            $steps['Donation']['color'] = 'bg-blue-500';
+                            
+                            $steps['Received']['status'] = 'Completed';
+                            $steps['Received']['color'] = 'bg-teal-500';
+                            $steps['Received']['date'] = $view_row['received_at'] ?? null;
+                        }
+
+                        if ($st == 'Completed') {
+                            $steps['Completed']['status'] = 'Completed';
+                            $steps['Completed']['color'] = 'bg-green-500';
+                        }
+                    ?>
+                    <div class="mt-8 border-t border-gray-100 pt-6">
+                        <h4 class="text-lg font-bold text-gray-800 mb-6">Status Timeline</h4>
+                        <div class="relative pl-5 border-l-2 border-gray-100 space-y-6">
+                            <?php foreach ($steps as $key => $step): ?>
+                                <div class="relative">
+                                    <div class="absolute -left-[1.6rem] w-4 h-4 rounded-full <?= $step['color'] ?> border-4 border-white shadow-sm"></div>
+                                    <p class="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                        <?= htmlspecialchars($step['label']) ?>
+                                        <?php if ($step['status'] == 'Completed'): ?>
+                                            <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Done</span>
+                                        <?php elseif ($step['status'] == 'Rejected'): ?>
+                                            <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Rejected</span>
+                                        <?php else: ?>
+                                            <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">Pending</span>
+                                        <?php endif; ?>
+                                    </p>
+                                    <?php if ($step['date']): ?>
+                                        <p class="text-xs text-gray-500 mt-1"><i class="far fa-clock mr-1"></i><?= date('M j, Y g:i A', strtotime($step['date'])) ?></p>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end">
+                        <?php if ($st === 'Rejected'): ?>
+                            <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, true)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Another Donor</button>
+                        <?php elseif ($st === 'Assigned'): ?>
+                            <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for donor response</span>
+                        <?php elseif ($st === 'Accepted'): ?>
+                            <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for Blood Received</span>
+                        <?php elseif ($st === 'Received'): ?>
+                            <button type="button" onclick="openCompleteModal(<?= (int)$view_row['id'] ?>)" class="bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-check-circle"></i> Mark as Completed</button>
+                        <?php elseif ($st === 'Completed'): ?>
+                            <button disabled class="bg-gray-200 text-gray-500 px-5 py-2.5 rounded-xl font-bold cursor-not-allowed flex items-center gap-2"><i class="fas fa-check-double"></i> Completed</button>
+                        <?php elseif (in_array($st, ['Pending', 'Approved']) && empty($view_row['assigned_donor_id'])): ?>
+                            <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, false)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Donor</button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Blood Request' : 'New Blood Request' ?></h3>
@@ -705,7 +946,7 @@ $stats = [
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
                             <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                                <?php foreach (['Pending', 'Approved', 'Completed', 'Rejected'] as $st): ?>
+                                <?php foreach (['Pending', 'Approved', 'Assigned', 'Accepted', 'Completed', 'Rejected'] as $st): ?>
                                     <option value="<?= $st ?>" <?= (($edit_row['status'] ?? 'Pending') === $st) ? 'selected' : '' ?>><?= $st ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -971,6 +1212,9 @@ $stats = [
                                                     $statusColors = [
                                                         'Pending'   => 'bg-yellow-100 text-yellow-700',
                                                         'Approved'  => 'bg-blue-100 text-blue-700',
+                                                        'Assigned'  => 'bg-indigo-100 text-indigo-700',
+                                                        'Accepted'  => 'bg-purple-100 text-purple-700',
+                                                        'Received'  => 'bg-teal-100 text-teal-700',
                                                         'Completed' => 'bg-green-100 text-green-700',
                                                         'Rejected'  => 'bg-red-100 text-red-700',
                                                     ];
@@ -982,14 +1226,29 @@ $stats = [
                                                 </td>
                                                 <td class="px-6 py-4">
                                                     <div class="flex items-center justify-center gap-2">
-                                                        <a href="requests.php?view=<?= (int)$rr['id'] ?>"
+                                                        <a href="blood_requests_crud.php?view=<?= (int)$rr['id'] ?>"
                                                             class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                                                             <i class="fas fa-eye mr-1"></i>View
                                                         </a>
-                                                        <?php if (empty($rr['assigned_donor_id']) && in_array($rr['status'], ['Pending', 'Approved'])): ?>
-                                                            <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>)"
-                                                                class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
+                                                        <?php if (in_array($rr['status'], ['Pending', 'Approved']) && empty($rr['assigned_donor_id'])): ?>
+                                                            <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>, false)" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
                                                                 <i class="fas fa-user-plus mr-1"></i>Assign Donor
+                                                            </button>
+                                                        <?php elseif ($rr['status'] === 'Assigned'): ?>
+                                                            <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">Wait for donor response</span>
+                                                        <?php elseif ($rr['status'] === 'Accepted'): ?>
+                                                            <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">Wait for Blood Received</span>
+                                                        <?php elseif ($rr['status'] === 'Rejected'): ?>
+                                                            <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>, true)" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
+                                                                <i class="fas fa-user-plus mr-1"></i>Assign Another Donor
+                                                            </button>
+                                                        <?php elseif ($rr['status'] === 'Received'): ?>
+                                                            <button type="button" onclick="openCompleteModal(<?= (int)$rr['id'] ?>)" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition">
+                                                                <i class="fas fa-check-circle mr-1"></i>Mark as Completed
+                                                            </button>
+                                                        <?php elseif ($rr['status'] === 'Completed'): ?>
+                                                            <button disabled class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-200 text-gray-500 cursor-not-allowed">
+                                                                <i class="fas fa-check-double mr-1"></i>Completed
                                                             </button>
                                                         <?php endif; ?>
                                                     </div>
@@ -1056,8 +1315,9 @@ $stats = [
                                             <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $sc ?>"><?= htmlspecialchars($r['status']) ?></span></td>
                                             <td class="p-3">
                                                 <div class="flex gap-2">
+                                                    <a href="blood_requests_crud.php?view=<?= $r['id'] ?>" class="text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
                                                     <a href="blood_requests_crud.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                    <a href="blood_requests_crud.php?delete=<?= $r['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this request?')">Delete</a>
+                                                    <button type="button" onclick="openDeleteModal('blood_requests_crud.php?delete=<?= $r['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold">Delete</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1335,7 +1595,8 @@ $stats = [
         // Find assignable request info from PHP data
         var assignableRequests = <?= json_encode($assignable_requests) ?>;
 
-        function openAssignModal(requestId) {
+        function openAssignModal(requestId, isReassign = false) {
+            isReassignMode = isReassign;
             modalRequestId = requestId;
             modalSelectedDonorId = null;
 
@@ -1484,8 +1745,164 @@ $stats = [
 
         function submitModalAssign() {
             if (!modalRequestId || !modalSelectedDonorId) return;
+            openAssignConfirmModal();
+        }
 
-            // Create and submit a form
+        // Modal donor search
+        var modalDonorSearch = document.getElementById('modalDonorSearch');
+        if (modalDonorSearch) {
+            modalDonorSearch.addEventListener('input', function() {
+                if (modalBloodGroup) {
+                    renderModalDonors(modalBloodGroup, this.value);
+                }
+            });
+        }
+
+        // Delete Modal Logic
+        function openDeleteModal(url) {
+            document.getElementById('confirmDeleteBtn').href = url;
+            document.getElementById('deleteConfirmModal').classList.remove('hidden');
+            document.getElementById('deleteConfirmModal').classList.add('flex');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteConfirmModal').classList.remove('flex');
+            document.getElementById('deleteConfirmModal').classList.add('hidden');
+        }
+    </script>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+            <div class="p-8 text-center space-y-6">
+                <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+                    <i class="fas fa-trash-alt"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-2xl text-gray-900 mb-2">Delete Record</h2>
+                    <p class="text-gray-500">Are you sure you want to delete this? This action cannot be undone.</p>
+                </div>
+            </div>
+            <div class="px-8 pb-8 flex gap-3">
+                <button onclick="closeDeleteModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+                <a href="#" id="confirmDeleteBtn" onclick="this.classList.add('opacity-50', 'pointer-events-none');" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition text-center shadow-md flex items-center justify-center">Delete</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assign Donor Modal -->
+    <div id="assignModal" class="assign-modal-overlay" onclick="if(event.target===this)closeAssignModal()">
+        <div class="assign-modal">
+            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-user-plus"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">Assign Donor</h3>
+                        <p class="text-xs text-gray-400" id="modalRequestInfo"></p>
+                    </div>
+                </div>
+
+                <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 p-2"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4">
+                <div class="relative mb-4">
+                    <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
+                    <input type="text" id="modalDonorSearch" placeholder="Search matching donors..." class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-11 pr-4 py-3 text-sm focus:border-blue-500 focus:bg-white transition outline-none">
+                </div>
+                
+                <div class="mb-2 flex items-center justify-between text-xs font-semibold text-gray-500 px-1">
+                    <span>MATCHING DONORS FOR: <span id="modalBloodType" class="text-red-600 font-bold ml-1"></span></span>
+                </div>
+                
+                <div id="modalDonorList" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1 custom-scrollbar">
+                    <!-- Donors rendered via JS -->
+                </div>
+                
+                <div id="modalNoDonors" class="hidden text-center py-8">
+                    <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user-slash"></i></div>
+                    <p class="text-gray-500 font-medium">No matching donors found</p>
+                    <p class="text-sm text-gray-400 mt-1">Try assigning a different blood type</p>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
+                <button onclick="closeAssignModal()" class="px-5 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition">Cancel</button>
+                <button id="modalAssignBtn" onclick="submitModalAssign()" disabled class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"><i class="fas fa-check"></i> Assign Selected Donor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modals -->
+    <div id="assignConfirmModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+            <div class="p-8 text-center space-y-6">
+                <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-2xl text-gray-900 mb-2" id="assignConfirmTitle">Assign Donor</h2>
+                    <p class="text-gray-500" id="assignConfirmMessage">Are you sure you want to assign this donor to this request?</p>
+                </div>
+            </div>
+            <div class="px-8 pb-8 flex gap-3">
+                <button onclick="closeAssignConfirmModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+                <button onclick="executeModalAssign()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition text-center shadow-md">Yes, Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="completeConfirmModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+            <div class="p-8 text-center space-y-6">
+                <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+                    ✅
+                </div>
+                <div>
+                    <h2 class="font-bold text-2xl text-gray-900 mb-2">Mark Completed</h2>
+                    <p class="text-gray-500">Are you sure you want to mark this request as completed?</p>
+                </div>
+            </div>
+            <div class="px-8 pb-8 flex gap-3">
+                <button onclick="closeCompleteModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+                <a href="#" id="confirmCompleteBtn" onclick="this.classList.add('opacity-50', 'pointer-events-none');" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition text-center shadow-md flex items-center justify-center">Yes, Completed</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var isReassignMode = false;
+
+        function openCompleteModal(id) {
+            document.getElementById('confirmCompleteBtn').href = 'blood_requests_crud.php?complete=' + id;
+            document.getElementById('completeConfirmModal').classList.remove('hidden');
+            document.getElementById('completeConfirmModal').classList.add('flex');
+        }
+
+        function closeCompleteModal() {
+            document.getElementById('completeConfirmModal').classList.remove('flex');
+            document.getElementById('completeConfirmModal').classList.add('hidden');
+        }
+
+        function openAssignConfirmModal() {
+            var title = isReassignMode ? 'Reassign Donor' : 'Assign Donor';
+            var msg = isReassignMode ? 'Are you sure you want to assign another donor?' : 'Are you sure you want to assign this donor to this request?';
+            document.getElementById('assignConfirmTitle').textContent = title;
+            document.getElementById('assignConfirmMessage').textContent = msg;
+            
+            document.getElementById('assignConfirmModal').classList.remove('hidden');
+            document.getElementById('assignConfirmModal').classList.add('flex');
+        }
+
+        function closeAssignConfirmModal() {
+            document.getElementById('assignConfirmModal').classList.remove('flex');
+            document.getElementById('assignConfirmModal').classList.add('hidden');
+        }
+
+        function executeModalAssign() {
+            document.querySelector('#assignConfirmModal button:last-child').classList.add('opacity-50', 'pointer-events-none');
+            
             var form = document.createElement('form');
             form.method = 'POST';
             form.action = 'blood_requests_crud.php';
@@ -1511,43 +1928,6 @@ $stats = [
             document.body.appendChild(form);
             form.submit();
         }
-
-        // Modal donor search
-        var modalDonorSearch = document.getElementById('modalDonorSearch');
-        if (modalDonorSearch) {
-            modalDonorSearch.addEventListener('input', function() {
-                if (modalBloodGroup) {
-                    renderModalDonors(modalBloodGroup, this.value);
-                }
-            });
-        }
     </script>
-
-    <!-- Assign Donor Modal -->
-    <div id="assignModal" class="assign-modal-overlay" onclick="if(event.target===this)closeAssignModal()">
-        <div class="assign-modal">
-            <div class="flex items-center justify-between p-4 border-b border-gray-100">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
-                        <i class="fas fa-user-plus"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-gray-900">Assign Donor</h3>
-                        <p class="text-xs text-gray-400" id="modalRequestInfo"></p>
-                    </div>
-                </div>
-
-                <?php if (isset($_GET['auto_assign'])): ?>
-                    <script>
-                        document.addEventListener("DOMContentLoaded", function() {
-                            setTimeout(function() {
-                                openAssignModal(<?= (int)$_GET['auto_assign'] ?>);
-                            }, 500);
-                        });
-                    </script>
-                <?php endif; ?>
-                </main>
-            </div>
 </body>
-
 </html>

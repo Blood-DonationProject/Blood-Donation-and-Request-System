@@ -70,14 +70,70 @@ if ($isLoggedIn) {
     // Handle Accept/Decline Assignment
     if (isset($_GET['action']) && isset($_GET['req_id'])) {
         $r_id = (int)$_GET['req_id'];
-        if ($_GET['action'] === 'accept') {
-            $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Approved' WHERE id = ?");
-            $stmt_a->bind_param("i", $r_id);
+        $d_id = $donorData['donor_id'] ?? 0;
+        
+        // Fetch all admins for notification
+        $admins = [0]; // Admin is hardcoded as user_id 0 in this system
+        if ($_GET['action'] === 'accept' && $d_id > 0) {
+            // Update blood_request
+            $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Accepted' WHERE id = ? AND assigned_donor_id = ?");
+            $stmt_a->bind_param("ii", $r_id, $d_id);
             $stmt_a->execute();
-        } elseif ($_GET['action'] === 'decline') {
-            $stmt_a = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL, status = 'Pending' WHERE id = ?");
-            $stmt_a->bind_param("i", $r_id);
+            
+            // Update donor_assignments
+            $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Accepted', responded_at = NOW() WHERE request_id = ? AND donor_id = ?");
+            $stmt_assign->bind_param("ii", $r_id, $d_id);
+            $stmt_assign->execute();
+            
+            // Notify Admin
+            $assignment_id = null;
+            $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
+            $get_assign->bind_param("ii", $r_id, $d_id);
+            $get_assign->execute();
+            if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
+            $get_assign->close();
+
+            $msg = "Donor " . htmlspecialchars($username) . " has accepted the assignment for Request #" . $r_id . ".";
+            $notifType = 'StatusUpdate';
+            $notifTitle = 'Assignment Accepted';
+            $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+            foreach ($admins as $admin_id) {
+                $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
+                $notif->execute();
+            }
+            
+        } elseif ($_GET['action'] === 'decline' && $d_id > 0) {
+            // Update blood_request: unassign donor and set to Pending
+            $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Pending', assigned_donor_id = NULL WHERE id = ? AND assigned_donor_id = ?");
+            $stmt_a->bind_param("ii", $r_id, $d_id);
             $stmt_a->execute();
+            
+            // Update donor_assignments
+            $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Rejected', responded_at = NOW() WHERE request_id = ? AND donor_id = ?");
+            $stmt_assign->bind_param("ii", $r_id, $d_id);
+            $stmt_assign->execute();
+            
+            // Make donor available again
+            $stmt_donor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+            $stmt_donor->bind_param("i", $d_id);
+            $stmt_donor->execute();
+            
+            // Notify Admin
+            $assignment_id = null;
+            $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
+            $get_assign->bind_param("ii", $r_id, $d_id);
+            $get_assign->execute();
+            if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
+            $get_assign->close();
+
+            $msg = "Donor " . htmlspecialchars($username) . " has declined the assignment for Request #" . $r_id . ".";
+            $notifType = 'StatusUpdate';
+            $notifTitle = 'Assignment Declined';
+            $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+            foreach ($admins as $admin_id) {
+                $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
+                $notif->execute();
+            }
         }
         header("Location: donordashboard.php");
         exit;
@@ -379,10 +435,10 @@ if ($isLoggedIn) {
                     <p class="font-semibold text-gray-800">You have been assigned to donate.</p>
                     <p class="text-xs text-gray-400 mt-0.5">Required by <?= date('M j, Y', strtotime($ar['required_date'])) ?></p>
                   </div>
-                  <?php if ($ar['status'] !== 'Completed' && $ar['status'] !== 'Accepted'): ?>
+                  <?php if ($ar['status'] !== 'Completed' && $ar['status'] !== 'Accepted' && $ar['status'] !== 'Rejected'): ?>
                   <div class="flex flex-col gap-2">
-                      <a href="donordashboard.php?action=accept&req_id=<?= $ar['id'] ?>" class="bg-green-600 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm text-center">Accept</a>
-                      <a href="donordashboard.php?action=decline&req_id=<?= $ar['id'] ?>" class="bg-red-600 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm text-center" onclick="return confirm('Are you sure you want to decline this assignment?');">Decline</a>
+                      <button type="button" onclick="openAcceptModal(<?= $ar['id'] ?>)" class="bg-green-600 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm text-center">Accept</button>
+                      <button type="button" onclick="openDeclineModal(<?= $ar['id'] ?>)" class="bg-red-600 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm text-center">Decline</button>
                   </div>
                   <?php else: ?>
                   <span class="text-sm font-bold text-green-600">Action taken</span>
@@ -504,7 +560,64 @@ if ($isLoggedIn) {
       localStorage.removeItem('bloodlife_user_name');
       window.location.href = 'logout.php';
     }
+
+    function openAcceptModal(id) {
+      document.getElementById('confirmAcceptBtn').href = 'donordashboard.php?action=accept&req_id=' + id;
+      document.getElementById('acceptConfirmModal').classList.remove('hidden');
+      document.getElementById('acceptConfirmModal').classList.add('flex');
+    }
+    function closeAcceptModal() {
+      document.getElementById('acceptConfirmModal').classList.remove('flex');
+      document.getElementById('acceptConfirmModal').classList.add('hidden');
+    }
+    function openDeclineModal(id) {
+      document.getElementById('confirmDeclineBtn').href = 'donordashboard.php?action=decline&req_id=' + id;
+      document.getElementById('declineConfirmModal').classList.remove('hidden');
+      document.getElementById('declineConfirmModal').classList.add('flex');
+    }
+    function closeDeclineModal() {
+      document.getElementById('declineConfirmModal').classList.remove('flex');
+      document.getElementById('declineConfirmModal').classList.add('hidden');
+    }
   </script>
+
+  <!-- Accept Confirmation Modal -->
+  <div id="acceptConfirmModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+      <div class="p-8 text-center space-y-6">
+        <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+          🤝
+        </div>
+        <div>
+          <h2 class="font-bold text-2xl text-gray-900 mb-2">Accept Assignment</h2>
+          <p class="text-gray-500">Are you sure you want to accept this blood donation assignment?</p>
+        </div>
+      </div>
+      <div class="px-8 pb-8 flex gap-3">
+        <button onclick="closeAcceptModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+        <a href="#" id="confirmAcceptBtn" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition text-center shadow-md flex items-center justify-center">Yes, Accept</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decline Confirmation Modal -->
+  <div id="declineConfirmModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+      <div class="p-8 text-center space-y-6">
+        <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+          ⚠️
+        </div>
+        <div>
+          <h2 class="font-bold text-2xl text-gray-900 mb-2">Decline Assignment</h2>
+          <p class="text-gray-500">Are you sure you want to decline this assignment?</p>
+        </div>
+      </div>
+      <div class="px-8 pb-8 flex gap-3">
+        <button onclick="closeDeclineModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+        <a href="#" id="confirmDeclineBtn" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition text-center shadow-md flex items-center justify-center">Yes, Decline</a>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function() {

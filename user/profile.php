@@ -4,8 +4,8 @@ require_once __DIR__ . '/../config/db.php';
 
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 if (!$isLoggedIn) {
-    header('Location: login.php');
-    exit;
+  header('Location: login.php');
+  exit;
 }
 
 $userId = (int)($_SESSION['user_id'] ?? 0);
@@ -15,113 +15,165 @@ $username = htmlspecialchars($_SESSION['username'] ?? '');
 $message = '';
 $messageType = '';
 
+if (isset($_GET['msg']) && $_GET['msg'] === 'received') {
+  $message = "Blood received status updated successfully.";
+  $messageType = "success";
+}
+
 // Handle profile update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-    $newEmail = trim($_POST['email'] ?? '');
-    $newPhone = trim($_POST['phone'] ?? '');
-    $newAddress = trim($_POST['address'] ?? '');
+  $newEmail = trim($_POST['email'] ?? '');
+  $newPhone = trim($_POST['phone'] ?? '');
+  $newAddress = trim($_POST['address'] ?? '');
 
-    if ($newEmail === '') {
-        $message = 'Email is required.';
-        $messageType = 'error';
-    } else {
-        $stmt = $conn->prepare("UPDATE users SET email = ? WHERE id = ?");
-        $stmt->bind_param("si", $newEmail, $userId);
-        $stmt->execute();
-        $stmt->close();
-        $_SESSION['user_email'] = $newEmail;
+  if ($newEmail === '') {
+    $message = 'Email is required.';
+    $messageType = 'error';
+  } else {
+    $stmt = $conn->prepare("UPDATE users SET email = ? WHERE id = ?");
+    $stmt->bind_param("si", $newEmail, $userId);
+    $stmt->execute();
+    $stmt->close();
+    $_SESSION['user_email'] = $newEmail;
 
-        // Update donor table if record exists
-        $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
-        $stmt2->bind_param("ssi", $newPhone, $newAddress, $userId);
-        $stmt2->execute();
-        $stmt2->close();
+    // Update donor table if record exists
+    $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
+    $stmt2->bind_param("ssi", $newPhone, $newAddress, $userId);
+    $stmt2->execute();
+    $stmt2->close();
 
-        $message = 'Profile updated successfully.';
-        $messageType = 'success';
-    }
+    $message = 'Profile updated successfully.';
+    $messageType = 'success';
+  }
 }
 
 // Handle donor registration/update from profile
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
-    $gender = $_POST['gender'] ?? '';
-    $date_of_birth = $_POST['date_of_birth'] ?? '';
-    $age = (int)($_POST['age'] ?? 0);
-    $blood_groups = trim($_POST['blood_groups'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $address = trim($_POST['address'] ?? '');
-    $weight = (float)($_POST['weight'] ?? 0);
-    $last_donation_date = $_POST['last_donation_date'] ?: null;
-    $available_status = $_POST['available_status'] ?? 'Available';
+  $gender = $_POST['gender'] ?? '';
+  $date_of_birth = $_POST['date_of_birth'] ?? '';
+  $age = (int)($_POST['age'] ?? 0);
+  $blood_groups = trim($_POST['blood_groups'] ?? '');
+  $phone = trim($_POST['phone'] ?? '');
+  $address = trim($_POST['address'] ?? '');
+  $weight = (float)($_POST['weight'] ?? 0);
+  $last_donation_date = $_POST['last_donation_date'] ?: null;
+  $available_status = $_POST['available_status'] ?? 'Available';
 
-    if ($gender === '' || $blood_groups === '' || $phone === '' || $address === '' || $weight <= 0) {
-        $message = 'Please fill in all required donor fields.';
-        $messageType = 'error';
+  if ($gender === '' || $blood_groups === '' || $phone === '' || $address === '' || $weight <= 0) {
+    $message = 'Please fill in all required donor fields.';
+    $messageType = 'error';
+  } else {
+    $check = $conn->prepare("SELECT id FROM donor WHERE user_id = ?");
+    $check->bind_param("i", $userId);
+    $check->execute();
+    $existing = $check->get_result()->fetch_assoc();
+    $check->close();
+
+    if ($existing) {
+      $stmt = $conn->prepare("UPDATE donor SET gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE user_id=?");
+      $stmt->bind_param("sssisssssi", $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status, $userId);
     } else {
-        $check = $conn->prepare("SELECT id FROM donor WHERE user_id = ?");
-        $check->bind_param("i", $userId);
-        $check->execute();
-        $existing = $check->get_result()->fetch_assoc();
-        $check->close();
-
-        if ($existing) {
-            $stmt = $conn->prepare("UPDATE donor SET gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE user_id=?");
-            $stmt->bind_param("sssisssssi", $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status, $userId);
-        } else {
-            $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("isssisssds", $userId, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);
-        }
-
-        if ($stmt->execute()) {
-            $donorIdForHistory = $existing ? $existing['id'] : $conn->insert_id;
-            $bgStmt = $conn->prepare("SELECT id FROM blood_groups WHERE blood_gp_name = ?");
-            $bgStmt->bind_param("s", $blood_groups);
-            $bgStmt->execute();
-            $bgResult = $bgStmt->get_result()->fetch_assoc();
-            $bgStmt->close();
-            $blood_groups_id = $bgResult ? $bgResult['id'] : 0;
-            $donationDate = $last_donation_date ?: date('Y-m-d');
-            $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, donation_date, units, status) VALUES (?, ?, 0, ?, ?, 1, 'Completed')");
-            $dhStmt->bind_param("iiis", $donorIdForHistory, $userId, $blood_groups_id, $donationDate);
-            $dhStmt->execute();
-            $dhStmt->close();
-            $message = $existing ? 'Donor information updated successfully.' : 'Donor registration successful.';
-            $messageType = 'success';
-        } else {
-            $message = 'Error saving donor info: ' . $conn->error;
-            $messageType = 'error';
-        }
-        $stmt->close();
+      $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      $stmt->bind_param("isssisssds", $userId, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);
     }
+
+    if ($stmt->execute()) {
+      $donorIdForHistory = $existing ? $existing['id'] : $conn->insert_id;
+      $bgStmt = $conn->prepare("SELECT id FROM blood_groups WHERE blood_gp_name = ?");
+      $bgStmt->bind_param("s", $blood_groups);
+      $bgStmt->execute();
+      $bgResult = $bgStmt->get_result()->fetch_assoc();
+      $bgStmt->close();
+      $blood_groups_id = $bgResult ? $bgResult['id'] : 0;
+      $donationDate = $last_donation_date ?: date('Y-m-d');
+      $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, donation_date, units, status) VALUES (?, ?, 0, ?, ?, 1, 'Completed')");
+      $dhStmt->bind_param("iiis", $donorIdForHistory, $userId, $blood_groups_id, $donationDate);
+      $dhStmt->execute();
+      $dhStmt->close();
+      $message = $existing ? 'Donor information updated successfully.' : 'Donor registration successful.';
+      $messageType = 'success';
+    } else {
+      $message = 'Error saving donor info: ' . $conn->error;
+      $messageType = 'error';
+    }
+    $stmt->close();
+  }
 }
 
 // Handle blood request submission from profile
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
-    $blood_groups_id = (int)($_POST['blood_groups_id'] ?? 0);
-    $units = max(1, (int)($_POST['units'] ?? 1));
-    $hospital = trim($_POST['hospital'] ?? '');
-    $required_date = $_POST['required_date'] ?? date('Y-m-d');
+  $blood_groups_id = (int)($_POST['blood_groups_id'] ?? 0);
+  $units = max(1, (int)($_POST['units'] ?? 1));
+  $hospital = trim($_POST['hospital'] ?? '');
+  $required_date = $_POST['required_date'] ?? date('Y-m-d');
 
-    if ($blood_groups_id < 1) {
-        $message = 'Please select a blood type.';
-        $messageType = 'error';
-    } elseif ($hospital === '') {
-        $message = 'Please enter the hospital name.';
-        $messageType = 'error';
+  if ($blood_groups_id < 1) {
+    $message = 'Please select a blood type.';
+    $messageType = 'error';
+  } elseif ($hospital === '') {
+    $message = 'Please enter the hospital name.';
+    $messageType = 'error';
+  } else {
+    $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $status = 'Pending';
+    $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
+    if ($stmt->execute()) {
+      $message = 'Blood request submitted successfully.';
+      $messageType = 'success';
     } else {
-        $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $status = 'Pending';
-        $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
-        if ($stmt->execute()) {
-            $message = 'Blood request submitted successfully.';
-            $messageType = 'success';
-        } else {
-            $message = 'Error submitting request: ' . $conn->error;
-            $messageType = 'error';
-        }
-        $stmt->close();
+      $message = 'Error submitting request: ' . $conn->error;
+      $messageType = 'error';
     }
+    $stmt->close();
+  }
 }
+
+// Handle blood received
+if (isset($_GET['action']) && $_GET['action'] === 'received' && isset($_GET['req_id'])) {
+  $r_id = (int)$_GET['req_id'];
+
+  // Verify it belongs to the user and is Accepted
+  $check = $conn->prepare("SELECT assigned_donor_id, blood_groups_id, units FROM blood_request WHERE id = ? AND users_id = ? AND status = 'Accepted'");
+  $check->bind_param("ii", $r_id, $userId);
+  $check->execute();
+  $res = $check->get_result();
+  if ($res && $res->num_rows > 0) {
+    $req = $res->fetch_assoc();
+    $d_id = $req['assigned_donor_id'];
+
+    // Update blood_request
+    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Received', received_at = NOW() WHERE id = ?");
+    $stmt_a->bind_param("i", $r_id);
+    $stmt_a->execute();
+
+    // Update donor_assignments
+    $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Received' WHERE request_id = ? AND donor_id = ?");
+    $stmt_assign->bind_param("ii", $r_id, $d_id);
+    $stmt_assign->execute();
+
+    // Notify Admin
+    $assignment_id = null;
+    $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
+    $get_assign->bind_param("ii", $r_id, $d_id);
+    $get_assign->execute();
+    if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
+    $get_assign->close();
+
+    $admins = [0];
+    $msg = "Request #" . $r_id . " has been marked as Blood Received by the requester.";
+    $notifType = 'StatusUpdate';
+    $notifTitle = 'Blood Received';
+    $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+    foreach ($admins as $admin_id) {
+      $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
+      $notif->execute();
+    }
+  }
+  $check->close();
+  header("Location: profile.php?msg=received");
+  exit;
+}
+
 
 // Fetch user data
 $userData = [];
@@ -149,10 +201,10 @@ $donorData = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if ($donorData) {
-    $donorId = (int)$donorData['id'];
-    $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
-    $userData['phone'] = $donorData['phone'] ?? '';
-    $userData['address'] = $donorData['address'] ?? '';
+  $donorId = (int)$donorData['id'];
+  $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
+  $userData['phone'] = $donorData['phone'] ?? '';
+  $userData['address'] = $donorData['address'] ?? '';
 }
 
 // Fetch donation history by donor_id or users_id
@@ -170,14 +222,14 @@ $stmt->close();
 
 $donationCount = count($donations);
 foreach ($donations as $d) {
-    $totalUnits += (int)($d['units'] ?? 1);
+  $totalUnits += (int)($d['units'] ?? 1);
 }
 $livesSaved = $totalUnits * 3;
 
 if ($donationCount > 0 && !empty($donations[0]['donation_date'])) {
-    $lastDate = new DateTime($donations[0]['donation_date']);
-    $now = new DateTime();
-    $daysSinceLast = $now->diff($lastDate)->days;
+  $lastDate = new DateTime($donations[0]['donation_date']);
+  $now = new DateTime();
+  $daysSinceLast = $now->diff($lastDate)->days;
 }
 
 // Fetch blood request history for any user
@@ -194,53 +246,163 @@ $stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Profile – BloodLife</title>
   <script>
-    (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
+    (function() {
+      var t = localStorage.getItem('bloodlife-theme');
+      if (t === 'dark') document.documentElement.classList.add('dark');
+    })();
   </script>
   <script>
-    tailwind.config = { darkMode: 'class' }
+    tailwind.config = {
+      darkMode: 'class'
+    }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
   <style>
-    @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
-    .animate-fade-down { animation: fadeInDown 0.6s ease-out; }
-    .animate-fade-up   { animation: fadeInUp   0.6s ease-out; }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fade-down {
+      animation: fadeInDown 0.6s ease-out;
+    }
+
+    .animate-fade-up {
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
   </style>
   <style id="dark-mode-styles">
-    html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-    html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
-    html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
-    html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-    html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
-    html.dark .bg-white { background-color: #1f2937 !important; }
-    html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-    html.dark .text-gray-700 { color: #d1d5db !important; }
-    html.dark .text-gray-600 { color: #9ca3af !important; }
-    html.dark .text-gray-500 { color: #9ca3af !important; }
-    html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-    html.dark label { color: #d1d5db !important; }
-    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
-    html.dark .border-gray-200, html.dark .border-2.border-gray-200 { border-color: #4b5563 !important; }
-    html.dark .border-t { border-color: #374151 !important; }
-    html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
-    html.dark .bg-green-50 { background-color: rgba(34,197,94,0.15) !important; }
-    html.dark .bg-yellow-50 { background-color: rgba(234,179,8,0.15) !important; }
-    html.dark tbody tr { border-color: #374151 !important; }
-    html.dark tbody tr:hover { background-color: #374151 !important; }
+    html:not(.dark) body {
+      background-color: #ffffff !important;
+      background-image: none !important;
+    }
+
+    html:not(.dark) .bg-gray-50 {
+      background-color: #ffffff !important;
+    }
+
+    html:not(.dark) .bg-gray-100 {
+      background-color: #ffffff !important;
+    }
+
+    html.dark body {
+      background-color: #111827 !important;
+      background-image: none !important;
+      color: #e5e7eb;
+    }
+
+    html.dark nav.bg-white,
+    html.dark nav.bg-white.shadow-lg {
+      background-color: #1f2937 !important;
+    }
+
+    html.dark .bg-white {
+      background-color: #1f2937 !important;
+    }
+
+    html.dark .text-gray-900,
+    html.dark .text-gray-800 {
+      color: #f3f4f6 !important;
+    }
+
+    html.dark .text-gray-700 {
+      color: #d1d5db !important;
+    }
+
+    html.dark .text-gray-600 {
+      color: #9ca3af !important;
+    }
+
+    html.dark .text-gray-500 {
+      color: #9ca3af !important;
+    }
+
+    html.dark input,
+    html.dark select,
+    html.dark textarea {
+      background-color: #374151 !important;
+      border-color: #4b5563 !important;
+      color: #e5e7eb !important;
+    }
+
+    html.dark label {
+      color: #d1d5db !important;
+    }
+
+    html.dark .bg-gray-50,
+    html.dark .bg-gray-100 {
+      background-color: #374151 !important;
+    }
+
+    html.dark .border-gray-200,
+    html.dark .border-2.border-gray-200 {
+      border-color: #4b5563 !important;
+    }
+
+    html.dark .border-t {
+      border-color: #374151 !important;
+    }
+
+    html.dark .bg-red-50 {
+      background-color: rgba(220, 38, 38, 0.15) !important;
+    }
+
+    html.dark .bg-green-50 {
+      background-color: rgba(34, 197, 94, 0.15) !important;
+    }
+
+    html.dark .bg-yellow-50 {
+      background-color: rgba(234, 179, 8, 0.15) !important;
+    }
+
+    html.dark tbody tr {
+      border-color: #374151 !important;
+    }
+
+    html.dark tbody tr:hover {
+      background-color: #374151 !important;
+    }
   </style>
 </head>
+
 <body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
- <?php include __DIR__ . '/../includes/header.php'; ?>
+  <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- Cover Banner -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 h-40 relative">
@@ -442,58 +604,70 @@ $stmt->close();
                   <span class="text-gray-500"><span data-i18n="donation_history_total">Total</span>: <strong class="text-gray-900"><?= number_format($totalUnits) ?></strong> <?= $totalUnits > 1 ? 'units' : 'unit' ?> <?= !empty($bloodGroup) && $bloodGroup !== '-' ? "($bloodGroup)" : '' ?></span>
                   <span class="text-green-600 font-semibold">🩸 <span data-i18n="lives_saved_stat">Lives Saved</span>: <?= $livesSaved ?></span>
                 </div>
-            <?php else: ?>
-              <div class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                <div class="text-5xl mb-4">🩸</div>
-                <p class="text-gray-500 font-semibold" data-i18n="no_donation_history">No donation history found.</p>
-                <p class="text-gray-400 text-sm mt-1" data-i18n="donation_history_empty_desc">When you make your first donation, your history will appear here.</p>
-              </div>
-            <?php endif; ?>
-          </div>
+              <?php else: ?>
+                <div class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                  <div class="text-5xl mb-4">🩸</div>
+                  <p class="text-gray-500 font-semibold" data-i18n="no_donation_history">No donation history found.</p>
+                  <p class="text-gray-400 text-sm mt-1" data-i18n="donation_history_empty_desc">When you make your first donation, your history will appear here.</p>
+                </div>
+              <?php endif; ?>
+            </div>
 
-          <!-- Blood Requests Tab -->
-          <div id="tab-requests" class="tab-panel">
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-gray-100">
-                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
-                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
-                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
-                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
-                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-50">
-                  <?php if (count($bloodRequests) > 0): ?>
-                    <?php foreach ($bloodRequests as $br): ?>
-                      <tr class="hover:bg-gray-50">
-                        <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
-                        <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
-                        <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
-                        <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
-                        <td class="py-3">
-                          <?php
+            <!-- Blood Requests Tab -->
+            <div id="tab-requests" class="tab-panel">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="border-b border-gray-100">
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
+                      <th class="text-left text-gray-500 font-semibold pb-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <?php if (count($bloodRequests) > 0): ?>
+                      <?php foreach ($bloodRequests as $br): ?>
+                        <tr class="hover:bg-gray-50">
+                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
+                          <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
+                          <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
+                          <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
+                          <td class="py-3">
+                            <?php
                             $status = htmlspecialchars($br['status'] ?? 'Pending');
                             $statusColors = [
-                                'Pending'   => 'bg-yellow-100 text-yellow-700',
-                                'Approved'  => 'bg-blue-100 text-blue-700',
-                                'Completed' => 'bg-green-100 text-green-700',
-                                'Rejected'  => 'bg-red-100 text-red-700',
+                              'Pending'   => 'bg-yellow-100 text-yellow-700',
+                              'Approved'  => 'bg-blue-100 text-blue-700',
+                              'Assigned'  => 'bg-blue-100 text-blue-700',
+                              'Accepted'  => 'bg-blue-100 text-blue-700',
+                              'Completed' => 'bg-green-100 text-green-700',
+                              'Rejected'  => 'bg-red-100 text-red-700',
                             ];
                             $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
-                          ?>
-                          <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
-                        </td>
+                            ?>
+                            <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
+                          </td>
+                          <td class="py-3">
+                            <?php if ($status === 'Accepted'): ?>
+                              <button type="button" onclick="openReceivedModal(<?= (int)$br['id'] ?>)" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 transition shadow-sm">Mark as Received</button>
+                            <?php else: ?>
+                              <span class="text-gray-400 text-xs">-</span>
+                            <?php endif; ?>
+                          </td>
+                        </tr>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <tr>
+                        <td colspan="6" class="py-8 text-center text-gray-500" data-i18n="no_blood_request_history">No blood request history found.</td>
                       </tr>
-                    <?php endforeach; ?>
-                  <?php else: ?>
-                    <tr><td colspan="5" class="py-8 text-center text-gray-500" data-i18n="no_blood_request_history">No blood request history found.</td></tr>
-                  <?php endif; ?>
-                </tbody>
-              </table>
+                    <?php endif; ?>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
             <!-- Health Info Tab -->
             <div id="tab-health" class="tab-panel space-y-5">
@@ -725,6 +899,25 @@ $stmt->close();
     </div>
   </div>
 
+  <!-- Blood Received Confirmation Modal -->
+  <div id="receivedConfirmModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+      <div class="p-8 text-center space-y-6">
+        <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+          ✅
+        </div>
+        <div>
+          <h2 class="font-bold text-2xl text-gray-900 mb-2">Confirm Blood Received</h2>
+          <p class="text-gray-500">Have you received the blood successfully?</p>
+        </div>
+      </div>
+      <div class="px-8 pb-8 flex gap-3">
+        <button onclick="closeReceivedModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+        <a href="#" id="confirmReceivedBtn" onclick="this.classList.add('opacity-50', 'pointer-events-none');" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition text-center shadow-md">Yes, Blood Received</a>
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <?php include __DIR__ . '/../includes/footer.php'; ?>
 
@@ -748,60 +941,78 @@ $stmt->close();
     }
 
     function setTab(tab) {
-      ['info','history','requests','health','receipts'].forEach(t => {
+      ['info', 'history', 'requests', 'health', 'receipts'].forEach(t => {
         const el = document.getElementById('tab-' + t);
         if (el) el.classList.remove('active');
         const btn = document.getElementById('tabbtn-' + t);
         if (btn) {
-          btn.classList.remove('text-red-600','border-b-2','border-red-600');
+          btn.classList.remove('text-red-600', 'border-b-2', 'border-red-600');
           btn.classList.add('text-gray-500');
         }
       });
       document.getElementById('tab-' + tab).classList.add('active');
       const activeBtn = document.getElementById('tabbtn-' + tab);
-      activeBtn.classList.add('text-red-600','border-b-2','border-red-600');
+      activeBtn.classList.add('text-red-600', 'border-b-2', 'border-red-600');
       activeBtn.classList.remove('text-gray-500');
     }
 
-    const receipts = [
-      {
-        no: 'BL-2026-4821', issued: 'April 28, 2026',
-        donateDate: 'April 28, 2026', hospital: 'Aga Khan University Hospital, Karachi',
-        redonate: 'August 26, 2026', admin: 'Dr. Kamran',
+    const receipts = [{
+        no: 'BL-2026-4821',
+        issued: 'April 28, 2026',
+        donateDate: 'April 28, 2026',
+        hospital: 'Aga Khan University Hospital, Karachi',
+        redonate: 'August 26, 2026',
+        admin: 'Dr. Kamran',
         remark: 'Donor was in excellent health. No complications observed during donation. Vitals stable throughout.'
       },
       {
-        no: 'BL-2026-1193', issued: 'January 10, 2026',
-        donateDate: 'January 10, 2026', hospital: 'Civil Hospital, Karachi',
-        redonate: 'May 10, 2026', admin: 'Dr. Saira',
+        no: 'BL-2026-1193',
+        issued: 'January 10, 2026',
+        donateDate: 'January 10, 2026',
+        hospital: 'Civil Hospital, Karachi',
+        redonate: 'May 10, 2026',
+        admin: 'Dr. Saira',
         remark: 'Successful donation. Donor advised to rest and stay hydrated for 24 hours.'
       },
       {
-        no: 'BL-2025-7734', issued: 'September 3, 2025',
-        donateDate: 'September 3, 2025', hospital: 'Aga Khan University Hospital, Karachi',
-        redonate: 'January 1, 2026', admin: 'Dr. Kamran',
+        no: 'BL-2025-7734',
+        issued: 'September 3, 2025',
+        donateDate: 'September 3, 2025',
+        hospital: 'Aga Khan University Hospital, Karachi',
+        redonate: 'January 1, 2026',
+        admin: 'Dr. Kamran',
         remark: 'No issues reported. Donor is a regular contributor and eligible for the 5-donation badge.'
       },
     ];
 
     function showReceipt(index) {
       const r = receipts[index];
-      document.getElementById('modal_receipt_no').textContent  = '#' + r.no;
-      document.getElementById('modal_issued_on').textContent   = 'Issued: ' + r.issued;
+      document.getElementById('modal_receipt_no').textContent = '#' + r.no;
+      document.getElementById('modal_issued_on').textContent = 'Issued: ' + r.issued;
       document.getElementById('modal_donate_date').textContent = r.donateDate;
-      document.getElementById('modal_hospital').textContent    = r.hospital;
-      document.getElementById('modal_redonate').textContent    = r.redonate;
-      document.getElementById('modal_admin').textContent       = r.admin;
-      document.getElementById('modal_remark').textContent      = r.remark;
+      document.getElementById('modal_hospital').textContent = r.hospital;
+      document.getElementById('modal_redonate').textContent = r.redonate;
+      document.getElementById('modal_admin').textContent = r.admin;
+      document.getElementById('modal_remark').textContent = r.remark;
       const modal = document.getElementById('receiptModal');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
     }
 
     function closeReceiptModal() {
-      const modal = document.getElementById('receiptModal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
+      document.getElementById('receiptModal').classList.remove('flex');
+      document.getElementById('receiptModal').classList.add('hidden');
+    }
+
+    function openReceivedModal(id) {
+      document.getElementById('confirmReceivedBtn').href = 'profile.php?action=received&req_id=' + id;
+      document.getElementById('receivedConfirmModal').classList.remove('hidden');
+      document.getElementById('receivedConfirmModal').classList.add('flex');
+    }
+
+    function closeReceivedModal() {
+      document.getElementById('receivedConfirmModal').classList.remove('flex');
+      document.getElementById('receivedConfirmModal').classList.add('hidden');
     }
 
     // Close modal on backdrop click
@@ -810,16 +1021,17 @@ $stmt->close();
     });
 
     let editing = false;
+
     function toggleEdit() {
       editing = !editing;
       document.querySelectorAll('.profile-input').forEach(el => {
         el.disabled = !editing;
         if (editing) {
-          el.classList.remove('bg-gray-50','text-gray-600');
-          el.classList.add('bg-white','text-gray-900','focus:outline-none','focus:border-red-500');
+          el.classList.remove('bg-gray-50', 'text-gray-600');
+          el.classList.add('bg-white', 'text-gray-900', 'focus:outline-none', 'focus:border-red-500');
         } else {
-          el.classList.add('bg-gray-50','text-gray-600');
-          el.classList.remove('bg-white','text-gray-900');
+          el.classList.add('bg-gray-50', 'text-gray-600');
+          el.classList.remove('bg-white', 'text-gray-900');
         }
       });
       document.getElementById('saveBar').classList.toggle('hidden', !editing);
@@ -834,7 +1046,11 @@ $stmt->close();
   <script>
     (function() {
       var KEY = 'bloodlife-theme';
-      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+
+      function getTheme() {
+        return localStorage.getItem(KEY) || 'light';
+      }
+
       function apply(t) {
         if (t === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
@@ -853,7 +1069,8 @@ $stmt->close();
         apply(next);
       };
     })();
-    </script>
+  </script>
 
 </body>
+
 </html>

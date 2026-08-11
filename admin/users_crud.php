@@ -27,6 +27,14 @@ if (isset($_POST['toggle_status'])) {
     }
 }
 
+// Handle deletion
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    $conn->query("DELETE FROM users WHERE id = $id");
+    header("Location: users_crud.php");
+    exit;
+}
+
 if (isset($_POST['add'])) {
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
@@ -347,6 +355,7 @@ if ($hasRoleColumn) {
                                                     <input type="hidden" name="new_status" value="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Inactive' : 'Active' ?>">
                                                     <button type="submit" name="toggle_status" class="<?= ($u['status'] ?? 'Active') === 'Active' ? 'text-orange-600 hover:text-orange-800' : 'text-green-600 hover:text-green-800' ?> font-semibold" title="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>"><?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?></button>
                                                 </form>
+                                                <button type="button" onclick="openDeleteModal('users_crud.php?delete=<?= $u['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold" title="Delete User">Delete</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -416,7 +425,7 @@ document.addEventListener('click', function(e) {
     }
 });
 function toggleForm() {
-    document.getElementById('crudForm').classList.toggle('hidden');
+    document.getElementById('crudForm').scrollIntoView({ behavior: 'smooth' });
 }
 
 // View User Modal
@@ -444,6 +453,18 @@ function viewUser(user) {
 
 function closeViewModal() {
     document.getElementById('viewUserModal').classList.add('hidden');
+}
+
+// Delete Modal Logic
+function openDeleteModal(url) {
+    document.getElementById('confirmDeleteBtn').href = url;
+    document.getElementById('deleteConfirmModal').classList.remove('hidden');
+    document.getElementById('deleteConfirmModal').classList.add('flex');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteConfirmModal').classList.remove('flex');
+    document.getElementById('deleteConfirmModal').classList.add('hidden');
 }
 
 // Close modal on backdrop click
@@ -488,6 +509,25 @@ searchInput.addEventListener('keyup', applyFilters);
 if (roleFilter) roleFilter.addEventListener('change', applyFilters);
 statusFilter.addEventListener('change', applyFilters);
 </script>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteConfirmModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+        <div class="p-8 text-center space-y-6">
+            <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+                <i class="fas fa-trash-alt"></i>
+            </div>
+            <div>
+                <h2 class="font-bold text-2xl text-gray-900 mb-2">Delete Record</h2>
+                <p class="text-gray-500">Are you sure you want to delete this? This action cannot be undone.</p>
+            </div>
+        </div>
+        <div class="px-8 pb-8 flex gap-3">
+            <button onclick="closeDeleteModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+            <a href="#" id="confirmDeleteBtn" onclick="this.classList.add('opacity-50', 'pointer-events-none');" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition text-center shadow-md flex items-center justify-center">Delete</a>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

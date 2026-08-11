@@ -18,37 +18,54 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
         $stmt->close();
     }
 
-    // Fetch donor notifications
-    $stmt_donor = $conn->prepare("SELECT id FROM donor WHERE user_id = ? LIMIT 1");
-    if ($stmt_donor) {
-        $stmt_donor->bind_param('i', $_SESSION['user_id']);
-        $stmt_donor->execute();
-        $res_donor = $stmt_donor->get_result();
-        if ($donorRow = $res_donor->fetch_assoc()) {
-            $donor_id = $donorRow['id'];
-            $stmt_notif = $conn->prepare("
-                SELECT r.id, r.hospital, r.required_date, r.status, bg.blood_gp_name 
-                FROM blood_request r 
-                LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id 
-                WHERE r.assigned_donor_id = ? AND r.status IN ('Assigned', 'Pending') 
-                ORDER BY r.required_date ASC
-            ");
-            if ($stmt_notif) {
-                $stmt_notif->bind_param('i', $donor_id);
-                $stmt_notif->execute();
-                $res_notif = $stmt_notif->get_result();
-                while ($n = $res_notif->fetch_assoc()) {
-                    $notifications[] = $n;
-                }
-                $stmt_notif->close();
-            }
+    // Mark notifications as read if requested
+    if (isset($_GET['read_notifs'])) {
+        $stmt_read = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+        if ($stmt_read) {
+            $stmt_read->bind_param('i', $_SESSION['user_id']);
+            $stmt_read->execute();
+            $stmt_read->close();
         }
-        $stmt_donor->close();
+        $current_url = strtok($_SERVER["REQUEST_URI"], '?');
+        echo "<script>window.location.href = '" . addslashes($current_url) . "';</script>";
+        exit;
+    }
+
+    if (isset($_GET['mark_read'])) {
+        $notif_id = (int)$_GET['mark_read'];
+        $stmt_mark = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+        if ($stmt_mark) {
+            $stmt_mark->bind_param('ii', $notif_id, $_SESSION['user_id']);
+            $stmt_mark->execute();
+            $stmt_mark->close();
+        }
+        if (isset($_GET['redirect'])) {
+            $redirect = $_GET['redirect'];
+            echo "<script>window.location.href = '" . addslashes($redirect) . "';</script>";
+            exit;
+        }
+        $current_url = strtok($_SERVER["REQUEST_URI"], '?');
+        echo "<script>window.location.href = '" . addslashes($current_url) . "';</script>";
+        exit;
+    }
+
+    // Fetch user notifications
+    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 15");
+    $notifCount = 0;
+    if ($stmt_notif) {
+        $stmt_notif->bind_param('i', $_SESSION['user_id']);
+        $stmt_notif->execute();
+        $res_notif = $stmt_notif->get_result();
+        while ($n = $res_notif->fetch_assoc()) {
+            $notifications[] = $n;
+            if ($n['is_read'] == 0) $notifCount++;
+        }
+        $stmt_notif->close();
     }
 } elseif ($isLoggedIn) {
     $username = $_SESSION['username'] ?? 'User';
+    $notifCount = 0;
 }
-$notifCount = count($notifications);
 
 ?>
 <nav class="bg-white shadow-lg sticky top-0 z-40">
@@ -91,16 +108,43 @@ $notifCount = count($notifications);
                         <div id="notifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
                             <div class="p-4 border-b border-gray-100 flex items-center justify-between">
                                 <p class="font-semibold text-gray-800">Notifications</p>
-                                <span class="text-xs text-gray-400"><?= $notifCount ?> new</span>
+                                <div>
+                                    <span class="text-xs text-gray-400 mr-2"><?= $notifCount ?> new</span>
+                                    <?php if ($notifCount > 0): ?>
+                                    <a href="?read_notifs=1" class="text-xs text-blue-600 hover:underline">Mark all as read</a>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            <?php if ($notifCount > 0): ?>
-                                <div class="max-h-64 overflow-y-auto">
-                                    <?php foreach ($notifications as $n): ?>
-                                        <a href="donordashboard.php" class="block p-4 border-b border-gray-100 hover:bg-gray-50 transition">
-                                            <p class="text-sm text-gray-800 font-semibold">You have been assigned as a donor!</p>
-                                            <p class="text-xs text-gray-500 mt-1">Hospital: <?= htmlspecialchars($n['hospital']) ?></p>
-                                            <p class="text-xs text-gray-500">Date: <?= htmlspecialchars($n['required_date']) ?></p>
-                                        </a>
+                            <?php if (count($notifications) > 0): ?>
+                                <div class="max-h-80 overflow-y-auto">
+                                    <?php foreach ($notifications as $n): 
+                                        $is_read = $n['is_read'] == 1;
+                                        $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100';
+                                        
+                                        // Figure out the link for donors vs requesters
+                                        $link = "profile.php"; // default
+                                        if (isset($_SESSION['role']) && strtolower($_SESSION['role']) == 'donor') {
+                                            $link = "donordashboard.php";
+                                        }
+                                        $read_link = "?mark_read=" . $n['id'] . "&redirect=" . urlencode($link);
+                                    ?>
+                                        <div class="block p-4 border-b border-gray-100 transition <?= $bgClass ?>">
+                                            <div class="flex items-start justify-between">
+                                                <p class="text-sm text-gray-900 font-bold flex items-center">
+                                                    <i class="fas fa-bell text-red-500 mr-2"></i> <?= htmlspecialchars($n['title'] ?? 'Notification') ?>
+                                                </p>
+                                                <?php if (!$is_read): ?>
+                                                <span class="w-2 h-2 rounded-full bg-red-600 mt-1"></span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <p class="text-xs text-gray-700 mt-1 font-medium"><?= htmlspecialchars($n['message']) ?></p>
+                                            <div class="mt-2 flex items-center justify-between">
+                                                <p class="text-[11px] text-gray-500 font-semibold"><?= date('M j, Y · g:i A', strtotime($n['created_at'])) ?></p>
+                                                <a href="<?= htmlspecialchars($read_link) ?>" class="text-[11px] font-bold text-red-600 hover:text-red-700">
+                                                    View Details →
+                                                </a>
+                                            </div>
+                                        </div>
                                     <?php endforeach; ?>
                                 </div>
                             <?php else: ?>
