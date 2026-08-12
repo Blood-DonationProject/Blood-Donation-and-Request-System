@@ -439,72 +439,40 @@ $stmt->close();
       <!-- Left: Stats + Badges -->
       <div class="space-y-6 animate-fade-up">
 
+        <?php if ($donorId > 0): ?>
         <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-4" data-i18n="donation_stats">Donation Stats</h2>
+          <h2 class="font-bold text-gray-900 mb-4">Donation Stats</h2>
           <div class="grid grid-cols-2 gap-4">
             <div class="text-center bg-red-50 rounded-xl p-4">
+              <div class="text-2xl mb-1">🩸</div>
               <p class="text-3xl font-bold text-red-600"><?= $donationCount ?></p>
-              <p class="text-xs text-gray-500 mt-1" data-i18n="donations">Donations</p>
+              <p class="text-xs text-gray-500 mt-1">Total Donations</p>
             </div>
             <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600"><?= $livesSaved ?></p>
-              <p class="text-xs text-gray-500 mt-1" data-i18n="lives_saved_stat">Lives Saved</p>
+              <div class="text-2xl mb-1">📦</div>
+              <p class="text-3xl font-bold text-red-600"><?= $totalUnits ?></p>
+              <p class="text-xs text-gray-500 mt-1">Blood Units Donated</p>
             </div>
-            <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600"><?= $daysSinceLast ?></p>
-              <p class="text-xs text-gray-500 mt-1" data-i18n="days_since_last_stat">Days Since Last</p>
+            <div class="text-center bg-red-50 rounded-xl p-4 overflow-hidden">
+              <div class="text-2xl mb-1">📅</div>
+              <p class="text-lg font-bold text-red-600 truncate" title="<?= !empty($donorData['last_donation_date']) ? date('M j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>">
+                <?= !empty($donorData['last_donation_date']) ? date('M j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>
+              </p>
+              <p class="text-xs text-gray-500 mt-1">Last Donation</p>
             </div>
-            <div class="text-center bg-red-50 rounded-xl p-4">
-              <p class="text-3xl font-bold text-red-600"><?= number_format($totalUnits * 0.5, 1) ?>L</p>
-              <p class="text-xs text-gray-500 mt-1" data-i18n="blood_donated">Blood Donated</p>
+            <div class="text-center bg-red-50 rounded-xl p-4 overflow-hidden">
+              <div class="text-2xl mb-1">✓</div>
+              <p class="text-lg font-bold text-red-600 truncate" title="<?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>">
+                <?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>
+              </p>
+              <p class="text-xs text-gray-500 mt-1">Donor Status</p>
             </div>
           </div>
         </div>
+        <?php endif; ?>
 
-        <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-4" data-i18n="badges_earned_profile">Badges Earned</h2>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 text-center">
-              <div class="text-3xl mb-1">🥇</div>
-              <p class="text-xs font-bold text-yellow-700" data-i18n="first_donation">First Donation</p>
-            </div>
-            <div class="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-center">
-              <div class="text-3xl mb-1">🔥</div>
-              <p class="text-xs font-bold text-red-700" data-i18n="five_donations">5 Donations</p>
-            </div>
-            <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 text-center">
-              <div class="text-3xl mb-1">⚡</div>
-              <p class="text-xs font-bold text-blue-700" data-i18n="quick_responder">Quick Responder</p>
-            </div>
-            <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 text-center">
-              <div class="text-3xl mb-1">🌟</div>
-              <p class="text-xs font-bold text-purple-700" data-i18n="life_saver">Life Saver</p>
-            </div>
-            <div class="bg-gray-50 border-2 border-gray-200 rounded-xl p-3 text-center opacity-40">
-              <div class="text-3xl mb-1">🔒</div>
-              <p class="text-xs font-bold text-gray-500" data-i18n="ten_donations">10 Donations</p>
-            </div>
-            <div class="bg-gray-50 border-2 border-gray-200 rounded-xl p-3 text-center opacity-40">
-              <div class="text-3xl mb-1">🔒</div>
-              <p class="text-xs font-bold text-gray-500" data-i18n="one_year_member">1 Year Member</p>
-            </div>
-          </div>
-        </div>
 
-        <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-3" data-i18n="account">Account</h2>
-          <div class="space-y-2">
-            <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-gray-700 flex items-center justify-between">
-              <span data-i18n="change_password">Change Password</span> <span>›</span>
-            </button>
-            <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-gray-700 flex items-center justify-between">
-              <span data-i18n="notification_settings">Notification Settings</span> <span>›</span>
-            </button>
-            <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-red-600 flex items-center justify-between">
-              <span data-i18n="logout">Logout</span> <span>›</span>
-            </button>
-          </div>
-        </div>
+
       </div>
 
       <!-- Right: Tabs -->
@@ -513,11 +481,13 @@ $stmt->close();
 
           <!-- Tabs -->
           <div class="flex border-b border-gray-100 overflow-x-auto">
-            <button onclick="setTab('info')" id="tabbtn-info" class="flex-1 py-4 font-semibold text-sm text-red-600 border-b-2 border-red-600 transition whitespace-nowrap px-2" data-i18n="personal_info">Personal Info</button>
+            <button onclick="setTab('info')" id="tabbtn-info" class="flex-1 py-4 font-semibold text-sm text-red-600 border-b-2 border-red-600 transition whitespace-nowrap px-2">Personal Information</button>
+            <?php if ($donorId > 0): ?>
+            <button onclick="setTab('donor')" id="tabbtn-donor" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Donor Information</button>
+            <?php endif; ?>
+            <button onclick="setTab('requests')" id="tabbtn-requests" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">My Blood Requests</button>
             <button onclick="setTab('history')" id="tabbtn-history" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="donation_history">Donation History</button>
-            <button onclick="setTab('requests')" id="tabbtn-requests" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="blood_requests_tab">Blood Requests</button>
-            <button onclick="setTab('health')" id="tabbtn-health" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="health_info">Health Info</button>
-            <button onclick="setTab('receipts')" id="tabbtn-receipts" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="receipts_tab">🧾 Receipts</button>
+            <button onclick="setTab('account')" id="tabbtn-account" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Account Information</button>
           </div>
 
           <div class="p-6 sm:p-8">
@@ -669,158 +639,68 @@ $stmt->close();
               </div>
             </div>
 
-            <!-- Health Info Tab -->
-            <div id="tab-health" class="tab-panel space-y-5">
+            <?php if ($donorId > 0): ?>
+            <!-- Donor Information Tab -->
+            <div id="tab-donor" class="tab-panel space-y-5">
               <div class="grid sm:grid-cols-2 gap-5">
                 <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="blood_type">Blood Type</label>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
                   <input type="text" value="<?= $bloodGroup ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
                 </div>
                 <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="weight_field">Weight (kg)</label>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg)</label>
                   <input type="text" value="<?= htmlspecialchars($donorData['weight'] ?? '-') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
                 </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Last Donation Date</label>
+                  <input type="text" value="<?= !empty($donorData['last_donation_date']) ? date('F j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Status</label>
+                  <input type="text" value="<?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Registration Date</label>
+                  <input type="text" value="<?= !empty($donorData['created_at']) ? date('F j, Y', strtotime($donorData['created_at'])) : '-' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                </div>
               </div>
-              <div class="bg-red-50 border-2 border-red-100 rounded-xl p-5">
-                <h3 class="font-bold text-red-700 mb-2 flex items-center gap-2">⚠️ <span data-i18n="medical_conditions">Medical Conditions</span></h3>
-                <p class="text-sm text-gray-600" data-i18n="medical_conditions_desc">None reported. Please update this section if your health status changes, as it affects your donation eligibility.</p>
+            </div>
+            <?php endif; ?>
+
+            <!-- Account Information Tab -->
+            <div id="tab-account" class="tab-panel space-y-5">
+              <div class="grid sm:grid-cols-2 gap-5">
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                  <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Account Status</label>
+                  <input type="text" value="Active" disabled class="w-full border-2 border-green-200 rounded-xl px-4 py-3 bg-green-50 text-green-700 font-bold" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                  <input type="text" value="<?= htmlspecialchars(ucfirst($userRole)) ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="member_since">Member Since</label>
+                  <input type="text" value="<?= !empty($userData['created_at']) ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                </div>
               </div>
-              <div class="bg-gray-50 rounded-xl p-5">
-                <h3 class="font-bold text-gray-800 mb-2" data-i18n="eligibility_checklist">Eligibility Checklist</h3>
-                <ul class="space-y-2 text-sm text-gray-600">
-                  <li class="flex items-center gap-2">✅ <span data-i18n="no_fever_2weeks">No fever or infection in past 2 weeks</span></li>
-                  <li class="flex items-center gap-2">✅ <span data-i18n="last_donation_4months">Last donation over 4 months ago</span></li>
-                  <li class="flex items-center gap-2">✅ <span data-i18n="not_on_medication">Not on blood-thinning medication</span></li>
-                  <li class="flex items-center gap-2">✅ <span data-i18n="weight_above_min">Weight above minimum requirement</span></li>
-                </ul>
+              <div class="pt-4 mt-2 border-t border-gray-100 space-y-2">
+                <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition text-sm font-medium text-gray-700 border-2 border-gray-100 flex items-center justify-between">
+                  <span data-i18n="change_password">Change Password</span> <span>›</span>
+                </button>
+                <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition text-sm font-medium text-gray-700 border-2 border-gray-100 flex items-center justify-between">
+                  <span data-i18n="notification_settings">Notification Settings</span> <span>›</span>
+                </button>
+                <button onclick="bloodlifeLogout()" class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-red-600 border-2 border-red-50 flex items-center justify-between">
+                  <span data-i18n="logout">Logout</span> <span>›</span>
+                </button>
               </div>
             </div>
 
-            <!-- Receipts Tab -->
-            <div id="tab-receipts" class="tab-panel space-y-5">
 
-              <div class="flex items-center justify-between mb-2">
-                <p class="text-sm text-gray-500" data-i18n="receipts_desc">Receipts issued to you by BloodLife admins after each donation.</p>
-              </div>
-
-              <!-- Receipt Card 1 -->
-              <div class="border-2 border-gray-100 hover:border-red-200 rounded-2xl p-5 transition">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div class="flex items-center gap-4">
-                    <div class="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🧾</div>
-                    <div>
-                      <div class="flex items-center gap-2 flex-wrap mb-1">
-                        <span class="font-bold text-gray-900">Receipt #BL-2026-4821</span>
-                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ <span data-i18n="verified">Verified</span></span>
-                      </div>
-                      <p class="text-sm text-gray-500">📅 Donated: <span class="font-semibold text-gray-700">April 28, 2026</span></p>
-                      <p class="text-sm text-gray-500">🏥 Hospital: <span class="font-semibold text-gray-700">Aga Khan University Hospital, Karachi</span></p>
-                    </div>
-                  </div>
-                  <button onclick="showReceipt(0)" class="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl font-semibold hover:bg-red-50 transition text-sm whitespace-nowrap" data-i18n="view_receipt">View Receipt</button>
-                </div>
-                <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="blood_type_label">Blood Type</p>
-                    <p class="font-bold text-red-600">A+</p>
-                  </div>
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="units_label">Units</p>
-                    <p class="font-bold text-gray-700">1 unit</p>
-                  </div>
-                  <div class="bg-green-50 rounded-xl p-2">
-                    <p class="text-green-600 mb-0.5">Re-donate From</p>
-                    <p class="font-bold text-green-700">Aug 26, 2026</p>
-                  </div>
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="issued_by">Issued By</p>
-                    <p class="font-bold text-gray-700">Dr. Kamran</p>
-                  </div>
-                </div>
-                <div class="mt-3 bg-gray-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500"><span class="font-semibold text-gray-700">Remark:</span> Donor was in excellent health. No complications observed during donation. Vitals stable throughout.</p>
-                </div>
-              </div>
-
-              <!-- Receipt Card 2 -->
-              <div class="border-2 border-gray-100 hover:border-red-200 rounded-2xl p-5 transition">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div class="flex items-center gap-4">
-                    <div class="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🧾</div>
-                    <div>
-                      <div class="flex items-center gap-2 flex-wrap mb-1">
-                        <span class="font-bold text-gray-900">Receipt #BL-2026-1193</span>
-                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ <span data-i18n="verified">Verified</span></span>
-                      </div>
-                      <p class="text-sm text-gray-500">📅 Donated: <span class="font-semibold text-gray-700">January 10, 2026</span></p>
-                      <p class="text-sm text-gray-500">🏥 Hospital: <span class="font-semibold text-gray-700">Civil Hospital, Karachi</span></p>
-                    </div>
-                  </div>
-                  <button onclick="showReceipt(1)" class="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl font-semibold hover:bg-red-50 transition text-sm whitespace-nowrap">View Receipt</button>
-                </div>
-                <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="blood_type_label">Blood Type</p>
-                    <p class="font-bold text-red-600">A+</p>
-                  </div>
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="units_label">Units</p>
-                    <p class="font-bold text-gray-700">1 unit</p>
-                  </div>
-                  <div class="bg-green-50 rounded-xl p-2">
-                    <p class="text-green-600 mb-0.5">Re-donate From</p>
-                    <p class="font-bold text-green-700">May 10, 2026</p>
-                  </div>
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="issued_by">Issued By</p>
-                    <p class="font-bold text-gray-700">Dr. Saira</p>
-                  </div>
-                </div>
-                <div class="mt-3 bg-gray-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500"><span class="font-semibold text-gray-700">Remark:</span> Successful donation. Donor advised to rest and stay hydrated for 24 hours.</p>
-                </div>
-              </div>
-
-              <!-- Receipt Card 3 -->
-              <div class="border-2 border-gray-100 hover:border-red-200 rounded-2xl p-5 transition">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div class="flex items-center gap-4">
-                    <div class="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🧾</div>
-                    <div>
-                      <div class="flex items-center gap-2 flex-wrap mb-1">
-                        <span class="font-bold text-gray-900">Receipt #BL-2025-7734</span>
-                        <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">✅ <span data-i18n="verified">Verified</span></span>
-                      </div>
-                      <p class="text-sm text-gray-500">📅 Donated: <span class="font-semibold text-gray-700">September 3, 2025</span></p>
-                      <p class="text-sm text-gray-500">🏥 Hospital: <span class="font-semibold text-gray-700">Aga Khan University Hospital, Karachi</span></p>
-                    </div>
-                  </div>
-                  <button onclick="showReceipt(2)" class="border-2 border-red-600 text-red-600 px-5 py-2 rounded-xl font-semibold hover:bg-red-50 transition text-sm whitespace-nowrap">View Receipt</button>
-                </div>
-                <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="blood_type_label">Blood Type</p>
-                    <p class="font-bold text-red-600">A+</p>
-                  </div>
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="units_label">Units</p>
-                    <p class="font-bold text-gray-700">1 unit</p>
-                  </div>
-                  <div class="bg-green-50 rounded-xl p-2">
-                    <p class="text-green-600 mb-0.5">Re-donate From</p>
-                    <p class="font-bold text-green-700">Jan 1, 2026</p>
-                  </div>
-                  <div class="bg-gray-50 rounded-xl p-2">
-                    <p class="text-gray-400 mb-0.5" data-i18n="issued_by">Issued By</p>
-                    <p class="font-bold text-gray-700">Dr. Kamran</p>
-                  </div>
-                </div>
-                <div class="mt-3 bg-gray-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500"><span class="font-semibold text-gray-700">Remark:</span> No issues reported. Donor is a regular contributor and eligible for the 5-donation badge.</p>
-                </div>
-              </div>
-
-            </div>
 
           </div>
         </div>
@@ -828,76 +708,6 @@ $stmt->close();
     </div>
   </div>
 
-  <!-- Receipt Modal -->
-  <div id="receiptModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
-
-      <!-- Modal Header -->
-      <div class="bg-gradient-to-r from-red-600 to-red-800 text-white px-8 py-6">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="text-3xl bg-white/20 p-2 rounded-full">🩸</span>
-            <div>
-              <h2 class="font-bold text-xl">BloodLife</h2>
-              <p class="text-red-200 text-xs">Official Donation Receipt</p>
-            </div>
-          </div>
-          <div class="text-right">
-            <p id="modal_receipt_no" class="font-bold text-lg tracking-wider">BL-0000-0000</p>
-            <p id="modal_issued_on" class="text-red-200 text-xs">Issued: —</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="px-8 py-6 space-y-4">
-        <div class="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p class="text-gray-400 text-xs font-semibold mb-1">DONOR NAME</p>
-            <p class="font-bold text-gray-900">Ahmed Raza</p>
-          </div>
-          <div>
-            <p class="text-gray-400 text-xs font-semibold mb-1">BLOOD TYPE</p>
-            <span class="inline-block bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-0.5 rounded-full">A+</span>
-          </div>
-          <div>
-            <p class="text-gray-400 text-xs font-semibold mb-1">DONATION DATE</p>
-            <p id="modal_donate_date" class="font-bold text-gray-900">—</p>
-          </div>
-          <div>
-            <p class="text-gray-400 text-xs font-semibold mb-1">UNITS DONATED</p>
-            <p class="font-bold text-gray-900">1 unit</p>
-          </div>
-          <div class="col-span-2">
-            <p class="text-gray-400 text-xs font-semibold mb-1">HOSPITAL</p>
-            <p id="modal_hospital" class="font-bold text-gray-900">—</p>
-          </div>
-          <div class="col-span-2 bg-green-50 border-2 border-green-200 rounded-xl p-3">
-            <p class="text-green-600 text-xs font-semibold mb-1">🔄 RE-DONATION ELIGIBLE FROM</p>
-            <p id="modal_redonate" class="font-bold text-green-700 text-lg">—</p>
-          </div>
-          <div class="col-span-2">
-            <p class="text-gray-400 text-xs font-semibold mb-1">REMARKS</p>
-            <p id="modal_remark" class="text-gray-600 text-sm bg-gray-50 rounded-xl p-3">—</p>
-          </div>
-          <div class="col-span-2 flex items-center justify-between pt-2 border-t border-gray-100">
-            <div>
-              <p class="text-gray-400 text-xs font-semibold mb-0.5">ISSUED BY</p>
-              <p id="modal_admin" class="font-bold text-gray-700 text-sm">—</p>
-            </div>
-            <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">✅ Verified</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="px-8 pb-6 flex gap-3">
-        <button onclick="window.print()" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white py-3 rounded-xl font-bold hover:shadow-lg transition">🖨️ <span data-i18n="print">Print</span></button>
-        <button onclick="closeReceiptModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-red-400 hover:text-red-600 transition">Close</button>
-      </div>
-
-    </div>
-  </div>
 
   <!-- Blood Received Confirmation Modal -->
   <div id="receivedConfirmModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
@@ -941,7 +751,7 @@ $stmt->close();
     }
 
     function setTab(tab) {
-      ['info', 'history', 'requests', 'health', 'receipts'].forEach(t => {
+      ['info', 'donor', 'requests', 'history', 'account'].forEach(t => {
         const el = document.getElementById('tab-' + t);
         if (el) el.classList.remove('active');
         const btn = document.getElementById('tabbtn-' + t);
@@ -956,54 +766,6 @@ $stmt->close();
       activeBtn.classList.remove('text-gray-500');
     }
 
-    const receipts = [{
-        no: 'BL-2026-4821',
-        issued: 'April 28, 2026',
-        donateDate: 'April 28, 2026',
-        hospital: 'Aga Khan University Hospital, Karachi',
-        redonate: 'August 26, 2026',
-        admin: 'Dr. Kamran',
-        remark: 'Donor was in excellent health. No complications observed during donation. Vitals stable throughout.'
-      },
-      {
-        no: 'BL-2026-1193',
-        issued: 'January 10, 2026',
-        donateDate: 'January 10, 2026',
-        hospital: 'Civil Hospital, Karachi',
-        redonate: 'May 10, 2026',
-        admin: 'Dr. Saira',
-        remark: 'Successful donation. Donor advised to rest and stay hydrated for 24 hours.'
-      },
-      {
-        no: 'BL-2025-7734',
-        issued: 'September 3, 2025',
-        donateDate: 'September 3, 2025',
-        hospital: 'Aga Khan University Hospital, Karachi',
-        redonate: 'January 1, 2026',
-        admin: 'Dr. Kamran',
-        remark: 'No issues reported. Donor is a regular contributor and eligible for the 5-donation badge.'
-      },
-    ];
-
-    function showReceipt(index) {
-      const r = receipts[index];
-      document.getElementById('modal_receipt_no').textContent = '#' + r.no;
-      document.getElementById('modal_issued_on').textContent = 'Issued: ' + r.issued;
-      document.getElementById('modal_donate_date').textContent = r.donateDate;
-      document.getElementById('modal_hospital').textContent = r.hospital;
-      document.getElementById('modal_redonate').textContent = r.redonate;
-      document.getElementById('modal_admin').textContent = r.admin;
-      document.getElementById('modal_remark').textContent = r.remark;
-      const modal = document.getElementById('receiptModal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
-
-    function closeReceiptModal() {
-      document.getElementById('receiptModal').classList.remove('flex');
-      document.getElementById('receiptModal').classList.add('hidden');
-    }
-
     function openReceivedModal(id) {
       document.getElementById('confirmReceivedBtn').href = 'profile.php?action=received&req_id=' + id;
       document.getElementById('receivedConfirmModal').classList.remove('hidden');
@@ -1014,11 +776,6 @@ $stmt->close();
       document.getElementById('receivedConfirmModal').classList.remove('flex');
       document.getElementById('receivedConfirmModal').classList.add('hidden');
     }
-
-    // Close modal on backdrop click
-    document.getElementById('receiptModal').addEventListener('click', function(e) {
-      if (e.target === this) closeReceiptModal();
-    });
 
     let editing = false;
 
