@@ -9,114 +9,34 @@ $donors_list = $conn->query("SELECT d.id, u.username FROM donor d JOIN users u O
 $requests_list = $conn->query("SELECT br.id, br.blood_groups_id, br.units, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id ORDER BY br.id DESC LIMIT 100");
 $blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
 
-if (isset($_POST['add'])) {
-    $donor_id = (int)$_POST['donor_id'];
-    $request_id = (int)$_POST['request_id'];
-    $blood_groups_id = (int)$_POST['blood_groups_id'];
-    $units = (int)$_POST['units'];
-    $donation_date = $_POST['donation_date'];
-
-    // Auto-derive users_id (requester) from the selected blood request
-    $users_id = 0;
-    if ($request_id > 0) {
-        $reqStmt = $conn->prepare("SELECT users_id FROM blood_request WHERE id = ?");
-        $reqStmt->bind_param("i", $request_id);
-        $reqStmt->execute();
-        $reqResult = $reqStmt->get_result();
-        if ($reqRow = $reqResult->fetch_assoc()) {
-            $users_id = (int)$reqRow['users_id'];
-        }
-        $reqStmt->close();
-    }
-
-    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '' && $users_id > 0) {
-        $stmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Completed')");
-        $stmt->bind_param("iiiiis", $donor_id, $users_id, $request_id, $blood_groups_id, $units, $donation_date);
-        if ($stmt->execute()) {
-            $success = 'Donation history record created successfully.';
-        } else {
-            $error = 'Error: ' . $conn->error;
-        }
-        $stmt->close();
-    } else {
-        $error = 'Please fill in all required fields.';
-    }
-}
-
-if (isset($_POST['update'])) {
-    $id = (int)$_POST['id'];
-    $donor_id = (int)$_POST['donor_id'];
-    $request_id = (int)$_POST['request_id'];
-    $blood_groups_id = (int)$_POST['blood_groups_id'];
-    $units = (int)$_POST['units'];
-    $donation_date = $_POST['donation_date'];
-
-    // Auto-derive users_id (requester) from the selected blood request
-    $users_id = 0;
-    if ($request_id > 0) {
-        $reqStmt = $conn->prepare("SELECT users_id FROM blood_request WHERE id = ?");
-        $reqStmt->bind_param("i", $request_id);
-        $reqStmt->execute();
-        $reqResult = $reqStmt->get_result();
-        if ($reqRow = $reqResult->fetch_assoc()) {
-            $users_id = (int)$reqRow['users_id'];
-        }
-        $reqStmt->close();
-    }
-
-    if ($donor_id && $blood_groups_id && $units > 0 && $donation_date !== '' && $users_id > 0) {
-        $stmt = $conn->prepare("UPDATE donation_history SET donor_id=?, users_id=?, request_id=?, blood_groups_id=?, units=?, donation_date=? WHERE id=?");
-        $stmt->bind_param("iiiiisi", $donor_id, $users_id, $request_id, $blood_groups_id, $units, $donation_date, $id);
-        if ($stmt->execute()) {
-            $success = 'Donation history updated successfully.';
-        } else {
-            $error = 'Error: ' . $conn->error;
-        }
-        $stmt->close();
-    } else {
-        $error = 'Please fill in all required fields.';
-    }
-}
-
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    $conn->query("DELETE FROM donation_history WHERE id = $id");
-    header('Location: donation_history_crud.php');
-    exit;
-}
+// Read-only view for completed donor assignments
 
 $records = [];
 $edit_row = null;
 
 $result = $conn->query("
-    SELECT dh.*,
+    SELECT da.id, da.donor_id, da.request_id, da.completed_at AS donation_date, da.status,
            u1.username AS donor_name,
            u2.username AS requester_name,
-           bg.blood_gp_name
-    FROM donation_history dh
-    LEFT JOIN donor d ON dh.donor_id = d.id
+           bg.blood_gp_name,
+           br.units,
+           br.hospital
+    FROM donor_assignments da
+    LEFT JOIN donor d ON da.donor_id = d.id
     LEFT JOIN users u1 ON d.user_id = u1.id
-    LEFT JOIN users u2 ON dh.users_id = u2.id
-    LEFT JOIN blood_groups bg ON dh.blood_groups_id = bg.id
-    ORDER BY dh.donation_date DESC
+    LEFT JOIN blood_request br ON da.request_id = br.id
+    LEFT JOIN users u2 ON br.users_id = u2.id
+    LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
+    WHERE da.status = 'Completed'
+    ORDER BY da.completed_at DESC
 ");
 if ($result && $result->num_rows > 0) {
     $records = $result->fetch_all(MYSQLI_ASSOC);
 }
 
-if (isset($_GET['edit'])) {
-    $edit_id = (int)$_GET['edit'];
-    foreach ($records as $r) {
-        if ($r['id'] == $edit_id) {
-            $edit_row = $r;
-            break;
-        }
-    }
-}
-
 $stats = [
-    'total' => $conn->query("SELECT COUNT(*) AS c FROM donation_history")->fetch_assoc()['c'] ?? 0,
-    'total_units' => $conn->query("SELECT COALESCE(SUM(units),0) AS c FROM donation_history")->fetch_assoc()['c'] ?? 0,
+    'total' => $conn->query("SELECT COUNT(*) AS c FROM donor_assignments WHERE status='Completed'")->fetch_assoc()['c'] ?? 0,
+    'total_units' => $conn->query("SELECT COALESCE(SUM(br.units),0) AS c FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id WHERE da.status='Completed'")->fetch_assoc()['c'] ?? 0,
     'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
 ];
 ?>
@@ -197,69 +117,7 @@ $stats = [
                 </div>
             </div>
 
-            <!-- Toggle Form -->
-            <div class="mb-8">
-                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
-                    <span>+</span>
-                    <span><?= $edit_row ? 'Edit Record' : 'Add New Record' ?></span>
-                </button>
-            </div>
-
-            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Donation History' : 'New Donation Record' ?></h3>
-                    <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                </div>
-                <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <?php if ($edit_row): ?>
-                        <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
-                    <?php endif; ?>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Donor *</label>
-                        <select name="donor_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select Donor --</option>
-                            <?php if ($donors_list): mysqli_data_seek($donors_list, 0); while ($d = $donors_list->fetch_assoc()): ?>
-                                <option value="<?= $d['id'] ?>" <?= (($edit_row['donor_id'] ?? 0) == $d['id']) ? 'selected' : '' ?>><?= htmlspecialchars($d['username']) ?></option>
-                            <?php endwhile; endif; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <select name="request_id" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="0">-- None --</option>
-                            <?php if ($requests_list): mysqli_data_seek($requests_list, 0); while ($req = $requests_list->fetch_assoc()): ?>
-                                <option value="<?= $req['id'] ?>" <?= (($edit_row['request_id'] ?? 0) == $req['id']) ? 'selected' : '' ?>>
-                                    #<?= $req['id'] ?> (<?= htmlspecialchars($req['blood_gp_name'] ?? '-') ?>, <?= $req['units'] ?> units)
-                                </option>
-                            <?php endwhile; endif; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group *</label>
-                        <select name="blood_groups_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select --</option>
-                            <?php if ($blood_groups_list): mysqli_data_seek($blood_groups_list, 0); while ($bg = $blood_groups_list->fetch_assoc()): ?>
-                                <option value="<?= $bg['id'] ?>" <?= (($edit_row['blood_groups_id'] ?? 0) == $bg['id']) ? 'selected' : '' ?>><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
-                            <?php endwhile; endif; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Units *</label>
-                        <input type="number" name="units" value="<?= htmlspecialchars($edit_row['units'] ?? '') ?>" required min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Donation Date *</label>
-                        <input type="date" name="donation_date" value="<?= htmlspecialchars($edit_row['donation_date'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
-                            <?= $edit_row ? 'Update' : 'Create' ?>
-                        </button>
-                        <?php if ($edit_row): ?>
-                            <a href="donation_history_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
+            <!-- Form Removed as History is now Auto-Generated -->
 
             <!-- Data Table -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
@@ -277,11 +135,11 @@ $stats = [
                                 <th class="p-3">ID</th>
                                 <th class="p-3">Donor Name</th>
                                 <th class="p-3">Requester Name</th>                                
+                                <th class="p-3">Hospital</th>                                
                                 <th class="p-3">Blood Group</th>
                                 <th class="p-3">Units</th>
                                 <th class="p-3">Donation Date</th>
                                 <th class="p-3">Status</th>
-                                <th class="p-3">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -291,16 +149,12 @@ $stats = [
                                         <td class="p-3 font-medium">#<?= $r['id'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donor_name'] ?? '-') ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>                                        
+                                        <td class="p-3"><?= htmlspecialchars($r['hospital'] ?? '-') ?></td>                                        
                                         <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
                                         <td class="p-3"><?= (int)$r['units'] ?></td>
-                                        <td class="p-3"><?= htmlspecialchars($r['donation_date']) ?></td>
+                                        <td class="p-3"><?= htmlspecialchars($r['donation_date'] ?? 'N/A') ?></td>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-green-100 text-green-700"><?= htmlspecialchars($r['status']) ?></span></td>
-                                        <td class="p-3">
-                                            <div class="flex gap-2">
-                                                <a href="donation_history_crud.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                <a href="donation_history_crud.php?delete=<?= $r['id'] ?>" class="text-red-600 hover:text-red-800 font-semibold" onclick="return confirm('Delete this record?')">Delete</a>
-                                            </div>
-                                        </td>
+                                            <!-- Actions Removed for Read-Only View -->
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>

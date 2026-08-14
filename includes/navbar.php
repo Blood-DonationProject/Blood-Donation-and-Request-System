@@ -6,6 +6,7 @@ $pageTitles = [
     'donor_crud.php' => ['title' => 'Manage Donors', 'description' => 'Manage and monitor the blood donor network.'],
     'donation_history_crud.php' => ['title' => 'Donation History', 'description' => 'Track and manage blood donation records.'],
     'blood_requests_crud.php' => ['title' => 'Blood Requests', 'description' => 'Manage blood request submissions from users.'],
+    'assignments.php' => ['title' => 'Assignments', 'description' => 'Track and manage donor assignments.'],
 ];
 $pageData = $pageTitles[$currentPage] ?? ['title' => 'Dashboard', 'description' => ''];
 
@@ -42,7 +43,7 @@ if (isset($_SESSION['user_id'])) {
         exit;
     }
 
-    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 15");
+    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
     $notifCount = 0;
     if ($stmt_notif) {
         $stmt_notif->bind_param('i', $_SESSION['user_id']);
@@ -163,6 +164,9 @@ if (typeof toggleTheme === 'undefined') {
                                         No new notifications
                                     </div>
                                 <?php endif; ?>
+                                <div class="p-3 border-t border-gray-100 text-center bg-gray-50 rounded-b-xl">
+                                    <a href="notifications.php" class="text-sm font-semibold text-red-600 hover:text-red-700">View All Notifications &rarr;</a>
+                                </div>
                             </div>
                         </div>
                        

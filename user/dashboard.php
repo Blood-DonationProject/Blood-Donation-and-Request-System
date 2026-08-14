@@ -40,7 +40,7 @@ $r = $conn->query("SELECT COUNT(*) AS c FROM donor");
 if ($r) $totalDonors = $r->fetch_assoc()['c'] ?? 0;
 $r = $conn->query("SELECT COUNT(*) AS c FROM blood_request");
 if ($r) $totalRequests = $r->fetch_assoc()['c'] ?? 0;
-$r = $conn->query("SELECT COUNT(*) AS c FROM donation_history");
+$r = $conn->query("SELECT COUNT(*) AS c FROM donor_assignments WHERE status='Completed'");
 if ($r) $totalDonations = $r->fetch_assoc()['c'] ?? 0;
 $r = $conn->query("SELECT COUNT(*) AS c FROM users");
 if ($r) $totalUsers = $r->fetch_assoc()['c'] ?? 0;

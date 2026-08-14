@@ -78,18 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
     }
 
     if ($stmt->execute()) {
-      $donorIdForHistory = $existing ? $existing['id'] : $conn->insert_id;
-      $bgStmt = $conn->prepare("SELECT id FROM blood_groups WHERE blood_gp_name = ?");
-      $bgStmt->bind_param("s", $blood_groups);
-      $bgStmt->execute();
-      $bgResult = $bgStmt->get_result()->fetch_assoc();
-      $bgStmt->close();
-      $blood_groups_id = $bgResult ? $bgResult['id'] : 0;
-      $donationDate = $last_donation_date ?: date('Y-m-d');
-      $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, donation_date, units, status) VALUES (?, ?, 0, ?, ?, 1, 'Completed')");
-      $dhStmt->bind_param("iiis", $donorIdForHistory, $userId, $blood_groups_id, $donationDate);
-      $dhStmt->execute();
-      $dhStmt->close();
       $message = $existing ? 'Donor information updated successfully.' : 'Donor registration successful.';
       $messageType = 'success';
     } else {
@@ -128,52 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
   }
 }
 
-// Handle blood received
-if (isset($_GET['action']) && $_GET['action'] === 'received' && isset($_GET['req_id'])) {
-  $r_id = (int)$_GET['req_id'];
-
-  // Verify it belongs to the user and is Accepted
-  $check = $conn->prepare("SELECT assigned_donor_id, blood_groups_id, units FROM blood_request WHERE id = ? AND users_id = ? AND status = 'Accepted'");
-  $check->bind_param("ii", $r_id, $userId);
-  $check->execute();
-  $res = $check->get_result();
-  if ($res && $res->num_rows > 0) {
-    $req = $res->fetch_assoc();
-    $d_id = $req['assigned_donor_id'];
-
-    // Update blood_request
-    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Received', received_at = NOW() WHERE id = ?");
-    $stmt_a->bind_param("i", $r_id);
-    $stmt_a->execute();
-
-    // Update donor_assignments
-    $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Received' WHERE request_id = ? AND donor_id = ?");
-    $stmt_assign->bind_param("ii", $r_id, $d_id);
-    $stmt_assign->execute();
-
-    // Notify Admin
-    $assignment_id = null;
-    $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
-    $get_assign->bind_param("ii", $r_id, $d_id);
-    $get_assign->execute();
-    if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
-    $get_assign->close();
-
-    $admins = [0];
-    $msg = "Request #" . $r_id . " has been marked as Blood Received by the requester.";
-    $notifType = 'StatusUpdate';
-    $notifTitle = 'Blood Received';
-    $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-    foreach ($admins as $admin_id) {
-      $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
-      $notif->execute();
-    }
-  }
-  $check->close();
-  header("Location: profile.php?msg=received");
-  exit;
-}
-
 
 // Fetch user data
 $userData = [];
@@ -208,12 +150,12 @@ if ($donorData) {
 }
 
 // Fetch donation history by donor_id or users_id
-$stmt = $conn->prepare("SELECT dh.*, bg.blood_gp_name, br.hospital
-                        FROM donation_history dh
-                        LEFT JOIN blood_groups bg ON bg.id = dh.blood_groups_id
-                        LEFT JOIN blood_request br ON br.id = dh.request_id AND dh.request_id > 0
-                        WHERE " . ($donorId > 0 ? "dh.donor_id = ?" : "dh.users_id = ?") . "
-                        ORDER BY dh.donation_date DESC");
+$stmt = $conn->prepare("SELECT da.completed_at as donation_date, da.status, bg.blood_gp_name, br.hospital, br.units
+                        FROM donor_assignments da
+                        JOIN blood_request br ON br.id = da.request_id
+                        LEFT JOIN blood_groups bg ON bg.id = br.blood_groups_id
+                        WHERE da.status = 'Completed' AND " . ($donorId > 0 ? "da.donor_id = ?" : "br.users_id = ?") . "
+                        ORDER BY da.completed_at DESC");
 $param = $donorId > 0 ? $donorId : $userId;
 $stmt->bind_param("i", $param);
 $stmt->execute();
@@ -428,9 +370,7 @@ $stmt->close();
           </div>
 
         </div>
-        <a href="donordashboard.php" onclick="toggleEdit()" id="editToggleBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition whitespace-nowrap">
-          Back
-        </a>
+
       </div>
     </div>
 
@@ -440,35 +380,35 @@ $stmt->close();
       <div class="space-y-6 animate-fade-up">
 
         <?php if ($donorId > 0): ?>
-        <div class="bg-white rounded-2xl shadow p-6">
-          <h2 class="font-bold text-gray-900 mb-4">Donation Stats</h2>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="text-center bg-red-50 rounded-xl p-4">
-              <div class="text-2xl mb-1">🩸</div>
-              <p class="text-3xl font-bold text-red-600"><?= $donationCount ?></p>
-              <p class="text-xs text-gray-500 mt-1">Total Donations</p>
-            </div>
-            <div class="text-center bg-red-50 rounded-xl p-4">
-              <div class="text-2xl mb-1">📦</div>
-              <p class="text-3xl font-bold text-red-600"><?= $totalUnits ?></p>
-              <p class="text-xs text-gray-500 mt-1">Blood Units Donated</p>
-            </div>
-            <div class="text-center bg-red-50 rounded-xl p-4 overflow-hidden">
-              <div class="text-2xl mb-1">📅</div>
-              <p class="text-lg font-bold text-red-600 truncate" title="<?= !empty($donorData['last_donation_date']) ? date('M j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>">
-                <?= !empty($donorData['last_donation_date']) ? date('M j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>
-              </p>
-              <p class="text-xs text-gray-500 mt-1">Last Donation</p>
-            </div>
-            <div class="text-center bg-red-50 rounded-xl p-4 overflow-hidden">
-              <div class="text-2xl mb-1">✓</div>
-              <p class="text-lg font-bold text-red-600 truncate" title="<?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>">
-                <?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>
-              </p>
-              <p class="text-xs text-gray-500 mt-1">Donor Status</p>
+          <div class="bg-white rounded-2xl shadow p-6">
+            <h2 class="font-bold text-gray-900 mb-4">Donation Stats</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="text-center bg-red-50 rounded-xl p-4">
+                <div class="text-2xl mb-1">🩸</div>
+                <p class="text-3xl font-bold text-red-600"><?= $donationCount ?></p>
+                <p class="text-xs text-gray-500 mt-1">Total Donations</p>
+              </div>
+              <div class="text-center bg-red-50 rounded-xl p-4">
+                <div class="text-2xl mb-1">📦</div>
+                <p class="text-3xl font-bold text-red-600"><?= $totalUnits ?></p>
+                <p class="text-xs text-gray-500 mt-1">Blood Units Donated</p>
+              </div>
+              <div class="text-center bg-red-50 rounded-xl p-4 overflow-hidden">
+                <div class="text-2xl mb-1">📅</div>
+                <p class="text-lg font-bold text-red-600 truncate" title="<?= !empty($donorData['last_donation_date']) ? date('M j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>">
+                  <?= !empty($donorData['last_donation_date']) ? date('M j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>
+                </p>
+                <p class="text-xs text-gray-500 mt-1">Last Donation</p>
+              </div>
+              <div class="text-center bg-red-50 rounded-xl p-4 overflow-hidden">
+                <div class="text-2xl mb-1">✓</div>
+                <p class="text-lg font-bold text-red-600 truncate" title="<?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>">
+                  <?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>
+                </p>
+                <p class="text-xs text-gray-500 mt-1">Donor Status</p>
+              </div>
             </div>
           </div>
-        </div>
         <?php endif; ?>
 
 
@@ -483,11 +423,9 @@ $stmt->close();
           <div class="flex border-b border-gray-100 overflow-x-auto">
             <button onclick="setTab('info')" id="tabbtn-info" class="flex-1 py-4 font-semibold text-sm text-red-600 border-b-2 border-red-600 transition whitespace-nowrap px-2">Personal Information</button>
             <?php if ($donorId > 0): ?>
-            <button onclick="setTab('donor')" id="tabbtn-donor" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Donor Information</button>
+              <button onclick="setTab('donor')" id="tabbtn-donor" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Donor Information</button>
             <?php endif; ?>
-            <button onclick="setTab('requests')" id="tabbtn-requests" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">My Blood Requests</button>
             <button onclick="setTab('history')" id="tabbtn-history" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2" data-i18n="donation_history">Donation History</button>
-            <button onclick="setTab('account')" id="tabbtn-account" class="flex-1 py-4 font-semibold text-sm text-gray-500 hover:text-gray-700 transition whitespace-nowrap px-2">Account Information</button>
           </div>
 
           <div class="p-6 sm:p-8">
@@ -583,147 +521,40 @@ $stmt->close();
               <?php endif; ?>
             </div>
 
-            <!-- Blood Requests Tab -->
-            <div id="tab-requests" class="tab-panel">
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="border-b border-gray-100">
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                    <?php if (count($bloodRequests) > 0): ?>
-                      <?php foreach ($bloodRequests as $br): ?>
-                        <tr class="hover:bg-gray-50">
-                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
-                          <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
-                          <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
-                          <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
-                          <td class="py-3">
-                            <?php
-                            $status = htmlspecialchars($br['status'] ?? 'Pending');
-                            $statusColors = [
-                              'Pending'   => 'bg-yellow-100 text-yellow-700',
-                              'Approved'  => 'bg-blue-100 text-blue-700',
-                              'Assigned'  => 'bg-blue-100 text-blue-700',
-                              'Accepted'  => 'bg-blue-100 text-blue-700',
-                              'Completed' => 'bg-green-100 text-green-700',
-                              'Rejected'  => 'bg-red-100 text-red-700',
-                            ];
-                            $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
-                            ?>
-                            <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
-                          </td>
-                          <td class="py-3">
-                            <?php if ($status === 'Accepted'): ?>
-                              <button type="button" onclick="openReceivedModal(<?= (int)$br['id'] ?>)" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 transition shadow-sm">Mark as Received</button>
-                            <?php else: ?>
-                              <span class="text-gray-400 text-xs">-</span>
-                            <?php endif; ?>
-                          </td>
-                        </tr>
-                      <?php endforeach; ?>
-                    <?php else: ?>
-                      <tr>
-                        <td colspan="6" class="py-8 text-center text-gray-500" data-i18n="no_blood_request_history">No blood request history found.</td>
-                      </tr>
-                    <?php endif; ?>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
             <?php if ($donorId > 0): ?>
-            <!-- Donor Information Tab -->
-            <div id="tab-donor" class="tab-panel space-y-5">
-              <div class="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
-                  <input type="text" value="<?= $bloodGroup ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg)</label>
-                  <input type="text" value="<?= htmlspecialchars($donorData['weight'] ?? '-') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Last Donation Date</label>
-                  <input type="text" value="<?= !empty($donorData['last_donation_date']) ? date('F j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Status</label>
-                  <input type="text" value="<?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-                <div class="sm:col-span-2">
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Registration Date</label>
-                  <input type="text" value="<?= !empty($donorData['created_at']) ? date('F j, Y', strtotime($donorData['created_at'])) : '-' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+              <!-- Donor Information Tab -->
+              <div id="tab-donor" class="tab-panel space-y-5">
+                <div class="grid sm:grid-cols-2 gap-5">
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                    <input type="text" value="<?= $bloodGroup ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg)</label>
+                    <input type="text" value="<?= htmlspecialchars($donorData['weight'] ?? '-') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Last Donation Date</label>
+                    <input type="text" value="<?= !empty($donorData['last_donation_date']) ? date('F j, Y', strtotime($donorData['last_donation_date'])) : 'Never' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Status</label>
+                    <input type="text" value="<?= htmlspecialchars($donorData['available_status'] ?? 'Available') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Donor Registration Date</label>
+                    <input type="text" value="<?= !empty($donorData['created_at']) ? date('F j, Y', strtotime($donorData['created_at'])) : '-' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
+                  </div>
                 </div>
               </div>
-            </div>
             <?php endif; ?>
 
-            <!-- Account Information Tab -->
-            <div id="tab-account" class="tab-panel space-y-5">
-              <div class="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
-                  <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Account Status</label>
-                  <input type="text" value="Active" disabled class="w-full border-2 border-green-200 rounded-xl px-4 py-3 bg-green-50 text-green-700 font-bold" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                  <input type="text" value="<?= htmlspecialchars(ucfirst($userRole)) ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="member_since">Member Since</label>
-                  <input type="text" value="<?= !empty($userData['created_at']) ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600" />
-                </div>
-              </div>
-              <div class="pt-4 mt-2 border-t border-gray-100 space-y-2">
-                <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition text-sm font-medium text-gray-700 border-2 border-gray-100 flex items-center justify-between">
-                  <span data-i18n="change_password">Change Password</span> <span>›</span>
-                </button>
-                <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition text-sm font-medium text-gray-700 border-2 border-gray-100 flex items-center justify-between">
-                  <span data-i18n="notification_settings">Notification Settings</span> <span>›</span>
-                </button>
-                <button onclick="bloodlifeLogout()" class="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 transition text-sm font-medium text-red-600 border-2 border-red-50 flex items-center justify-between">
-                  <span data-i18n="logout">Logout</span> <span>›</span>
-                </button>
-              </div>
-            </div>
+
 
 
 
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Blood Received Confirmation Modal -->
-  <div id="receivedConfirmModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
-      <div class="p-8 text-center space-y-6">
-        <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
-          ✅
-        </div>
-        <div>
-          <h2 class="font-bold text-2xl text-gray-900 mb-2">Confirm Blood Received</h2>
-          <p class="text-gray-500">Have you received the blood successfully?</p>
-        </div>
-      </div>
-      <div class="px-8 pb-8 flex gap-3">
-        <button onclick="closeReceivedModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
-        <a href="#" id="confirmReceivedBtn" onclick="this.classList.add('opacity-50', 'pointer-events-none');" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition text-center shadow-md">Yes, Blood Received</a>
       </div>
     </div>
   </div>
@@ -751,7 +582,7 @@ $stmt->close();
     }
 
     function setTab(tab) {
-      ['info', 'donor', 'requests', 'history', 'account'].forEach(t => {
+      ['info', 'donor', 'history'].forEach(t => {
         const el = document.getElementById('tab-' + t);
         if (el) el.classList.remove('active');
         const btn = document.getElementById('tabbtn-' + t);
@@ -764,17 +595,6 @@ $stmt->close();
       const activeBtn = document.getElementById('tabbtn-' + tab);
       activeBtn.classList.add('text-red-600', 'border-b-2', 'border-red-600');
       activeBtn.classList.remove('text-gray-500');
-    }
-
-    function openReceivedModal(id) {
-      document.getElementById('confirmReceivedBtn').href = 'profile.php?action=received&req_id=' + id;
-      document.getElementById('receivedConfirmModal').classList.remove('hidden');
-      document.getElementById('receivedConfirmModal').classList.add('flex');
-    }
-
-    function closeReceivedModal() {
-      document.getElementById('receivedConfirmModal').classList.remove('flex');
-      document.getElementById('receivedConfirmModal').classList.add('hidden');
     }
 
     let editing = false;

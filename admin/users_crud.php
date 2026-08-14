@@ -35,32 +35,6 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
-if (isset($_POST['add'])) {
-    $username = trim($_POST['username']);
-    $email = trim($_POST['email']);
-    $password = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
-    $role = $_POST['role'];
-    $status = $_POST['status'];
-
-    if ($username !== '' && $_POST['password'] !== '') {
-        if ($hasRoleColumn) {
-            $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssss", $username, $email, $password, $role, $status);
-        } else {
-            $stmt = $conn->prepare("INSERT INTO users (username, email, password, status) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("ssss", $username, $email, $password, $status);
-        }
-        if ($stmt->execute()) {
-            $success = 'User created successfully.';
-        } else {
-            $error = 'Error: ' . $conn->error;
-        }
-        $stmt->close();
-    } else {
-        $error = 'Username and password are required.';
-    }
-}
-
 if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
     $username = trim($_POST['username']);
@@ -238,23 +212,16 @@ if ($hasRoleColumn) {
                 </div>
             </div>
 
-            <!-- Toggle Form -->
-            <div class="mb-8">
-                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
-                    <span>+</span>
-                    <span><?= $edit_row ? 'Edit User' : 'Add New User' ?></span>
-                </button>
-            </div>
 
-            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
+
+            <?php if ($edit_row): ?>
+            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit User' : 'New User' ?></h3>
-                    <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                    <h3 class="text-xl font-bold text-gray-800">Edit User</h3>
+                    <a href="users_crud.php" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</a>
                 </div>
                 <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <?php if ($edit_row): ?>
-                        <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
-                    <?php endif; ?>
+                    <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Username *</label>
                         <input type="text" name="username" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
@@ -264,8 +231,8 @@ if ($hasRoleColumn) {
                         <input type="email" name="email" value="<?= htmlspecialchars($edit_row['email'] ?? '') ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Password <?= $edit_row ? '(leave blank to keep)' : '*' ?></label>
-                        <input type="password" name="password" value="" <?= $edit_row ? '' : 'required' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Password (leave blank to keep)</label>
+                        <input type="password" name="password" value="" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <?php if ($hasRoleColumn): ?>
                     <div>
@@ -286,15 +253,14 @@ if ($hasRoleColumn) {
                         </select>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
-                            <?= $edit_row ? 'Update' : 'Create' ?>
+                        <button type="submit" name="update" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
+                            Update
                         </button>
-                        <?php if ($edit_row): ?>
-                            <a href="users_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
-                        <?php endif; ?>
+                        <a href="users_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
                     </div>
                 </form>
             </div>
+            <?php endif; ?>
 
             <!-- Data Table -->
             <div class="bg-white rounded-2xl shadow-lg p-6">

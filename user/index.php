@@ -19,10 +19,15 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blood Donation System - Save Lives</title>
     <script>
-        (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
+        (function() {
+            var t = localStorage.getItem('bloodlife-theme');
+            if (t === 'dark') document.documentElement.classList.add('dark');
+        })();
     </script>
     <script>
-        tailwind.config = { darkMode: 'class' }
+        tailwind.config = {
+            darkMode: 'class'
+        }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
@@ -81,34 +86,131 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
         }
     </style>
     <style id="dark-mode-styles">
-        html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-        html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
-        html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
-        html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-        html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg, html.dark .w-64.bg-white { background-color: #1f2937 !important; }
-        html.dark .bg-white { background-color: #1f2937 !important; }
-        html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-        html.dark .text-gray-700 { color: #d1d5db !important; }
-        html.dark .text-gray-600 { color: #9ca3af !important; }
-        html.dark .text-gray-500 { color: #9ca3af !important; }
-        html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-        html.dark label { color: #d1d5db !important; }
-        html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
-        html.dark thead.bg-gray-50 { background-color: #111827 !important; }
-        html.dark .border-gray-200, html.dark .border-2.border-gray-200 { border-color: #4b5563 !important; }
-        html.dark .border-t { border-color: #374151 !important; }
-        html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
-        html.dark .bg-green-50 { background-color: rgba(34,197,94,0.15) !important; }
-        html.dark .bg-yellow-50 { background-color: rgba(234,179,8,0.15) !important; }
-        html.dark .bg-blue-50 { background-color: rgba(59,130,246,0.15) !important; }
-        html.dark .bg-purple-50 { background-color: rgba(168,85,247,0.15) !important; }
-        html.dark .bg-orange-50 { background-color: rgba(249,115,22,0.15) !important; }
-        html.dark .bg-white.rounded-xl.shadow-xl { background-color: #1f2937 !important; border-color: #374151 !important; }
-        html.dark tbody tr { border-color: #374151 !important; }
-        html.dark tbody tr:hover { background-color: #374151 !important; }
-        html.dark ::-webkit-scrollbar { width: 8px; }
-        html.dark ::-webkit-scrollbar-track { background: #1f2937; }
-        html.dark ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        html:not(.dark) body {
+            background-color: #ffffff !important;
+            background-image: none !important;
+        }
+
+        html:not(.dark) .bg-gray-50 {
+            background-color: #ffffff !important;
+        }
+
+        html:not(.dark) .bg-gray-100 {
+            background-color: #ffffff !important;
+        }
+
+        html.dark body {
+            background-color: #111827 !important;
+            background-image: none !important;
+            color: #e5e7eb;
+        }
+
+        html.dark nav.bg-white,
+        html.dark nav.bg-white.shadow-lg,
+        html.dark .w-64.bg-white {
+            background-color: #1f2937 !important;
+        }
+
+        html.dark .bg-white {
+            background-color: #1f2937 !important;
+        }
+
+        html.dark .text-gray-900,
+        html.dark .text-gray-800 {
+            color: #f3f4f6 !important;
+        }
+
+        html.dark .text-gray-700 {
+            color: #d1d5db !important;
+        }
+
+        html.dark .text-gray-600 {
+            color: #9ca3af !important;
+        }
+
+        html.dark .text-gray-500 {
+            color: #9ca3af !important;
+        }
+
+        html.dark input,
+        html.dark select,
+        html.dark textarea {
+            background-color: #374151 !important;
+            border-color: #4b5563 !important;
+            color: #e5e7eb !important;
+        }
+
+        html.dark label {
+            color: #d1d5db !important;
+        }
+
+        html.dark .bg-gray-50,
+        html.dark .bg-gray-100 {
+            background-color: #374151 !important;
+        }
+
+        html.dark thead.bg-gray-50 {
+            background-color: #111827 !important;
+        }
+
+        html.dark .border-gray-200,
+        html.dark .border-2.border-gray-200 {
+            border-color: #4b5563 !important;
+        }
+
+        html.dark .border-t {
+            border-color: #374151 !important;
+        }
+
+        html.dark .bg-red-50 {
+            background-color: rgba(220, 38, 38, 0.15) !important;
+        }
+
+        html.dark .bg-green-50 {
+            background-color: rgba(34, 197, 94, 0.15) !important;
+        }
+
+        html.dark .bg-yellow-50 {
+            background-color: rgba(234, 179, 8, 0.15) !important;
+        }
+
+        html.dark .bg-blue-50 {
+            background-color: rgba(59, 130, 246, 0.15) !important;
+        }
+
+        html.dark .bg-purple-50 {
+            background-color: rgba(168, 85, 247, 0.15) !important;
+        }
+
+        html.dark .bg-orange-50 {
+            background-color: rgba(249, 115, 22, 0.15) !important;
+        }
+
+        html.dark .bg-white.rounded-xl.shadow-xl {
+            background-color: #1f2937 !important;
+            border-color: #374151 !important;
+        }
+
+        html.dark tbody tr {
+            border-color: #374151 !important;
+        }
+
+        html.dark tbody tr:hover {
+            background-color: #374151 !important;
+        }
+
+        html.dark ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        html.dark ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+
+        html.dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
@@ -121,6 +223,18 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
 
     <!-- Navbar -->
     <?php include __DIR__ . '/../includes/header.php'; ?>
+
+    <?php if (isset($_SESSION['success_msg'])): ?>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+            <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl shadow-sm text-sm font-medium animate-fade-down flex items-center justify-between">
+                <div>
+                    <span class="mr-2">✅</span> <?= htmlspecialchars($_SESSION['success_msg']) ?>
+                </div>
+                <button onclick="this.parentElement.parentElement.style.display='none'" class="text-green-600 hover:text-green-800 focus:outline-none font-bold ml-4">&times;</button>
+            </div>
+        </div>
+        <?php unset($_SESSION['success_msg']); ?>
+    <?php endif; ?>
 
     <!-- Hero Section -->
     <section id="home" class="py-16 sm:py-24 overflow-hidden">
@@ -153,21 +267,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                         </a>
                     </div>
 
-                    <!-- Stats -->
-                    <div class="grid grid-cols-3 gap-4 mt-12">
-                        <div class="text-center bg-red-600 text-white rounded-2xl p-4">
-                            <h3 class="text-3xl font-bold"><?= $totalDonors ?>+</h3>
-                            <p class="text-sm opacity-90" data-i18n="active_donors">Active Donors</p>
-                        </div>
-                        <div class="text-center bg-red-600 text-white rounded-2xl p-4">
-                            <h3 class="text-3xl font-bold"><?= $totalRequests ?>+</h3>
-                            <p class="text-sm opacity-90" data-i18n="lives_saved">Lives Saved</p>
-                        </div>
-                        <div class="text-center bg-red-600 text-white rounded-2xl p-4">
-                            <h3 class="text-3xl font-bold"><?= $totalUsers ?>+</h3>
-                            <p class="text-sm opacity-90" data-i18n="total_users">Total Users</p>
-                        </div>
-                    </div>
+
                 </div>
 
                 <!-- Right - Blood Type Card -->
@@ -207,69 +307,16 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                             </div>
                         </div>
 
-                        
+
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="py-16 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-4xl font-bold text-center mb-12" data-i18n="why_choose_bloodlife">Why Choose BloodLife?</h2>
 
-            <div class="grid md:grid-cols-3 gap-8">
-                <div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
-                    <div class="text-4xl mb-4">🎯</div>
-                    <h3 class="text-xl font-bold mb-3" data-i18n="quick_easy">Quick & Easy</h3>
-                    <p class="text-gray-600" data-i18n="quick_easy_desc">Simple registration process. Start donating in minutes with our user-friendly platform.</p>
-                </div>
 
-                
-
-                <div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
-                    <div class="text-4xl mb-4">🛡</div>
-                    <h3 class="text-xl font-bold mb-3" data-i18n="safe_secure">Safe & Secure</h3>
-                    <p class="text-gray-600" data-i18n="safe_secure_desc">Your health and data are our priority. All donations follow strict medical guidelines.</p>
-                </div>
-
-                <div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
-                    <div class="text-4xl mb-4">📊</div>
-                    <h3 class="text-xl font-bold mb-3" data-i18n="track_impact">Track Impact</h3>
-                    <p class="text-gray-600" data-i18n="track_impact_desc">See how many lives your donations have saved with our transparent tracking system.</p>
-                </div>
-
-                <div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
-                    <div class="text-4xl mb-4">🎁</div>
-                    <h3 class="text-xl font-bold mb-3" data-i18n="rewards">Rewards</h3>
-                    <p class="text-gray-600" data-i18n="rewards_desc">Earn certificates and rewards for your generous contributions to the community.</p>
-                </div>
-<div class="p-8 border-2 border-gray-200 rounded-2xl hover:border-red-600 hover:shadow-xl transition transform hover:-translate-y-2">
-                    <div class="text-4xl mb-4">🌍</div>
-                    <h3 class="text-xl font-bold mb-3" data-i18n="global_community">Global Community</h3>
-                    <p class="text-gray-600" data-i18n="global_community_desc">Join thousands of donors making a difference in their communities every day.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="py-16 bg-gradient-to-r from-red-600 to-red-800 text-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 class="text-4xl font-bold mb-6" data-i18n="ready_make_difference">Ready to Make a Difference?</h2>
-            <p class="text-xl mb-8 opacity-90" data-i18n="ready_make_difference_desc">Join our community of lifesavers. Your donation today could save someone's tomorrow.</p>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="register.php" class="bg-white text-red-600 px-8 py-4 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105" data-i18n="start_donating_now">
-                    Start Donating Now
-                </a>
-                <a href="#" class="border-2 border-white text-white px-8 py-4 rounded-xl font-bold hover:bg-white hover:bg-opacity-10 transition" data-i18n="learn_more">
-                    Learn More
-                </a>
-            </div>
-        </div>
-    </section>
- <!-- Footer -->
+    <!-- Footer -->
     <?php include __DIR__ . '/../includes/footer.php'; ?>
 
     <!-- Login Modal -->
@@ -293,16 +340,21 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="username">Username</label>
                         <input type="text" name="username" id="loginUsername" data-i18n-placeholder="enter_username" placeholder="Enter your username" required
-                               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password">Password</label>
                         <div class="relative">
                             <input type="password" name="password" id="loginPassword" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
-                                   class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
+                                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
                             <button type="button" onclick="toggleModalPassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700" id="modalEyeBtn">
-                                <svg id="modalEyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                <svg id="modalEyeClosed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                <svg id="modalEyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg id="modalEyeClosed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -327,7 +379,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
         </div>
     </div>
 
-<script>
+    <script>
         // Notification Dropdown Toggle
         function toggleNotifDropdown() {
             document.getElementById('notifDropdown').classList.toggle('hidden');
@@ -412,27 +464,31 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
             submitBtn.textContent = 'Signing in...';
 
             fetch('login.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&ajax=1'
-            })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-                if (data.success) {
-                    window.location.href = data.redirect;
-                } else {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: 'username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&ajax=1'
+                })
+                .then(function(res) {
+                    return res.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        window.location.href = data.redirect;
+                    } else {
+                        errorDiv.classList.remove('hidden');
+                        errorText.textContent = data.message || 'Invalid username or password.';
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Sign In →';
+                    }
+                })
+                .catch(function() {
                     errorDiv.classList.remove('hidden');
-                    errorText.textContent = data.message || 'Invalid username or password.';
+                    errorText.textContent = 'Connection error. Please try again.';
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Sign In →';
-                }
-            })
-            .catch(function() {
-                errorDiv.classList.remove('hidden');
-                errorText.textContent = 'Connection error. Please try again.';
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Sign In →';
-            });
+                });
         });
 
         // Smooth scroll for navigation links
@@ -474,27 +530,31 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
     </script>
 
     <script>
-    (function() {
-      var KEY = 'bloodlife-theme';
-      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
-      function apply(t) {
-        if (t === 'dark') document.documentElement.classList.add('dark');
-        else document.documentElement.classList.remove('dark');
-        document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
-          var sun = btn.querySelector('.theme-icon-sun');
-          var moon = btn.querySelector('.theme-icon-moon');
-          if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
-          if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
-        });
-      }
-      apply(getTheme());
-      window.toggleTheme = function() {
-        var current = localStorage.getItem(KEY) || 'light';
-        var next = current === 'dark' ? 'light' : 'dark';
-        localStorage.setItem(KEY, next);
-        apply(next);
-      };
-    })();
+        (function() {
+            var KEY = 'bloodlife-theme';
+
+            function getTheme() {
+                return localStorage.getItem(KEY) || 'light';
+            }
+
+            function apply(t) {
+                if (t === 'dark') document.documentElement.classList.add('dark');
+                else document.documentElement.classList.remove('dark');
+                document.querySelectorAll('.theme-toggle-btn').forEach(function(btn) {
+                    var sun = btn.querySelector('.theme-icon-sun');
+                    var moon = btn.querySelector('.theme-icon-moon');
+                    if (sun) sun.style.display = t === 'dark' ? 'none' : 'inline';
+                    if (moon) moon.style.display = t === 'dark' ? 'inline' : 'none';
+                });
+            }
+            apply(getTheme());
+            window.toggleTheme = function() {
+                var current = localStorage.getItem(KEY) || 'light';
+                var next = current === 'dark' ? 'light' : 'dark';
+                localStorage.setItem(KEY, next);
+                apply(next);
+            };
+        })();
     </script>
 
 </body>

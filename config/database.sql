@@ -93,3 +93,19 @@ CREATE TABLE donation_history (
     FOREIGN KEY (request_id) REFERENCES blood_request(id),
     FOREIGN KEY (blood_groups_id) REFERENCES blood_groups(id)
 );
+
+CREATE TABLE email_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    notification_id INT NULL,
+    user_id INT NULL,
+    recipient_email VARCHAR(100) NOT NULL,
+    recipient_name VARCHAR(100) DEFAULT NULL,
+    subject VARCHAR(255) NOT NULL,
+    email_type VARCHAR(50) NOT NULL,
+    status ENUM('Sent', 'Failed', 'Pending') DEFAULT 'Pending',
+    error_message TEXT DEFAULT NULL,
+    sent_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

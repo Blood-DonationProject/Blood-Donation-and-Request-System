@@ -967,201 +967,6 @@ $stats = [
 
 
 
-                <!-- Donor Assignment Section -->
-                <div class="mb-8">
-                    <div class="flex items-center justify-between mb-5">
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900">
-                                <i class="fas fa-user-check text-blue-500 mr-2"></i>Assign Donor to Request
-                            </h3>
-                            <p class="text-sm text-gray-400 mt-1">Match available donors with pending blood requests</p>
-                        </div>
-                    </div>
-
-
-
-                    <?php if (count($assignable_requests) > 0): ?>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <!-- Requests List -->
-                            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                                <h4 class="font-bold text-gray-900 mb-4 flex items-center">
-                                    <span class="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center mr-2">
-                                        <i class="fas fa-file-medical text-sm"></i>
-                                    </span>
-                                    Requests Awaiting Assignment
-                                    <span class="ml-auto bg-yellow-100 text-yellow-700 text-xs font-bold px-2.5 py-1 rounded-full"><?= count($assignable_requests) ?></span>
-                                </h4>
-                                <div class="space-y-3 max-h-96 overflow-y-auto" id="requestList">
-                                    <?php foreach ($assignable_requests as $ar): ?>
-                                        <div class="request-item p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 cursor-pointer transition group"
-                                            data-id="<?= $ar['id'] ?>"
-                                            data-blood-group="<?= htmlspecialchars($ar['blood_group']) ?>"
-                                            data-blood-groups-id="<?= (int)$ar['blood_groups_id'] ?>"
-                                            data-units="<?= (int)$ar['units'] ?>"
-                                            onclick="selectRequest(this)">
-                                            <div class="flex items-start justify-between">
-                                                <div class="flex items-center space-x-3">
-                                                    <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
-                                                        <?= strtoupper(substr($ar['blood_group'], 0, 2)) ?>
-                                                    </div>
-                                                    <div>
-                                                        <p class="font-bold text-gray-900 text-sm"><?= htmlspecialchars($ar['blood_group']) ?> - <?= (int)$ar['units'] ?> Unit<?= (int)$ar['units'] > 1 ? 's' : '' ?></p>
-                                                        <p class="text-xs text-gray-400">Request #<?= $ar['id'] ?> - <?= htmlspecialchars($ar['requester_name'] ?? 'Unknown') ?></p>
-                                                    </div>
-                                                </div>
-                                                <span class="text-xs font-semibold <?= $ar['status'] === 'Pending' ? 'text-yellow-600 bg-yellow-50' : 'text-blue-600 bg-blue-50' ?> px-2.5 py-1 rounded-full">
-                                                    <?= htmlspecialchars($ar['status']) ?>
-                                                </span>
-                                            </div>
-                                            <div class="mt-3 flex items-center text-xs text-gray-500 space-x-4">
-                                                <span><i class="fas fa-hospital mr-1"></i><?= htmlspecialchars($ar['hospital']) ?></span>
-                                                <span><i class="fas fa-calendar mr-1"></i><?= htmlspecialchars($ar['required_date']) ?></span>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-
-                            <!-- Donor Selection & Assignment -->
-                            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                                <h4 class="font-bold text-gray-900 mb-4 flex items-center">
-                                    <span class="w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mr-2">
-                                        <i class="fas fa-hand-holding-heart text-sm"></i>
-                                    </span>
-                                    Select Matching Donor
-                                </h4>
-
-                                <div id="noRequestSelected" class="text-center py-8">
-                                    <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                                        <i class="fas fa-hand-pointer text-gray-300 text-2xl"></i>
-                                    </div>
-                                    <p class="text-gray-400 text-sm">Select a blood request from the left to see matching donors</p>
-                                </div>
-
-                                <div id="donorSelection" class="hidden">
-                                    <div class="mb-4 p-3 bg-blue-50 rounded-xl flex items-center">
-                                        <i class="fas fa-info-circle text-blue-500 mr-2"></i>
-                                        <p class="text-blue-700 text-sm font-medium">Donors with same blood type: <span id="selectedBloodType" class="font-bold"></span></p>
-                                    </div>
-
-                                    <div id="matchInfoBox" class="mb-4 hidden">
-                                        <div class="p-3 bg-green-50 border border-green-200 rounded-xl">
-                                            <div class="flex items-center mb-2">
-                                                <i class="fas fa-magic text-green-600 mr-2"></i>
-                                                <p class="text-green-700 text-sm font-bold">Best Match Found</p>
-                                            </div>
-                                            <p class="text-green-600 text-xs" id="matchInfoText"></p>
-                                        </div>
-                                    </div>
-
-                                    <div class="mb-4">
-                                        <input type="text" id="donorSearch" placeholder="Search donor by name or phone..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition outline-none">
-                                    </div>
-
-                                    <div class="space-y-2 max-h-64 overflow-y-auto" id="donorList">
-                                        <!-- Donors will be populated by JS -->
-                                    </div>
-
-                                    <form method="POST" id="assignForm" class="mt-4">
-                                        <input type="hidden" name="request_id" id="assignRequestId">
-                                        <input type="hidden" name="donor_id" id="assignDonorId">
-                                        <button type="submit" name="assign_donor" id="assignBtn" disabled
-                                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold py-3 rounded-xl hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
-                                            <i class="fas fa-user-check mr-2"></i>Assign Selected Donor
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-                            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                                <i class="fas fa-check-circle text-green-500 text-2xl"></i>
-                            </div>
-                            <p class="text-gray-600 font-semibold">All requests have been assigned</p>
-                            <p class="text-gray-400 text-sm mt-1">No pending requests awaiting donor assignment</p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-
-
-
-
-
-                <!-- Assigned Donors Summary -->
-                <?php if (count($assigned_requests) > 0): ?>
-                    <div class="mb-8">
-                        <div class="flex items-center justify-between mb-5">
-                            <div>
-                                <h3 class="text-lg font-bold text-gray-900">
-                                    <i class="fas fa-clipboard-check text-green-500 mr-2"></i>Active Assignments
-                                </h3>
-                                <p class="text-sm text-gray-400 mt-1">Requests with assigned donors</p>
-                            </div>
-                        </div>
-
-                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm">
-                                    <thead>
-                                        <tr class="bg-gray-50 border-b border-gray-100">
-                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Request</th>
-                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Blood Type</th>
-                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Hospital</th>
-                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Assigned Donor</th>
-                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Donor Phone</th>
-                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Status</th>
-                                            <th class="px-5 py-3 text-center font-semibold text-gray-600">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($assigned_requests as $asr): ?>
-                                            <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
-                                                <td class="px-5 py-3">
-                                                    <div class="flex items-center space-x-2">
-                                                        <span class="font-bold text-gray-900">#<?= $asr['id'] ?></span>
-                                                        <span class="text-gray-400">-</span>
-                                                        <span class="text-gray-600"><?= htmlspecialchars($asr['requester_name'] ?? 'Unknown') ?></span>
-                                                    </div>
-                                                </td>
-                                                <td class="px-5 py-3">
-                                                    <span class="bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-full text-xs"><?= htmlspecialchars($asr['blood_group']) ?></span>
-                                                </td>
-                                                <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['hospital']) ?></td>
-                                                <td class="px-5 py-3">
-                                                    <div class="flex items-center space-x-2">
-                                                        <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
-                                                            <?= strtoupper(substr($asr['donor_name'] ?? 'U', 0, 2)) ?>
-                                                        </div>
-                                                        <div>
-                                                            <p class="font-semibold text-gray-900"><?= htmlspecialchars($asr['donor_name'] ?? '-') ?></p>
-                                                            <p class="text-xs text-gray-400"><?= htmlspecialchars($asr['donor_blood_group'] ?? '') ?></p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['donor_phone'] ?? '-') ?></td>
-                                                <td class="px-5 py-3">
-                                                    <?php
-                                                    $asStatusClass = $asr['status'] === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
-                                                    ?>
-                                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold <?= $asStatusClass ?>"><?= htmlspecialchars($asr['status']) ?></span>
-                                                </td>
-                                                <td class="px-5 py-3 text-center">
-                                                    <a href="blood_requests_crud.php?unassign=<?= $asr['id'] ?>" onclick="return confirm('Remove this donor assignment? The request will return to Pending status.')" class="text-red-500 hover:text-red-700 text-xs font-semibold">
-                                                        <i class="fas fa-user-minus mr-1"></i>Unassign
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-
                 <!-- Recent Blood Requests -->
                 <?php if (count($recent_requests) > 0): ?>
                     <div class="mb-8">
@@ -1848,7 +1653,7 @@ $stats = [
             </div>
             <div class="px-8 pb-8 flex gap-3">
                 <button onclick="closeAssignConfirmModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
-                <button onclick="executeModalAssign()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition text-center shadow-md">Yes, Confirm</button>
+                <button onclick="executeModalAssign()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition text-center shadow-md">Confirm Assignment</button>
             </div>
         </div>
     </div>
@@ -1887,7 +1692,7 @@ $stats = [
 
         function openAssignConfirmModal() {
             var title = isReassignMode ? 'Reassign Donor' : 'Assign Donor';
-            var msg = isReassignMode ? 'Are you sure you want to assign another donor?' : 'Are you sure you want to assign this donor to this request?';
+            var msg = isReassignMode ? 'Are you sure you want to assign another donor?' : 'Are you sure you want to assign this donor to this blood request?';
             document.getElementById('assignConfirmTitle').textContent = title;
             document.getElementById('assignConfirmMessage').textContent = msg;
             

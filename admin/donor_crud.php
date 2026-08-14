@@ -2,34 +2,11 @@
 include 'auth_check.php';
 require_once __DIR__ . '/../config/db.php';
 
-$error = '';
-$success = '';
+$error = $_SESSION['error'] ?? '';
+$success = $_SESSION['success'] ?? '';
+unset($_SESSION['error'], $_SESSION['success']);
 
-if (isset($_POST['add'])) {
-    $user_id = (int)$_POST['user_id'];
-    $gender = $_POST['gender'];
-    $date_of_birth = $_POST['date_of_birth'];
-    $age = (int)$_POST['age'];
-    $blood_groups = trim($_POST['blood_groups']);
-    $phone = trim($_POST['phone']);
-    $address = trim($_POST['address']);
-    $weight = (float)$_POST['weight'];
-    $last_donation_date = $_POST['last_donation_date'] ?: null;
-    $available_status = $_POST['available_status'];
 
-    if ($user_id && $blood_groups !== '' && $phone !== '' && $address !== '' && $weight > 0) {
-        $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ississsdss", $user_id, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);
-        if ($stmt->execute()) {
-            $success = 'Donor created successfully.';
-        } else {
-            $error = 'Error: ' . $conn->error;
-        }
-        $stmt->close();
-    } else {
-        $error = 'Please fill in all required fields.';
-    }
-}
 
 if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
@@ -67,17 +44,156 @@ if (isset($_GET['delete'])) {
 
 // Assign donor to blood request
 if (isset($_POST['assign_donor'])) {
-    $donorId = (int)$_POST['donor_id'];
-    $requestId = (int)$_POST['request_id'];
-    if ($donorId > 0 && $requestId > 0) {
-        $stmt = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Approved' WHERE id = ? AND status = 'Pending'");
-        $stmt->bind_param("ii", $donorId, $requestId);
-        if ($stmt->execute()) {
-            $success = 'Donor assigned to blood request successfully.';
+    $request_id = (int)$_POST['request_id'];
+    $donor_id = (int)$_POST['donor_id'];
+
+    if ($request_id > 0 && $donor_id > 0) {
+        // Verify the request exists and is in a valid state
+        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id WHERE br.id = ?");
+        $check->bind_param("i", $request_id);
+        $check->execute();
+        $result = $check->get_result();
+        if ($result && $result->num_rows > 0) {
+            $req = $result->fetch_assoc();
+            if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
+                // Verify donor exists and is available
+                $donor_check = $conn->prepare("SELECT id, available_status FROM donor WHERE id = ?");
+                $donor_check->bind_param("i", $donor_id);
+                $donor_check->execute();
+                $donor_result = $donor_check->get_result();
+                if ($donor_result && $donor_result->num_rows > 0) {
+                    $donor = $donor_result->fetch_assoc();
+                    if ($donor['available_status'] === 'Available') {
+                        // Assign donor and update status to Assigned
+                        $assign = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Assigned' WHERE id = ?");
+                        $assign->bind_param("ii", $donor_id, $request_id);
+                        if ($assign->execute()) {
+                            // If there was an old donor, free them
+                            if (!empty($req['assigned_donor_id']) && $req['assigned_donor_id'] != $donor_id) {
+                                $freeOld = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+                                $freeOld->bind_param("i", $req['assigned_donor_id']);
+                                $freeOld->execute();
+                                $freeOld->close();
+                            }
+                            // Mark donor as Unavailable after assignment
+                            $donorUpdate = $conn->prepare("UPDATE donor SET available_status = 'Unavailable' WHERE id = ?");
+                            $donorUpdate->bind_param("i", $donor_id);
+                            $donorUpdate->execute();
+                            $donorUpdate->close();
+
+                            // Create donor_assignments record
+                            $assign_admin_id = $_SESSION['user_id'] ?? 1; // get admin user id
+                            $assignStmt = $conn->prepare("INSERT INTO donor_assignments (request_id, donor_id, assigned_by, status) VALUES (?, ?, ?, 'Assigned')");
+                            $assignStmt->bind_param("iii", $request_id, $donor_id, $assign_admin_id);
+                            $assignStmt->execute();
+                            $assignment_id = $conn->insert_id;
+                            $assignStmt->close();
+
+                            // Get donor's user_id and email for notification
+                            $donorUser = $conn->prepare("SELECT d.user_id, u.email AS donor_email, u.username FROM donor d JOIN users u ON d.user_id = u.id WHERE d.id = ?");
+                            $donorUser->bind_param("i", $donor_id);
+                            $donorUser->execute();
+                            $donorUserRow = $donorUser->get_result()->fetch_assoc();
+                            $donorUser->close();
+
+                            if ($donorUserRow) {
+                                $notifMsg = "You have a new blood donation assignment for Request #" . $request_id . ". Please accept or decline on your dashboard.";
+                                $notifType = 'Assignment';
+                                $notifTitle = 'New Assignment';
+                                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
+                                $notifStmt->execute();
+                                $donorNotifId = $conn->insert_id;
+                                $notifStmt->close();
+                                
+                                // Send Email to Donor
+                                if (!empty($donorUserRow['donor_email'])) {
+                                    $to = $donorUserRow['donor_email'];
+                                    $recipientName = $donorUserRow['username'];
+                                    $subject = "New Blood Donation Assignment";
+                                    $message = "Hello,\n\nYou have a new blood donation assignment for Request #" . $request_id . ".\nPlease log in to your dashboard to accept or decline the assignment.\n\nThank you,\nBloodLife Team";
+                                    $headers = "From: noreply@bloodlife.com";
+                                    
+                                    // Check duplicate email log
+                                    $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
+                                    $dupCheck->bind_param("i", $donorNotifId);
+                                    $dupCheck->execute();
+                                    $dupCheck->store_result();
+                                    
+                                    if ($dupCheck->num_rows === 0) {
+                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
+                                        $now = date('Y-m-d H:i:s');
+                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
+                                        
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
+                                        $emailLog->bind_param("iisssss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        $emailLog->execute();
+                                        $emailLog->close();
+                                    }
+                                    $dupCheck->close();
+                                }
+                            }
+
+                            // Send notification to Requester
+                            if (!empty($req['users_id'])) {
+                                $reqNotifMsg = "Good news! A donor has been assigned to your blood request #" . $request_id . ".";
+                                $reqNotifType = 'Assignment';
+                                $reqNotifTitle = 'Donor Assigned';
+                                $reqNotifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                $reqNotifStmt->bind_param("iiisss", $req['users_id'], $request_id, $assignment_id, $reqNotifType, $reqNotifTitle, $reqNotifMsg);
+                                $reqNotifStmt->execute();
+                                $reqNotifId = $conn->insert_id;
+                                $reqNotifStmt->close();
+                                
+                                // Send Email to Requester
+                                if (!empty($req['requester_email'])) {
+                                    $to = $req['requester_email'];
+                                    $recipientName = $req['requester_name'] ?? null;
+                                    $subject = "Donor Assigned to Your Request";
+                                    $message = "Hello,\n\nGood news! A donor has been assigned to your blood request #" . $request_id . ".\nYou can view the details in your dashboard.\n\nThank you,\nBloodLife Team";
+                                    $headers = "From: noreply@bloodlife.com";
+                                    
+                                    // Check duplicate email log
+                                    $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
+                                    $dupCheck->bind_param("i", $reqNotifId);
+                                    $dupCheck->execute();
+                                    $dupCheck->store_result();
+                                    
+                                    if ($dupCheck->num_rows === 0) {
+                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
+                                        $now = date('Y-m-d H:i:s');
+                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
+                                        
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
+                                        $emailLog->bind_param("iisssss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        $emailLog->execute();
+                                        $emailLog->close();
+                                    }
+                                    $dupCheck->close();
+                                }
+                            }
+
+                            $_SESSION['success'] = 'Donor assigned successfully!';
+                        } else {
+                            $_SESSION['error'] = 'Error assigning donor: ' . $conn->error;
+                        }
+                        $assign->close();
+                    } else {
+                        $_SESSION['error'] = 'Selected donor is not available.';
+                    }
+                } else {
+                    $_SESSION['error'] = 'Donor not found.';
+                }
+                $donor_check->close();
+            } else {
+                $_SESSION['error'] = 'Request is already assigned or cannot be assigned (status: ' . htmlspecialchars($req['status']) . ').';
+            }
         } else {
-            $error = 'Error assigning donor.';
+            $_SESSION['error'] = 'Blood request not found.';
         }
-        $stmt->close();
+        $check->close();
+    } else {
+        $_SESSION['error'] = 'Please select both a blood request and a donor.';
     }
     header('Location: donor_crud.php');
     exit;
@@ -262,36 +378,20 @@ if ($dhResult && $dhResult->num_rows > 0) {
                 <button onclick="clearFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear Filters</button>
             </div>
 
-            <!-- Toggle Form -->
-            <div class="mb-8">
-                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
-                    <span>+</span>
-                    <span><?= $edit_row ? 'Edit Donor' : 'Add New Donor' ?></span>
-                </button>
-            </div>
 
-            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
+
+            <?php if ($edit_row): ?>
+            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit Donor' : 'New Donor' ?></h3>
-                    <button onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                    <h3 class="text-xl font-bold text-gray-800">Edit Donor</h3>
+                    <a href="donor_crud.php" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</a>
                 </div>
                 <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <?php if ($edit_row): ?>
-                        <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
-                    <?php endif; ?>
+                    <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">User *</label>
-                        <?php if ($edit_row): ?>
-                            <input type="hidden" name="user_id" value="<?= $edit_row['user_id'] ?>">
-                            <input type="text" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed">
-                        <?php else: ?>
-                            <select name="user_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                                <option value="">-- Select User --</option>
-                                <?php if ($users_list): mysqli_data_seek($users_list, 0); while ($u = $users_list->fetch_assoc()): ?>
-                                    <option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['username']) ?></option>
-                                <?php endwhile; endif; ?>
-                            </select>
-                        <?php endif; ?>
+                        <input type="hidden" name="user_id" value="<?= $edit_row['user_id'] ?>">
+                        <input type="text" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed">
                     </div>
                     
                     <div>
@@ -344,15 +444,14 @@ if ($dhResult && $dhResult->num_rows > 0) {
                         <textarea name="address" required rows="2" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none"><?= htmlspecialchars($edit_row['address'] ?? '') ?></textarea>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
-                            <?= $edit_row ? 'Update' : 'Create' ?>
+                        <button type="submit" name="update" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
+                            Update
                         </button>
-                        <?php if ($edit_row): ?>
-                            <a href="donor_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
-                        <?php endif; ?>
+                        <a href="donor_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
                     </div>
                 </form>
             </div>
+            <?php endif; ?>
 
             <!-- Data Table -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
@@ -432,9 +531,7 @@ document.addEventListener('click', function(e) {
         dropdown.classList.add('hidden');
     }
 });
-function toggleForm() {
-    document.getElementById('crudForm').classList.toggle('hidden');
-}
+
 function toggleMobileSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const overlay = document.getElementById('mobileOverlay');

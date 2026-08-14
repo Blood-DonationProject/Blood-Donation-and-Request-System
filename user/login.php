@@ -9,38 +9,39 @@ $redirectToUrl = $redirectTo !== '' ? $redirectTo . '.php' : '';
 // Resolve relative path to an absolute URL from document root
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
 
-function absUrl($path) {
-    global $scriptDir;
-    $combined = $scriptDir . '/' . $path;
-    $parts = explode('/', $combined);
-    $result = [];
-    foreach ($parts as $part) {
-        if ($part === '.' || $part === '') continue;
-        if ($part === '..') array_pop($result);
-        else $result[] = $part;
-    }
-    return '/' . implode('/', $result);
+function absUrl($path)
+{
+  global $scriptDir;
+  $combined = $scriptDir . '/' . $path;
+  $parts = explode('/', $combined);
+  $result = [];
+  foreach ($parts as $part) {
+    if ($part === '.' || $part === '') continue;
+    if ($part === '..') array_pop($result);
+    else $result[] = $part;
+  }
+  return '/' . implode('/', $result);
 }
 
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    // Determine redirect based on role or redirect_to param
-    if (!empty($redirectToUrl)) {
-        $target = $redirectToUrl;
+  // Determine redirect based on role or redirect_to param
+  if (!empty($redirectToUrl)) {
+    $target = $redirectToUrl;
+  } else {
+    $role = $_SESSION['user_role'] ?? '';
+    if ($role === 'Admin') {
+      $target = '../admin/donation_history_crud.php';
     } else {
-        $role = $_SESSION['user_role'] ?? '';
-        if ($role === 'Admin') {
-            $target = '../admin/dashboard.php';
-        } else {
-            $target = 'donordashboard.php';
-        }
+      $target = 'index.php';
     }
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => true, 'redirect' => absUrl($target)]);
-        exit;
-    }
-    header('Location: ' . $target);
+  }
+  if ($isAjax) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'redirect' => absUrl($target)]);
     exit;
+  }
+  header('Location: ' . $target);
+  exit;
 }
 
 $errorMessage = '';
@@ -48,168 +49,229 @@ $prefillEmail = isset($_GET['email']) ? $_GET['email'] : '';
 $prefillPassword = isset($_GET['password']) ? $_GET['password'] : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
+  $email = trim($_POST['email'] ?? '');
+  $password = $_POST['password'] ?? '';
 
-    if ($email === '' || $password === '') {
-        $errorMessage = 'Please enter both email and password.';
-    } else {
-        $loginSuccess = false;
-        $targetPath = '';
+  if ($email === '' || $password === '') {
+    $errorMessage = 'Please enter both email and password.';
+  } else {
+    $loginSuccess = false;
+    $targetPath = '';
 
-        // Hardcoded admin credentials
-        if ($email === 'admin@gmail.com' && $password === 'password123') {
-            $_SESSION['logged_in'] = true;
-            $_SESSION['user_id'] = 0;
-            $_SESSION['username'] = 'admin';
-            $_SESSION['user_email'] = 'admin@gmail.com';
-            $_SESSION['user_role'] = 'Admin';
-            $loginSuccess = true;
-            $targetPath = '../admin/dashboard.php';
-        }
+    // Hardcoded admin credentials
+    if ($email === 'admin@gmail.com' && $password === 'password123') {
+      $_SESSION['logged_in'] = true;
+      $_SESSION['user_id'] = 0;
+      $_SESSION['username'] = 'admin';
+      $_SESSION['user_email'] = 'admin@gmail.com';
+      $_SESSION['user_role'] = 'Admin';
+      $loginSuccess = true;
+      $targetPath = '../admin/donation_history_crud.php';
+    }
 
-        // Verify credentials against the database
-        if (!$loginSuccess) {
-            $stmt = $conn->prepare("SELECT id, username, password, status FROM users WHERE email = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('s', $email);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result && $result->num_rows > 0) {
-                    $row = $result->fetch_assoc();
-                    $storedPassword = $row['password'];
+    // Verify credentials against the database
+    if (!$loginSuccess) {
+      $stmt = $conn->prepare("SELECT id, username, password, status FROM users WHERE email = ? LIMIT 1");
+      if ($stmt) {
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+          $row = $result->fetch_assoc();
+          $storedPassword = $row['password'];
 
-                    if (password_verify($password, $storedPassword)) {
-                        $userStatus = $row['status'] ?? 'Active';
-                        if ($userStatus !== 'Active') {
-                            $errorMessage = 'Your account is inactive. Login access has been disabled.';
-                        } else {
-                            $_SESSION['logged_in'] = true;
-                            $_SESSION['username'] = $row['username'];
-                            $_SESSION['user_id'] = $row['id'];
-                            $_SESSION['user_role'] = 'User';
-                            $loginSuccess = true;
-                            $targetPath = 'donordashboard.php';
-                        }
-                    }
-                }
-                $stmt->close();
-            }
-        }
-
-        if ($loginSuccess) {
-            if ($isAjax) {
-                header('Content-Type: application/json');
-                $finalRedirect = !empty($redirectToUrl) ? absUrl($redirectToUrl) : absUrl($targetPath);
-                echo json_encode(['success' => true, 'redirect' => $finalRedirect]);
-                exit;
-            }
-            if (!empty($redirectToUrl)) {
-                header('Location: ' . $redirectToUrl);
+          if (password_verify($password, $storedPassword)) {
+            $userStatus = $row['status'] ?? 'Active';
+            if ($userStatus !== 'Active') {
+              $errorMessage = 'Your account is inactive. Login access has been disabled.';
             } else {
-                header('Location: ' . $targetPath);
+              $_SESSION['logged_in'] = true;
+              $_SESSION['username'] = $row['username'];
+              $_SESSION['user_id'] = $row['id'];
+              $_SESSION['user_role'] = 'User';
+              $loginSuccess = true;
+              $targetPath = 'index.php';
             }
-            exit;
+          }
         }
-
-        if (empty($errorMessage)) {
-            $errorMessage = 'Invalid email or password.';
-        }
+        $stmt->close();
+      }
     }
 
-    if ($isAjax) {
+    if ($loginSuccess) {
+      if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => $errorMessage]);
+        $finalRedirect = !empty($redirectToUrl) ? absUrl($redirectToUrl) : absUrl($targetPath);
+        echo json_encode(['success' => true, 'redirect' => $finalRedirect]);
         exit;
+      }
+      if (!empty($redirectToUrl)) {
+        header('Location: ' . $redirectToUrl);
+      } else {
+        header('Location: ' . $targetPath);
+      }
+      exit;
     }
+
+    if (empty($errorMessage)) {
+      $errorMessage = 'Invalid email or password.';
+    }
+  }
+
+  if ($isAjax) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => $errorMessage]);
+    exit;
+  }
 }
-?><!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login – BloodLife</title>
   <script>
-    (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
+    (function() {
+      var t = localStorage.getItem('bloodlife-theme');
+      if (t === 'dark') document.documentElement.classList.add('dark');
+    })();
   </script>
   <script>
-    tailwind.config = { darkMode: 'class' }
+    tailwind.config = {
+      darkMode: 'class'
+    }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
   <style>
-    @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
-    .animate-fade-down { animation: fadeInDown 0.6s ease-out; }
-    .animate-fade-up   { animation: fadeInUp   0.6s ease-out; }
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fade-down {
+      animation: fadeInDown 0.6s ease-out;
+    }
+
+    .animate-fade-up {
+      animation: fadeInUp 0.6s ease-out;
+    }
   </style>
   <style id="dark-mode-styles">
-    html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-    html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
-    html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
-    html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-    html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
-    html.dark .bg-white { background-color: #1f2937 !important; }
-    html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-    html.dark .text-gray-700 { color: #d1d5db !important; }
-    html.dark .text-gray-600 { color: #9ca3af !important; }
-    html.dark .text-gray-500 { color: #9ca3af !important; }
-    html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-    html.dark label { color: #d1d5db !important; }
-    html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
-    html.dark .border-gray-200, html.dark .border-2.border-gray-200 { border-color: #4b5563 !important; }
-    html.dark .border-t { border-color: #374151 !important; }
-    html.dark tbody tr { border-color: #374151 !important; }
-    html.dark tbody tr:hover { background-color: #374151 !important; }
+    html:not(.dark) body {
+      background-color: #ffffff !important;
+      background-image: none !important;
+    }
+
+    html:not(.dark) .bg-gray-50 {
+      background-color: #ffffff !important;
+    }
+
+    html:not(.dark) .bg-gray-100 {
+      background-color: #ffffff !important;
+    }
+
+    html.dark body {
+      background-color: #111827 !important;
+      background-image: none !important;
+      color: #e5e7eb;
+    }
+
+    html.dark nav.bg-white,
+    html.dark nav.bg-white.shadow-lg {
+      background-color: #1f2937 !important;
+    }
+
+    html.dark .bg-white {
+      background-color: #1f2937 !important;
+    }
+
+    html.dark .text-gray-900,
+    html.dark .text-gray-800 {
+      color: #f3f4f6 !important;
+    }
+
+    html.dark .text-gray-700 {
+      color: #d1d5db !important;
+    }
+
+    html.dark .text-gray-600 {
+      color: #9ca3af !important;
+    }
+
+    html.dark .text-gray-500 {
+      color: #9ca3af !important;
+    }
+
+    html.dark input,
+    html.dark select,
+    html.dark textarea {
+      background-color: #374151 !important;
+      border-color: #4b5563 !important;
+      color: #e5e7eb !important;
+    }
+
+    html.dark label {
+      color: #d1d5db !important;
+    }
+
+    html.dark .bg-gray-50,
+    html.dark .bg-gray-100 {
+      background-color: #374151 !important;
+    }
+
+    html.dark .border-gray-200,
+    html.dark .border-2.border-gray-200 {
+      border-color: #4b5563 !important;
+    }
+
+    html.dark .border-t {
+      border-color: #374151 !important;
+    }
+
+    html.dark tbody tr {
+      border-color: #374151 !important;
+    }
+
+    html.dark tbody tr:hover {
+      background-color: #374151 !important;
+    }
   </style>
 </head>
+
 <body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
 
   <!-- Navbar -->
- <?php include __DIR__ . '/../includes/header.php'; ?>
+  <?php include __DIR__ . '/../includes/header.php'; ?>
 
   <!-- Main Content -->
   <div class="min-h-[calc(100vh-4rem)] flex items-center justify-center py-16 px-4">
-    <div class="w-full max-w-5xl grid md:grid-cols-2 gap-0 bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-up">
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-up">
 
-      <!-- Left Panel -->
-      <div class="bg-gradient-to-br from-red-600 to-red-800 text-white p-12 flex flex-col justify-between">
-        <div>
-          <span class="text-5xl mb-6 block">🩸</span>
-          <h2 class="text-4xl font-bold mb-4 leading-tight" data-i18n="welcome_back_bloodlife">Welcome Back to BloodLife</h2>
-          <p class="text-lg opacity-90 mb-8" data-i18n="login_desc">Sign in to manage your donations, track requests, and save more lives today.</p>
-        </div>
-
-        <div class="space-y-5">
-          <div class="flex items-center gap-4 bg-white/10 rounded-2xl p-4">
-            <span class="text-3xl">🎯</span>
-            <div>
-              <p class="font-bold" data-i18n="track_your_impact">Track Your Impact</p>
-              <p class="text-sm opacity-80" data-i18n="track_impact_desc_login">See how many lives you've helped save</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-4 bg-white/10 rounded-2xl p-4">
-            <span class="text-3xl">🔔</span>
-            <div>
-              <p class="font-bold" data-i18n="emergency_alerts">Emergency Alerts</p>
-              <p class="text-sm opacity-80" data-i18n="emergency_alerts_desc">Get notified when your blood type is urgently needed</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-4 bg-white/10 rounded-2xl p-4">
-            <span class="text-3xl">🏆</span>
-            <div>
-              <p class="font-bold" data-i18n="earn_rewards">Earn Rewards</p>
-              <p class="text-sm opacity-80" data-i18n="earn_rewards_desc">Unlock badges and certificates for every donation</p>
-            </div>
-          </div>
-        </div>
-
-        <p class="text-sm opacity-70 mt-8"><span data-i18n="no_account_prompt">Don't have an account?</span> <a href="register.php<?= !empty($redirectToUrl) ? '?redirect_to=' . htmlspecialchars($redirectTo) : '' ?>" class="underline font-semibold hover:opacity-100" data-i18n="sign_up_free">Sign up free →</a></p>
-      </div>
-
-      <!-- Right Panel — Form -->
+      <!-- Login Form Panel -->
       <div class="p-10 sm:p-12 flex flex-col justify-center">
-        <h3 class="text-3xl font-bold text-gray-900 mb-2" data-i18n="sign_in">Sign In</h3>
+        <h3 class="text-3xl font-bold text-red-700 mb-2" data-i18n="sign_in">Sign In</h3>
         <p class="text-gray-500 mb-8" data-i18n="enter_credentials">Enter your credentials to access your account.</p>
 
 
@@ -242,18 +304,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
             <input type="email" name="email" placeholder="Enter your email" required
-                   value="<?= htmlspecialchars($prefillEmail) ?>"
-                   class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+              value="<?= htmlspecialchars($prefillEmail) ?>"
+              class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
           </div>
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password">Password</label>
             <div class="relative">
               <input type="password" name="password" id="passwordField" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
-                     value="<?= htmlspecialchars($prefillPassword) ?>"
-                     class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
+                value="<?= htmlspecialchars($prefillPassword) ?>"
+                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-red-500 transition" />
               <button type="button" onclick="togglePassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700" id="eyeBtn">
-                <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
               </button>
             </div>
           </div>
@@ -282,13 +349,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <script>
     function setRole(role) {
-      ['donor','hospital','admin'].forEach(r => {
+      ['donor', 'hospital', 'admin'].forEach(r => {
         const tab = document.getElementById('tab-' + r);
         if (r === role) {
-          tab.classList.add('bg-white','text-red-600','shadow');
+          tab.classList.add('bg-white', 'text-red-600', 'shadow');
           tab.classList.remove('text-gray-500');
         } else {
-          tab.classList.remove('bg-white','text-red-600','shadow');
+          tab.classList.remove('bg-white', 'text-red-600', 'shadow');
           tab.classList.add('text-gray-500');
         }
       });
@@ -308,13 +375,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         open.classList.remove('hidden');
       }
     }
-
   </script>
 
   <script>
     (function() {
       var KEY = 'bloodlife-theme';
-      function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+
+      function getTheme() {
+        return localStorage.getItem(KEY) || 'light';
+      }
+
       function apply(t) {
         if (t === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
@@ -333,6 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         apply(next);
       };
     })();
-    </script>
+  </script>
 </body>
+
 </html>

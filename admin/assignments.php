@@ -1,0 +1,1195 @@
+<?php
+include 'auth_check.php';
+require_once __DIR__ . '/../config/db.php';
+
+$error = '';
+$success = '';
+
+
+
+// Assign donor action
+if (isset($_POST['assign_donor'])) {
+    $request_id = (int)$_POST['request_id'];
+    $donor_id = (int)$_POST['donor_id'];
+
+    if ($request_id > 0 && $donor_id > 0) {
+        // Verify the request exists and is in a valid state
+        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.hospital, br.required_date, bg.blood_group_name, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = ?");
+        $check->bind_param("i", $request_id);
+        $check->execute();
+        $result = $check->get_result();
+        if ($result && $result->num_rows > 0) {
+            $req = $result->fetch_assoc();
+            if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
+                // Verify donor exists and is available
+                $donor_check = $conn->prepare("SELECT id, available_status, blood_groups FROM donor WHERE id = ?");
+                $donor_check->bind_param("i", $donor_id);
+                $donor_check->execute();
+                $donor_result = $donor_check->get_result();
+                if ($donor_result && $donor_result->num_rows > 0) {
+                    $donor = $donor_result->fetch_assoc();
+                    
+                    // Server-side validation for exact blood group match
+                    if ($donor['blood_groups'] !== $req['blood_group_name']) {
+                        $_SESSION['error'] = 'Mismatched blood type. Assignment aborted.';
+                    }
+                    else if ($donor['available_status'] === 'Available') {
+                        // Check for duplicate active assignment
+                        $dupCheck = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ? AND status IN ('Assigned', 'Accepted', 'Received', 'Completed')");
+                        $dupCheck->bind_param("ii", $request_id, $donor_id);
+                        $dupCheck->execute();
+                        $dupCheck->store_result();
+                        $isDuplicate = $dupCheck->num_rows > 0;
+                        $dupCheck->close();
+
+                        if ($isDuplicate) {
+                            $_SESSION['error'] = 'This donor is already assigned to this request.';
+                        } else {
+                            // Assign donor and update status to Assigned
+                        $assign = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Assigned' WHERE id = ?");
+                        $assign->bind_param("ii", $donor_id, $request_id);
+                        if ($assign->execute()) {
+                            // If there was an old donor, free them
+                            if (!empty($req['assigned_donor_id']) && $req['assigned_donor_id'] != $donor_id) {
+                                $freeOld = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+                                $freeOld->bind_param("i", $req['assigned_donor_id']);
+                                $freeOld->execute();
+                                $freeOld->close();
+                            }
+                            // Mark donor as Unavailable after assignment
+                            $donorUpdate = $conn->prepare("UPDATE donor SET available_status = 'Unavailable' WHERE id = ?");
+                            $donorUpdate->bind_param("i", $donor_id);
+                            $donorUpdate->execute();
+                            $donorUpdate->close();
+
+                            // Create donor_assignments record
+                            $assign_admin_id = $_SESSION['user_id'] ?? 1; // get admin user id
+                            $assignStmt = $conn->prepare("INSERT INTO donor_assignments (request_id, donor_id, assigned_by, status) VALUES (?, ?, ?, 'Assigned')");
+                            $assignStmt->bind_param("iii", $request_id, $donor_id, $assign_admin_id);
+                            $assignStmt->execute();
+                            $assignment_id = $conn->insert_id;
+                            $assignStmt->close();
+
+                            // Get donor's user_id and email for notification
+                            $donorUser = $conn->prepare("SELECT d.user_id, u.email AS donor_email, u.username FROM donor d JOIN users u ON d.user_id = u.id WHERE d.id = ?");
+                            $donorUser->bind_param("i", $donor_id);
+                            $donorUser->execute();
+                            $donorUserRow = $donorUser->get_result()->fetch_assoc();
+                            $donorUser->close();
+
+                            if ($donorUserRow) {
+                                $notifMsg = "You have been assigned as a donor for a blood request. Blood Group: " . $req['blood_group_name'] . " | Requester/Hospital: " . $req['hospital'] . " | Required Date: " . $req['required_date'];
+                                $notifType = 'Assignment';
+                                $notifTitle = 'New Assignment';
+                                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
+                                $notifStmt->execute();
+                                $donorNotifId = $conn->insert_id;
+                                $notifStmt->close();
+                                
+                                // Send Email to Donor
+                                if (!empty($donorUserRow['donor_email'])) {
+                                    $to = $donorUserRow['donor_email'];
+                                    $recipientName = $donorUserRow['username'];
+                                    $subject = "New Blood Donation Assignment";
+                                    $message = "Hello,\n\nYou have been assigned as a donor for a blood request.\n\nDetails:\n- Blood Group: " . $req['blood_group_name'] . "\n- Hospital/Requester: " . $req['hospital'] . "\n- Required Date: " . $req['required_date'] . "\n\nPlease log in to your dashboard to accept or decline the assignment.\n\nThank you,\nBloodLife Team";
+                                    $headers = "From: noreply@bloodlife.com";
+                                    
+                                    // Check duplicate email log
+                                    $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
+                                    $dupCheck->bind_param("i", $donorNotifId);
+                                    $dupCheck->execute();
+                                    $dupCheck->store_result();
+                                    
+                                    if ($dupCheck->num_rows === 0) {
+                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
+                                        $now = date('Y-m-d H:i:s');
+                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
+                                        
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
+                                        $emailLog->bind_param("iisssss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        $emailLog->execute();
+                                        $emailLog->close();
+                                    }
+                                    $dupCheck->close();
+                                }
+                            }
+
+                            // Send notification to Requester
+                            if (!empty($req['users_id'])) {
+                                $reqNotifMsg = "Good news! A donor has been assigned to your blood request #" . $request_id . ".";
+                                $reqNotifType = 'Assignment';
+                                $reqNotifTitle = 'Donor Assigned';
+                                $reqNotifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                $reqNotifStmt->bind_param("iiisss", $req['users_id'], $request_id, $assignment_id, $reqNotifType, $reqNotifTitle, $reqNotifMsg);
+                                $reqNotifStmt->execute();
+                                $reqNotifId = $conn->insert_id;
+                                $reqNotifStmt->close();
+                                
+                                // Send Email to Requester
+                                if (!empty($req['requester_email'])) {
+                                    $to = $req['requester_email'];
+                                    $recipientName = $req['requester_name'] ?? null;
+                                    $subject = "Donor Assigned to Your Request";
+                                    $message = "Hello,\n\nGood news! A donor has been assigned to your blood request #" . $request_id . ".\nYou can view the details in your dashboard.\n\nThank you,\nBloodLife Team";
+                                    $headers = "From: noreply@bloodlife.com";
+                                    
+                                    // Check duplicate email log
+                                    $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
+                                    $dupCheck->bind_param("i", $reqNotifId);
+                                    $dupCheck->execute();
+                                    $dupCheck->store_result();
+                                    
+                                    if ($dupCheck->num_rows === 0) {
+                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
+                                        $now = date('Y-m-d H:i:s');
+                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
+                                        
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
+                                        $emailLog->bind_param("iisssss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        $emailLog->execute();
+                                        $emailLog->close();
+                                    }
+                                    $dupCheck->close();
+                                }
+                            }
+
+                            $_SESSION['success'] = 'Donor assigned successfully!';
+                        } else {
+                            $_SESSION['error'] = 'Error assigning donor: ' . $conn->error;
+                        }
+                        $assign->close();
+                        }
+                    } else {
+                        $_SESSION['error'] = 'Selected donor is not available.';
+                    }
+                } else {
+                    $_SESSION['error'] = 'Donor not found.';
+                }
+                $donor_check->close();
+            } else {
+                $_SESSION['error'] = 'Request is already assigned or cannot be assigned (status: ' . htmlspecialchars($req['status']) . ').';
+            }
+        } else {
+            $_SESSION['error'] = 'Blood request not found.';
+        }
+        $check->close();
+    } else {
+        $_SESSION['error'] = 'Please select both a blood request and a donor.';
+    }
+    header('Location: assignments.php');
+    exit;
+}
+
+
+// Unassign donor action
+if (isset($_GET['unassign'])) {
+    $id = (int)$_GET['unassign'];
+    // Get the assigned donor_id before unassigning
+    $getDonor = $conn->prepare("SELECT assigned_donor_id FROM blood_request WHERE id = ? AND assigned_donor_id IS NOT NULL");
+    $getDonor->bind_param("i", $id);
+    $getDonor->execute();
+    $donorRow = $getDonor->get_result()->fetch_assoc();
+    $getDonor->close();
+
+    $stmt = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL, status = 'Pending' WHERE id = ? AND assigned_donor_id IS NOT NULL");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->close();
+
+    // Restore donor availability to Available
+    if ($donorRow && $donorRow['assigned_donor_id']) {
+        $restoreDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+        $restoreDonor->bind_param("i", $donorRow['assigned_donor_id']);
+        $restoreDonor->execute();
+        $restoreDonor->close();
+    }
+
+    header('Location: assignments.php');
+    exit;
+}
+
+// Fetch assignable requests (Pending or Approved without donor)
+$assignable_requests = [];
+try {
+    $result = $conn->query("
+        SELECT r.id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
+               r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id
+        FROM blood_request r
+        LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
+        WHERE r.status IN ('Pending', 'Approved', 'Rejected') AND r.assigned_donor_id IS NULL
+        ORDER BY r.required_date ASC
+    ");
+    if ($result && $result->num_rows > 0) {
+        $assignable_requests = $result->fetch_all(MYSQLI_ASSOC);
+    }
+} catch (Exception $e) {
+}
+
+
+// Fetch available donors
+$available_donors = [];
+try {
+    $result = $conn->query("
+        SELECT d.id, d.blood_groups, d.phone, d.weight, d.age, d.available_status, d.address,
+               d.last_donation_date, u.username
+        FROM donor d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.available_status = 'Available'
+          AND u.status = 'Active'
+          AND (d.last_donation_date IS NULL OR DATEDIFF(CURRENT_DATE, d.last_donation_date) >= 90)
+        ORDER BY d.blood_groups ASC, u.username ASC
+    ");
+    if ($result && $result->num_rows > 0) {
+        $available_donors = $result->fetch_all(MYSQLI_ASSOC);
+    }
+} catch (Exception $e) {
+}
+
+
+// Fetch already assigned requests for display
+$assigned_requests = [];
+try {
+    $result = $conn->query("
+        SELECT r.id, r.id AS request_id, r.requester_name, bg.blood_gp_name AS blood_group, r.units,
+               r.hospital, r.required_date, r.status AS request_status,
+               u.username AS donor_name, d.blood_groups AS donor_blood_group, d.phone AS donor_phone,
+               da.status AS assignment_status, da.id AS assignment_id, 
+               da.created_at AS assigned_date, da.responded_at, da.completed_at
+        FROM blood_request r
+        LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
+        LEFT JOIN donor d ON r.assigned_donor_id = d.id
+        LEFT JOIN users u ON d.user_id = u.id
+        LEFT JOIN donor_assignments da ON da.id = (
+            SELECT MAX(id) FROM donor_assignments WHERE request_id = r.id AND donor_id = d.id
+        )
+        WHERE r.assigned_donor_id IS NOT NULL AND r.status IN ('Assigned', 'Approved', 'Completed', 'Rejected', 'Accepted')
+        ORDER BY r.required_date DESC
+    ");
+    if ($result && $result->num_rows > 0) {
+        $assigned_requests = $result->fetch_all(MYSQLI_ASSOC);
+    }
+} catch (Exception $e) {
+}
+
+
+
+// Handle mark as completed
+if (isset($_GET['complete_assignment'])) {
+    $id = (int)$_GET['complete_assignment'];
+
+    // Verify status is Received
+    $check = $conn->prepare("SELECT request_id, status FROM donor_assignments WHERE id = ?");
+    $check->bind_param("i", $id);
+    $check->execute();
+    $resCheck = $check->get_result();
+    if ($resCheck && $resCheck->num_rows > 0) {
+        $row = $resCheck->fetch_assoc();
+        if ($row['status'] === 'Received') {
+            $req_id = $row['request_id'];
+
+            // Update assignment status
+            $stmt = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            if ($stmt->execute()) {
+                $success = "Assignment marked as completed.";
+                // Update blood request status
+                $conn->query("UPDATE blood_request SET status = 'Completed' WHERE id = $req_id");
+            } else {
+                $error = "Failed to update assignment: " . $conn->error;
+            }
+            $stmt->close();
+        } else {
+            $error = "Only assignments in 'Received' status can be marked as completed.";
+        }
+    }
+    $check->close();
+
+    // Redirect to clear URL
+    header("Location: assignments.php");
+    exit;
+}
+
+// Stats
+$stats = ['active' => 0, 'accepted' => 0, 'rejected' => 0, 'completed' => 0];
+$stats_query = $conn->query("SELECT status, COUNT(*) as count FROM donor_assignments GROUP BY status");
+if ($stats_query) {
+    while ($row = $stats_query->fetch_assoc()) {
+        $st = $row['status'];
+        if ($st === 'Assigned') $stats['active'] += $row['count'];
+        else if ($st === 'Accepted') $stats['accepted'] += $row['count'];
+        else if ($st === 'Rejected') $stats['rejected'] += $row['count'];
+        else if ($st === 'Completed' || $st === 'Received') $stats['completed'] += $row['count'];
+    }
+}
+
+// Fetch all assignments
+$sql = "
+SELECT 
+    da.id AS assignment_id,
+    da.status AS assignment_status,
+    da.created_at AS assigned_date,
+    da.responded_at,
+    da.completed_at,
+    br.id AS request_id,
+    br.status AS request_status,
+    br.requester_name,
+    br.hospital,
+    br.units,
+    bg.blood_gp_name AS blood_group,
+    u_donor.username AS donor_name
+FROM donor_assignments da
+JOIN blood_request br ON da.request_id = br.id
+LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
+JOIN donor d ON da.donor_id = d.id
+JOIN users u_donor ON d.user_id = u_donor.id
+ORDER BY da.created_at DESC
+";
+$assignments = [];
+$res = $conn->query($sql);
+if ($res) {
+    $assignments = $res->fetch_all(MYSQLI_ASSOC);
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donor Assignments - BloodLife Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#dc2626',
+                        secondary: '#991b1b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .timeline-line {
+            position: absolute;
+            left: 15px;
+            top: 30px;
+            bottom: 0;
+            width: 2px;
+            background-color: #e5e7eb;
+            z-index: 0;
+        }
+
+        html.dark .timeline-line {
+            background-color: #374151;
+        }
+
+        .timeline-dot {
+            position: relative;
+            z-index: 1;
+        }
+
+        .assign-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-center: center;
+            z-index: 50;
+        }
+
+        .assign-modal-overlay.active {
+            display: flex;
+        }
+
+        .assign-modal {
+            background: white;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 1.5rem;
+        }
+
+        .assign-modal-donor {
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0.5rem;
+        }
+
+        .assign-modal-donor:hover {
+            border-color: #3b82f6;
+        }
+
+        .assign-modal-donor.selected {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .assign-modal-donor.best-match {
+            border-color: #22c55e;
+        }
+
+        .assign-modal-donor.best-match.selected {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div class="flex h-screen overflow-hidden">
+        <?php include '../includes/sidebar.php'; ?>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Navbar -->
+            <?php include __DIR__ . '/../includes/navbar.php'; ?>
+            <!-- Main Content -->
+            <main class="flex-1 overflow-y-auto p-6">
+
+                <!-- Notifications -->
+                <?php if ($success): ?>
+                    <div class="mb-6 p-4 rounded-lg bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+                        <i class="fas fa-check-circle mr-2"></i><?= htmlspecialchars($success) ?>
+                    </div>
+                <?php endif; ?>
+                <?php if ($error): ?>
+                    <div class="mb-6 p-4 rounded-lg bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
+                        <i class="fas fa-exclamation-circle mr-2"></i><?= htmlspecialchars($error) ?>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <!-- Active/Assigned -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-paper-plane text-blue-500 text-lg"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['active'] ?></h3>
+                        <p class="text-sm text-gray-500 mt-1">Active (Assigned)</p>
+                    </div>
+                    <!-- Accepted -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-green-50 dark:bg-green-500/10 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-thumbs-up text-green-500 text-lg"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['accepted'] ?></h3>
+                        <p class="text-sm text-gray-500 mt-1">Accepted</p>
+                    </div>
+                    <!-- Rejected -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-red-50 dark:bg-red-500/10 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-times-circle text-red-500 text-lg"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['rejected'] ?></h3>
+                        <p class="text-sm text-gray-500 mt-1">Rejected</p>
+                    </div>
+                    <!-- Completed/Received -->
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-check-circle text-emerald-500 text-lg"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['completed'] ?></h3>
+                        <p class="text-sm text-gray-500 mt-1">Received / Completed</p>
+                    </div>
+                </div>
+
+                <!-- Donor Assignment Section -->
+                <div class="mb-8">
+                    <div class="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">
+                                <i class="fas fa-user-check text-blue-500 mr-2"></i>Assign Donor to Request
+                            </h3>
+                            <p class="text-sm text-gray-400 mt-1">Match available donors with pending blood requests</p>
+                        </div>
+                    </div>
+
+                    <?php if (count($assignable_requests) > 0): ?>
+                        <div class="grid grid-cols-1 gap-6">
+                            <!-- Requests List -->
+                            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                                <h4 class="font-bold text-gray-900 mb-4 flex items-center">
+                                    <span class="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center mr-2">
+                                        <i class="fas fa-file-medical text-sm"></i>
+                                    </span>
+                                    Requests Awaiting Assignment
+                                    <span class="ml-auto bg-yellow-100 text-yellow-700 text-xs font-bold px-2.5 py-1 rounded-full"><?= count($assignable_requests) ?></span>
+                                </h4>
+                                <div class="space-y-3 max-h-96 overflow-y-auto" id="requestList">
+                                    <?php foreach ($assignable_requests as $ar): ?>
+                                        <div class="request-item p-4 rounded-xl border-2 border-gray-200 transition group"
+                                            data-id="<?= $ar['id'] ?>"
+                                            data-blood-group="<?= htmlspecialchars($ar['blood_group']) ?>"
+                                            data-blood-groups-id="<?= (int)$ar['blood_groups_id'] ?>"
+                                            data-units="<?= (int)$ar['units'] ?>"
+                                            data-hospital="<?= htmlspecialchars($ar['hospital']) ?>">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex items-center space-x-3">
+                                                    <div class="w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
+                                                        <?= strtoupper(substr($ar['blood_group'], 0, 2)) ?>
+                                                    </div>
+                                                    <div>
+                                                        <p class="font-bold text-gray-900 text-sm"><?= htmlspecialchars($ar['blood_group']) ?> - <?= (int)$ar['units'] ?> Unit<?= (int)$ar['units'] > 1 ? 's' : '' ?></p>
+                                                        <p class="text-xs text-gray-400">Request #<?= $ar['id'] ?> - <?= htmlspecialchars($ar['requester_name'] ?? 'Unknown') ?></p>
+                                                    </div>
+                                                </div>
+                                                <div class="flex flex-col items-end space-y-2">
+                                                    <span class="text-xs font-semibold <?= $ar['status'] === 'Pending' ? 'text-yellow-600 bg-yellow-50' : 'text-blue-600 bg-blue-50' ?> px-2.5 py-1 rounded-full">
+                                                        <?= htmlspecialchars($ar['status']) ?>
+                                                    </span>
+                                                    <div class="flex items-center space-x-2">
+                                                        <a href="blood_requests_crud.php?view=<?= $ar['id'] ?>" class="text-gray-400 hover:text-blue-500 transition px-2 py-1" title="View Request">
+                                                            <i class="fas fa-eye text-sm"></i> View
+                                                        </a>
+                                                        <button type="button" onclick="openAssignModal(<?= $ar['id'] ?>)" class="px-3 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition border border-blue-200" title="Assign Donor">
+                                                            Assign Donor
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3 flex items-center text-xs text-gray-500 space-x-4">
+                                                <span><i class="fas fa-hospital mr-1"></i><?= htmlspecialchars($ar['hospital']) ?></span>
+                                                <span><i class="fas fa-calendar mr-1"></i><?= htmlspecialchars($ar['required_date']) ?></span>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+
+                        </div>
+                    <?php else: ?>
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+                            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+                            </div>
+                            <p class="text-gray-600 font-semibold">All requests have been assigned</p>
+                            <p class="text-gray-400 text-sm mt-1">No pending requests awaiting donor assignment</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Assigned Donors Summary -->
+                <?php if (count($assigned_requests) > 0): ?>
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">
+                                    <i class="fas fa-clipboard-check text-green-500 mr-2"></i>Active Assignments
+                                </h3>
+                                <p class="text-sm text-gray-400 mt-1">Requests with assigned donors</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="bg-gray-50 border-b border-gray-100">
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Request</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Blood Type</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Hospital</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Assigned Donor</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Donor Phone</th>
+                                            <th class="px-5 py-3 text-left font-semibold text-gray-600">Status</th>
+                                            <th class="px-5 py-3 text-center font-semibold text-gray-600">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($assigned_requests as $asr): ?>
+                                            <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+                                                <td class="px-5 py-3">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="font-bold text-gray-900">#<?= $asr['id'] ?></span>
+                                                        <span class="text-gray-400">-</span>
+                                                        <span class="text-gray-600"><?= htmlspecialchars($asr['requester_name'] ?? 'Unknown') ?></span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-5 py-3">
+                                                    <span class="bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-full text-xs"><?= htmlspecialchars($asr['blood_group']) ?></span>
+                                                </td>
+                                                <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['hospital']) ?></td>
+                                                <td class="px-5 py-3">
+                                                    <div class="flex items-center space-x-2">
+                                                        <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                                                            <?= strtoupper(substr($asr['donor_name'] ?? 'U', 0, 2)) ?>
+                                                        </div>
+                                                        <div>
+                                                            <p class="font-semibold text-gray-900"><?= htmlspecialchars($asr['donor_name'] ?? '-') ?></p>
+                                                            <p class="text-xs text-gray-400"><?= htmlspecialchars($asr['donor_blood_group'] ?? '') ?></p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-5 py-3 text-gray-600"><?= htmlspecialchars($asr['donor_phone'] ?? '-') ?></td>
+                                                <td class="px-5 py-3">
+                                                    <?php
+                                                    $badgeColor = 'bg-gray-100 text-gray-600';
+                                                    $statusDisplay = $asr['assignment_status'] ?? $asr['request_status'] ?? 'Unknown';
+                                                    if ($statusDisplay === 'Accepted') $badgeColor = 'bg-blue-100 text-blue-700';
+                                                    elseif ($statusDisplay === 'Rejected') $badgeColor = 'bg-red-100 text-red-700';
+                                                    elseif ($statusDisplay === 'Received') $badgeColor = 'bg-yellow-100 text-yellow-700';
+                                                    elseif ($statusDisplay === 'Completed') $badgeColor = 'bg-green-100 text-green-700';
+                                                    elseif ($statusDisplay === 'Assigned') $badgeColor = 'bg-blue-100 text-blue-700';
+                                                    ?>
+                                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold <?= $badgeColor ?>"><?= htmlspecialchars($statusDisplay) ?></span>
+                                                </td>
+                                                <td class="px-5 py-3 text-center space-x-3">
+                                                    <!-- View Button -->
+                                                    <button onclick='openTimelineModal(<?= json_encode($asr, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)' class="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-lg transition shadow-sm" title="View Timeline">
+                                                        View
+                                                    </button>
+
+                                                    <?php if ($statusDisplay === 'Assigned'): ?>
+                                                        <a href="assignments.php?unassign=<?= $asr['id'] ?>" onclick="return confirm('Remove this donor assignment? The request will return to Pending status.')" class="text-red-500 hover:text-red-700 transition" title="Unassign">
+                                                            <i class="fas fa-user-minus"></i>
+                                                        </a>
+                                                    <?php elseif ($statusDisplay === 'Accepted'): ?>
+                                                        <!-- Reassign -->
+                                                        <button onclick="if(confirm('Are you sure you want to reassign this request?')){ openAssignModal(<?= $asr['id'] ?>, true, '<?= $asr['blood_group'] ?>', <?= $asr['units'] ?>, '<?= addslashes($asr['hospital']) ?>'); }" class="text-orange-500 hover:text-orange-700 transition" title="Reassign">
+                                                            <i class="fas fa-exchange-alt"></i>
+                                                        </button>
+                                                    <?php elseif ($statusDisplay === 'Rejected'): ?>
+                                                        <!-- Assign Another Donor -->
+                                                        <button onclick="if(confirm('This donor rejected. Assign another donor?')){ openAssignModal(<?= $asr['id'] ?>, true, '<?= $asr['blood_group'] ?>', <?= $asr['units'] ?>, '<?= addslashes($asr['hospital']) ?>'); }" class="text-red-500 hover:text-red-700 transition" title="Assign Another Donor">
+                                                            <i class="fas fa-user-plus"></i>
+                                                        </button>
+                                                    <?php elseif ($statusDisplay === 'Received'): ?>
+                                                        <!-- Mark as Completed -->
+                                                        <a href="assignments.php?complete_assignment=<?= $asr['assignment_id'] ?>" onclick="return confirm('Mark this assignment as completed?')" class="text-emerald-500 hover:text-emerald-700 transition" title="Mark Completed">
+                                                            <i class="fas fa-check-double"></i>
+                                                        </a>
+                                                    <?php elseif ($statusDisplay === 'Pending'): ?>
+                                                        <button onclick="openAssignModal(<?= $asr['request_id'] ?? $asr['id'] ?>, false, '<?= $asr['blood_group'] ?>', <?= $asr['units'] ?? 1 ?>, '<?= addslashes($asr['hospital']) ?>')" class="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm" title="Assign Donor">
+                                                            Assign Donor
+                                                        </button>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Main Table -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-white">All Assignments</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-sm border-b border-gray-100 dark:border-gray-700">
+                                    <th class="p-4 font-semibold">Req ID</th>
+                                    <th class="p-4 font-semibold">Requester</th>
+                                    <th class="p-4 font-semibold">Blood Group</th>
+                                    <th class="p-4 font-semibold">Donor</th>
+                                    <th class="p-4 font-semibold">Hospital</th>
+                                    <th class="p-4 font-semibold">Assigned Date</th>
+                                    <th class="p-4 font-semibold">Status</th>
+                                    <th class="p-4 font-semibold text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm divide-y divide-gray-100 dark:divide-gray-700">
+                                <?php if (empty($assignments)): ?>
+                                    <tr>
+                                        <td colspan="8" class="p-4 text-center text-gray-500 dark:text-gray-400">No assignments found.</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($assignments as $a):
+                                        $badgeColor = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+                                        if ($a['assignment_status'] === 'Accepted') $badgeColor = 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
+                                        if ($a['assignment_status'] === 'Rejected') $badgeColor = 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400';
+                                        if ($a['assignment_status'] === 'Received') $badgeColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400';
+                                        if ($a['assignment_status'] === 'Completed') $badgeColor = 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400';
+                                    ?>
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                            <td class="p-4 text-gray-900 dark:text-white font-medium">#<?= $a['request_id'] ?></td>
+                                            <td class="p-4 text-gray-700 dark:text-gray-300"><?= htmlspecialchars($a['requester_name'] ?? 'N/A') ?></td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                                                    <?= htmlspecialchars($a['blood_group'] ?? 'N/A') ?>
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-gray-700 dark:text-gray-300 font-semibold"><?= htmlspecialchars($a['donor_name']) ?></td>
+                                            <td class="p-4 text-gray-500 dark:text-gray-400"><?= htmlspecialchars($a['hospital']) ?></td>
+                                            <td class="p-4 text-gray-500 dark:text-gray-400"><?= date('M d, Y', strtotime($a['assigned_date'])) ?></td>
+                                            <td class="p-4">
+                                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold <?= $badgeColor ?>">
+                                                    <?= $a['assignment_status'] ?>
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-center space-x-2">
+                                                <button onclick="openTimelineModal(<?= htmlspecialchars(json_encode($a)) ?>)" class="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-lg transition shadow-sm" title="View Timeline">
+                                                    View
+                                                </button>
+                                                <?php if (isset($a['request_status']) && $a['request_status'] === 'Pending'): ?>
+                                                    <button onclick="openAssignModal(<?= $a['request_id'] ?>, false, '<?= $a['blood_group'] ?>', <?= $a['units'] ?? 1 ?>, '<?= addslashes($a['hospital']) ?>')" class="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm" title="Assign Donor">
+                                                        Assign Donor
+                                                    </button>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Assign Donor Modal -->
+    <div id="assignModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4" onclick="if(event.target===this)closeAssignModal()">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-up">
+            <div class="flex items-center justify-between p-5 border-b border-gray-100">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900 text-lg">Recommended Donor</h3>
+                        <p class="text-xs text-gray-500" id="modalRequestInfo"></p>
+                    </div>
+                </div>
+                <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 p-2 transition"><i class="fas fa-times text-lg"></i></button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Donor Info Block -->
+                <div id="modalBestDonorDetails" class="hidden">
+                    <!-- Injected by JS -->
+                </div>
+
+                <div id="modalNoDonors" class="hidden text-center py-8">
+                    <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user-slash"></i></div>
+                    <p class="text-gray-500 font-medium">No suitable donor available.</p>
+                </div>
+            </div>
+
+            <div class="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-3xl">
+                <button onclick="closeAssignModal()" class="px-5 py-2.5 rounded-xl font-bold text-gray-600 border border-gray-200 bg-white hover:bg-gray-100 transition">Cancel</button>
+                <button id="modalAssignBtn" onclick="executeModalAssign()" disabled class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"><i class="fas fa-check"></i> Assign Donor</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="assignConfirmModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-up">
+            <div class="p-8 text-center space-y-6">
+                <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-sm">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-2xl text-gray-900 mb-2" id="assignConfirmTitle">Assign Donor</h2>
+                    <p class="text-gray-500" id="assignConfirmMessage">Are you sure you want to assign this donor to this request?</p>
+                </div>
+            </div>
+            <div class="px-8 pb-8 flex gap-3">
+                <button onclick="closeAssignConfirmModal()" class="flex-1 border-2 border-gray-300 text-gray-600 py-3 rounded-xl font-bold hover:border-gray-400 hover:text-gray-800 transition">Cancel</button>
+                <button onclick="executeModalAssign()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition text-center shadow-md">Confirm Assignment</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Timeline Modal -->
+    <div id="timelineModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md mx-4 overflow-hidden shadow-2xl transform transition-all">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Assignment Timeline</h3>
+                <button onclick="closeTimelineModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 relative">
+                <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Requester: <span id="tm-requester" class="font-semibold text-gray-900 dark:text-white"></span></p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">Donor: <span id="tm-donor" class="font-semibold text-gray-900 dark:text-white"></span></p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Request ID: <span id="tm-reqid" class="font-semibold text-gray-900 dark:text-white"></span></p>
+                </div>
+
+                <div class="relative pl-8 space-y-6" id="timeline-container">
+                    <div class="timeline-line"></div>
+                    <div class="relative">
+                        <div class="timeline-dot absolute -left-8 w-6 h-6 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center text-xs border-2 border-white dark:border-gray-800"><i class="fas fa-check"></i></div>
+                        <h4 class="text-sm font-bold text-gray-900 dark:text-white">Assigned</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" id="tm-date-assigned"></p>
+                    </div>
+                    <div class="relative" id="step-response">
+                        <div class="timeline-dot absolute -left-8 w-6 h-6 bg-gray-100 text-gray-400 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs border-2 border-white dark:border-gray-800" id="dot-response"><i class="fas fa-circle" style="font-size: 8px;"></i></div>
+                        <h4 class="text-sm font-bold text-gray-500 dark:text-gray-400" id="title-response">Pending Response</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" id="tm-date-response"></p>
+                    </div>
+                    <div class="relative" id="step-received">
+                        <div class="timeline-dot absolute -left-8 w-6 h-6 bg-gray-100 text-gray-400 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs border-2 border-white dark:border-gray-800" id="dot-received"><i class="fas fa-circle" style="font-size: 8px;"></i></div>
+                        <h4 class="text-sm font-bold text-gray-500 dark:text-gray-400" id="title-received">Blood Received</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" id="tm-date-received"></p>
+                    </div>
+                    <div class="relative" id="step-completed">
+                        <div class="timeline-dot absolute -left-8 w-6 h-6 bg-gray-100 text-gray-400 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs border-2 border-white dark:border-gray-800" id="dot-completed"><i class="fas fa-circle" style="font-size: 8px;"></i></div>
+                        <h4 class="text-sm font-bold text-gray-500 dark:text-gray-400" id="title-completed">Completed</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" id="tm-date-completed"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 text-right rounded-b-2xl">
+                <button onclick="closeTimelineModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-white rounded-lg text-sm font-semibold transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        if (localStorage.getItem('bloodlife-theme') === 'dark' || (!('bloodlife-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+        }
+        themeToggleBtn.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.setItem('bloodlife-theme', html.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const d = new Date(dateString);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function setStepActive(dotId, titleId, titleText, colorClass, textClass, iconClass) {
+            const dot = document.getElementById(dotId);
+            const title = document.getElementById(titleId);
+            dot.className = `timeline-dot absolute -left-8 w-6 h-6 ${colorClass} ${textClass} rounded-full flex items-center justify-center text-xs border-2 border-white dark:border-gray-800`;
+            dot.innerHTML = `<i class="${iconClass}"></i>`;
+            title.className = `text-sm font-bold text-gray-900 dark:text-white`;
+            title.innerText = titleText;
+        }
+
+        function setStepInactive(dotId, titleId, titleText) {
+            const dot = document.getElementById(dotId);
+            const title = document.getElementById(titleId);
+            dot.className = `timeline-dot absolute -left-8 w-6 h-6 bg-gray-100 text-gray-400 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs border-2 border-white dark:border-gray-800`;
+            dot.innerHTML = `<i class="fas fa-circle" style="font-size: 8px;"></i>`;
+            title.className = `text-sm font-bold text-gray-500 dark:text-gray-400`;
+            title.innerText = titleText;
+        }
+
+        function openTimelineModal(assignment) {
+            document.getElementById('tm-requester').innerText = assignment.requester_name || 'N/A';
+            document.getElementById('tm-donor').innerText = assignment.donor_name || 'N/A';
+            document.getElementById('tm-reqid').innerText = '#' + assignment.request_id;
+
+            document.getElementById('tm-date-assigned').innerText = formatDate(assignment.assigned_date);
+
+            setStepInactive('dot-response', 'title-response', 'Pending Response');
+            document.getElementById('tm-date-response').innerText = '';
+            setStepInactive('dot-received', 'title-received', 'Blood Received');
+            document.getElementById('tm-date-received').innerText = '';
+            setStepInactive('dot-completed', 'title-completed', 'Completed');
+            document.getElementById('tm-date-completed').innerText = '';
+
+            const status = assignment.assignment_status;
+            if (status !== 'Assigned') {
+                if (status === 'Rejected') {
+                    setStepActive('dot-response', 'title-response', 'Rejected', 'bg-red-100 dark:bg-red-900/30', 'text-red-500', 'fas fa-times');
+                    document.getElementById('tm-date-response').innerText = formatDate(assignment.responded_at);
+                } else {
+                    setStepActive('dot-response', 'title-response', 'Accepted', 'bg-blue-100 dark:bg-blue-900/30', 'text-blue-500', 'fas fa-check');
+                    document.getElementById('tm-date-response').innerText = formatDate(assignment.responded_at);
+                }
+            }
+
+            if (status === 'Received' || status === 'Completed') {
+                setStepActive('dot-received', 'title-received', 'Blood Received', 'bg-yellow-100 dark:bg-yellow-900/30', 'text-yellow-600', 'fas fa-check');
+            }
+
+            if (status === 'Completed') {
+                setStepActive('dot-completed', 'title-completed', 'Completed', 'bg-emerald-100 dark:bg-emerald-900/30', 'text-emerald-500', 'fas fa-check-double');
+                document.getElementById('tm-date-completed').innerText = formatDate(assignment.completed_at);
+            }
+
+            document.getElementById('timelineModal').classList.remove('hidden');
+        }
+
+        function closeTimelineModal() {
+            document.getElementById('timelineModal').classList.add('hidden');
+        }
+    </script>
+    <script>
+        var modalRequestId = null;
+        var modalBloodGroup = null;
+        var modalRequestHospital = '';
+        var modalSelectedDonorId = null;
+        var isReassignMode = false;
+        var allDonors = <?= json_encode($available_donors) ?>;
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                 .toString()
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+        function openAssignModal(requestId, reassign = false, bGroup = null, bUnits = null, hospital = null) {
+            isReassignMode = reassign;
+            modalRequestId = requestId;
+
+            var reqInfo = null;
+            document.querySelectorAll('.request-item').forEach(function(item) {
+                if (item.getAttribute('data-id') == requestId) {
+                    reqInfo = {
+                        blood_group: item.getAttribute('data-blood-group'),
+                        units: item.getAttribute('data-units'),
+                        hospital: item.getAttribute('data-hospital'),
+                        requester_name: item.querySelector('p.font-bold') ? item.querySelector('p.font-bold').innerText : 'Unknown'
+                    };
+                }
+            });
+
+            if (!reqInfo) {
+                reqInfo = {
+                    blood_group: bGroup || 'Unknown',
+                    units: bUnits || '?',
+                    hospital: hospital || ''
+                };
+            }
+            modalBloodGroup = reqInfo.blood_group;
+            modalRequestHospital = reqInfo.hospital;
+
+            document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId;
+            document.getElementById('modalAssignBtn').disabled = true;
+
+            renderModalDonors(reqInfo.blood_group);
+            document.getElementById('assignModal').classList.add('active');
+            document.getElementById('assignModal').classList.remove('hidden');
+            document.getElementById('assignModal').classList.add('flex');
+        }
+
+        function closeAssignModal() {
+            document.getElementById('assignModal').classList.remove('active');
+            document.getElementById('assignModal').classList.add('hidden');
+            document.getElementById('assignModal').classList.remove('flex');
+            modalSelectedDonorId = null;
+            modalRequestId = null;
+        }
+
+        var bloodCompatibility = {
+            'O-': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
+            'O+': ['O+', 'A+', 'B+', 'AB+'],
+            'A-': ['A-', 'A+', 'AB-', 'AB+'],
+            'A+': ['A+', 'AB+'],
+            'B-': ['B-', 'B+', 'AB-', 'AB+'],
+            'B+': ['B+', 'AB+'],
+            'AB-': ['AB-', 'AB+'],
+            'AB+': ['AB+']
+        };
+
+        function calculateMatchScore(donor, requestBloodGroup) {
+            var score = 0;
+            var reasons = [];
+            if (donor.blood_groups === requestBloodGroup) {
+                score += 40;
+                reasons.push('Exact match');
+            } else {
+                score += 20;
+                reasons.push('Compatible');
+            }
+
+            var canDonate = true;
+            var daysSinceLastDonation = 999;
+            if (donor.last_donation_date) {
+                var lastDate = new Date(donor.last_donation_date);
+                var now = new Date();
+                daysSinceLastDonation = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+                canDonate = daysSinceLastDonation >= 90;
+            }
+            if (canDonate) {
+                score += 20;
+                reasons.push('Ready');
+            }
+            var timeBonus = Math.min(10, Math.floor(daysSinceLastDonation / 14));
+            score += timeBonus;
+
+            if (modalRequestHospital && donor.address) {
+                var hospitalLower = modalRequestHospital.toLowerCase();
+                var addressLower = donor.address.toLowerCase();
+                var words = hospitalLower.split(/[\s,]+/);
+                var locationMatched = false;
+                for (var i = 0; i < words.length; i++) {
+                    if (words[i].length > 3 && addressLower.indexOf(words[i]) !== -1) {
+                        locationMatched = true;
+                        break;
+                    }
+                }
+                if (locationMatched) {
+                    score += 15;
+                    reasons.push('Location Match');
+                }
+            }
+
+            return {
+                score: score,
+                reasons: reasons,
+                canDonate: canDonate,
+                daysSince: daysSinceLastDonation
+            };
+        }
+
+        function renderModalDonors(bloodGroup) {
+            var bestDonorDetails = document.getElementById('modalBestDonorDetails');
+            var noDonors = document.getElementById('modalNoDonors');
+            var assignBtn = document.getElementById('modalAssignBtn');
+
+            var scored = [];
+            allDonors.forEach(function(d) {
+                // Enforce exact blood match
+                if (d.blood_groups !== bloodGroup) return;
+                
+                var match = calculateMatchScore(d, bloodGroup);
+                scored.push({
+                    donor: d,
+                    match: match
+                });
+            });
+
+            scored.sort(function(a, b) {
+                return b.match.score - a.match.score;
+            });
+
+            if (scored.length === 0) {
+                bestDonorDetails.innerHTML = '';
+                bestDonorDetails.classList.add('hidden');
+                noDonors.classList.remove('hidden');
+                noDonors.innerHTML = '<p class="text-gray-500 font-medium">No suitable donor with the required blood type is available.</p>';
+                assignBtn.disabled = true;
+                return;
+            }
+
+            noDonors.classList.add('hidden');
+            bestDonorDetails.classList.remove('hidden');
+
+            var best = scored[0];
+            var d = best.donor;
+            var m = best.match;
+            
+            modalSelectedDonorId = d.id; // Automatically select the best donor
+
+            var elText = m.canDonate ? 'Eligible' : 'Ineligible (Wait ' + (90 - m.daysSince) + ' days)';
+            var elColor = m.canDonate ? 'text-green-600' : 'text-red-500';
+
+            var html = '<div class="p-5 rounded-2xl border-2 border-green-500 bg-green-50/30">';
+            html += '  <div class="flex items-start justify-between mb-4">';
+            html += '    <div class="flex items-center space-x-4">';
+            html += '      <div class="w-14 h-14 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">';
+            html += '        ' + d.username.substring(0, 2).toUpperCase();
+            html += '      </div>';
+            html += '      <div>';
+            html += '        <p class="font-bold text-gray-900 text-xl">' + escapeHtml(d.username) + '</p>';
+            html += '        <p class="text-sm font-bold text-red-500 mt-0.5">Blood Group: ' + escapeHtml(d.blood_groups) + '</p>';
+            html += '      </div>';
+            html += '    </div>';
+            html += '    <div class="text-right">';
+            html += '      <span class="text-xs font-bold text-green-700 bg-green-200 px-3 py-1.5 rounded-full uppercase tracking-wider"><i class="fas fa-star mr-1"></i>Recommended</span>';
+            html += '      <p class="text-[10px] text-gray-500 mt-2 font-semibold">Match Score: ' + m.score + '/100</p>';
+            html += '    </div>';
+            html += '  </div>';
+            
+            html += '  <div class="space-y-3 mt-5 pt-5 border-t border-green-200/60 text-sm font-medium">';
+            html += '    <p class="flex items-center text-gray-700"><i class="fas fa-phone w-6 text-gray-400"></i>' + escapeHtml(d.phone) + '</p>';
+            html += '    <p class="flex items-center text-gray-700"><i class="fas fa-map-marker-alt w-6 text-gray-400"></i>' + escapeHtml(d.address || 'Unknown Township/Location') + '</p>';
+            html += '    <p class="flex items-center text-gray-700"><i class="fas fa-calendar-alt w-6 text-gray-400"></i>Last Donation: <span class="ml-1 text-gray-900">' + (d.last_donation_date ? escapeHtml(d.last_donation_date) : 'Never') + '</span></p>';
+            html += '    <p class="flex items-center text-gray-700"><i class="fas fa-heartbeat w-6 text-gray-400"></i>Eligibility: <span class="ml-1 ' + elColor + ' font-bold">' + elText + '</span></p>';
+            html += '    <p class="flex items-center text-gray-700"><i class="fas fa-check-circle w-6 text-green-500"></i>Status: <span class="ml-1 text-green-600 font-bold">Available</span></p>';
+            html += '  </div>';
+            html += '</div>';
+
+            bestDonorDetails.innerHTML = html;
+            assignBtn.disabled = false;
+        }
+
+        // Delete Modal Logic
+        function openDeleteModal(url) {
+            document.getElementById('confirmDeleteBtn').href = url;
+            document.getElementById('deleteConfirmModal').classList.remove('hidden');
+            document.getElementById('deleteConfirmModal').classList.add('flex');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteConfirmModal').classList.remove('flex');
+            document.getElementById('deleteConfirmModal').classList.add('hidden');
+        }
+
+
+        function openAssignConfirmModal() {
+            var title = isReassignMode ? 'Reassign Donor' : 'Assign Donor';
+            var msg = isReassignMode ? 'Are you sure you want to assign another donor?' : 'Are you sure you want to assign this donor to this blood request?';
+            document.getElementById('assignConfirmTitle').textContent = title;
+            document.getElementById('assignConfirmMessage').textContent = msg;
+
+            document.getElementById('assignConfirmModal').classList.remove('hidden');
+            document.getElementById('assignConfirmModal').classList.add('flex');
+        }
+
+        function closeAssignConfirmModal() {
+            document.getElementById('assignConfirmModal').classList.remove('flex');
+            document.getElementById('assignConfirmModal').classList.add('hidden');
+        }
+
+        function executeModalAssign() {
+            document.querySelector('#assignConfirmModal button:last-child').classList.add('opacity-50', 'pointer-events-none');
+
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'assignments.php';
+
+            var ridInput = document.createElement('input');
+            ridInput.type = 'hidden';
+            ridInput.name = 'request_id';
+            ridInput.value = modalRequestId;
+            form.appendChild(ridInput);
+
+            var didInput = document.createElement('input');
+            didInput.type = 'hidden';
+            didInput.name = 'donor_id';
+            didInput.value = modalSelectedDonorId;
+            form.appendChild(didInput);
+
+            var submitInput = document.createElement('input');
+            submitInput.type = 'hidden';
+            submitInput.name = 'assign_donor';
+            submitInput.value = '1';
+            form.appendChild(submitInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
+</body>
+
+</html>

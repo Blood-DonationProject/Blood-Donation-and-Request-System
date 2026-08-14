@@ -50,7 +50,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
     }
 
     // Fetch user notifications
-    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 15");
+    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
     $notifCount = 0;
     if ($stmt_notif) {
         $stmt_notif->bind_param('i', $_SESSION['user_id']);
@@ -85,7 +85,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                 <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
                 <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
                 <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-                <a href="donordashboard.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Dashboard</a>
+
 
                 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
                     <span class="theme-icon-sun"><svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -111,16 +111,16 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                 <div>
                                     <span class="text-xs text-gray-400 mr-2"><?= $notifCount ?> new</span>
                                     <?php if ($notifCount > 0): ?>
-                                    <a href="?read_notifs=1" class="text-xs text-blue-600 hover:underline">Mark all as read</a>
+                                        <a href="?read_notifs=1" class="text-xs text-blue-600 hover:underline">Mark all as read</a>
                                     <?php endif; ?>
                                 </div>
                             </div>
                             <?php if (count($notifications) > 0): ?>
                                 <div class="max-h-80 overflow-y-auto">
-                                    <?php foreach ($notifications as $n): 
+                                    <?php foreach ($notifications as $n):
                                         $is_read = $n['is_read'] == 1;
                                         $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100';
-                                        
+
                                         // Figure out the link for donors vs requesters
                                         $link = "profile.php"; // default
                                         if (isset($_SESSION['role']) && strtolower($_SESSION['role']) == 'donor') {
@@ -134,7 +134,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                                     <i class="fas fa-bell text-red-500 mr-2"></i> <?= htmlspecialchars($n['title'] ?? 'Notification') ?>
                                                 </p>
                                                 <?php if (!$is_read): ?>
-                                                <span class="w-2 h-2 rounded-full bg-red-600 mt-1"></span>
+                                                    <span class="w-2 h-2 rounded-full bg-red-600 mt-1"></span>
                                                 <?php endif; ?>
                                             </div>
                                             <p class="text-xs text-gray-700 mt-1 font-medium"><?= htmlspecialchars($n['message']) ?></p>
@@ -152,6 +152,9 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                     No new notifications
                                 </div>
                             <?php endif; ?>
+                            <div class="p-3 border-t border-gray-100 text-center bg-gray-50 rounded-b-xl">
+                                <a href="notifications.php" class="text-sm font-semibold text-red-600 hover:text-red-700">View All Notifications &rarr;</a>
+                            </div>
                         </div>
                     </div>
 
@@ -173,6 +176,9 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                             <div class="p-2">
                                 <a href="profile.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
                                     <span>👤</span> <span data-i18n="profile">Profile</span>
+                                </a>
+                                <a href="change_password.php" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                                    <span>🔑</span> <span data-i18n="change_password">Change Password</span>
                                 </a>
                                 <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">
                                     <span>🚪</span> <span data-i18n="logout">Logout</span>
