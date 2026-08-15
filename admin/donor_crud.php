@@ -10,28 +10,29 @@ unset($_SESSION['error'], $_SESSION['success']);
 
 if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
-    $user_id = (int)$_POST['user_id'];
-    $gender = $_POST['gender'];
-    $date_of_birth = $_POST['date_of_birth'];
-    $age = (int)$_POST['age'];
-    $blood_groups = trim($_POST['blood_groups']);
-    $phone = trim($_POST['phone']);
-    $address = trim($_POST['address']);
-    $weight = (float)$_POST['weight'];
-    $last_donation_date = $_POST['last_donation_date'] ?: null;
-    $available_status = $_POST['available_status'];
+    $last_donation_date = empty($_POST['last_donation_date']) ? null : $_POST['last_donation_date'];
+    $today = date('Y-m-d');
 
-    if ($user_id && $blood_groups !== '' && $phone !== '' && $address !== '' && $weight > 0) {
-        $stmt = $conn->prepare("UPDATE donor SET user_id=?, gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE id=?");
-        $stmt->bind_param("ississsdssi", $user_id, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status, $id);
+    if ($last_donation_date && $last_donation_date > $today) {
+        $error = 'Last Donation Date cannot be a future date.';
+    } else {
+        // Auto-calculate Available / Unavailable based on 3-month rule
+        if ($last_donation_date) {
+            $lastDonated = new DateTime($last_donation_date);
+            $threeMonthsAgo = (new DateTime())->modify('-3 months');
+            $available_status = ($lastDonated <= $threeMonthsAgo) ? 'Available' : 'Unavailable';
+        } else {
+            $available_status = 'Available';
+        }
+
+        $stmt = $conn->prepare("UPDATE donor SET last_donation_date=?, available_status=? WHERE id=?");
+        $stmt->bind_param("ssi", $last_donation_date, $available_status, $id);
         if ($stmt->execute()) {
             $success = 'Donor updated successfully.';
         } else {
             $error = 'Error: ' . $conn->error;
         }
         $stmt->close();
-    } else {
-        $error = 'Please fill in all required fields.';
     }
 }
 
@@ -57,13 +58,15 @@ if (isset($_POST['assign_donor'])) {
             $req = $result->fetch_assoc();
             if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
                 // Verify donor exists and is available
-                $donor_check = $conn->prepare("SELECT id, available_status FROM donor WHERE id = ?");
+                $donor_check = $conn->prepare("SELECT id, user_id, available_status FROM donor WHERE id = ?");
                 $donor_check->bind_param("i", $donor_id);
                 $donor_check->execute();
                 $donor_result = $donor_check->get_result();
                 if ($donor_result && $donor_result->num_rows > 0) {
                     $donor = $donor_result->fetch_assoc();
-                    if ($donor['available_status'] === 'Available') {
+                    if (isset($req['users_id']) && isset($donor['user_id']) && $req['users_id'] == $donor['user_id']) {
+                        $_SESSION['error'] = 'The requester cannot be assigned as a donor for their own blood request.';
+                    } else if ($donor['available_status'] === 'Available') {
                         // Assign donor and update status to Assigned
                         $assign = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Assigned' WHERE id = ?");
                         $assign->bind_param("ii", $donor_id, $request_id);
@@ -243,7 +246,7 @@ $donors = [];
 $edit_row = null;
 
 $result = $conn->query("
-    SELECT d.*, u.username
+    SELECT d.*, u.username, u.email
     FROM donor d
     JOIN users u ON d.user_id = u.id
     ORDER BY d.id DESC
@@ -272,7 +275,7 @@ $stats = [
 
 // Fetch pending blood requests for assign modal
 $pendingRequests = $conn->query("
-    SELECT br.id, br.requester_name, br.units, br.hospital, br.required_date, br.status,
+    SELECT br.id, br.users_id, br.requester_name, br.units, br.hospital, br.required_date, br.status,
            bg.blood_gp_name
     FROM blood_request br
     JOIN blood_groups bg ON br.blood_groups_id = bg.id
@@ -415,59 +418,54 @@ if ($dhResult && $dhResult->num_rows > 0) {
                 <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">User *</label>
-                        <input type="hidden" name="user_id" value="<?= $edit_row['user_id'] ?>">
-                        <input type="text" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Donor ID / User ID</label>
+                        <input type="text" value="D-<?= $edit_row['id'] ?> / U-<?= $edit_row['user_id'] ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                        <input type="text" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                        <input type="email" value="<?= htmlspecialchars($edit_row['email'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Gender</label>
+                        <input type="text" value="<?= htmlspecialchars($edit_row['gender'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Date of Birth</label>
+                        <input type="date" value="<?= htmlspecialchars($edit_row['date_of_birth'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Age</label>
+                        <input type="number" value="<?= htmlspecialchars($edit_row['age'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                        <input type="text" value="<?= htmlspecialchars($edit_row['blood_groups'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg)</label>
+                        <input type="number" value="<?= htmlspecialchars($edit_row['weight'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
+                    </div>
+                    <div class="lg:col-span-1">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Address / Township</label>
+                        <input type="text" value="<?= htmlspecialchars($edit_row['address'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Gender *</label>
-                        <select name="gender" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <?php foreach (['Male','Female','Other'] as $g): ?>
-                                <option value="<?= $g ?>" <?= (($edit_row['gender'] ?? '') === $g) ? 'selected' : '' ?>><?= $g ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                        <input type="text" value="<?= htmlspecialchars($edit_row['phone'] ?? '') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none">
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Date of Birth *</label>
-                        <input type="date" name="date_of_birth" value="<?= htmlspecialchars($edit_row['date_of_birth'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Age *</label>
-                        <input type="number" name="age" value="<?= htmlspecialchars($edit_row['age'] ?? '') ?>" required min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group *</label>
-                        <select name="blood_groups" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="">-- Select --</option>
-                            <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
-                                <option value="<?= $bg ?>" <?= (($edit_row['blood_groups'] ?? '') === $bg) ? 'selected' : '' ?>><?= $bg ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Phone *</label>
-                        <input type="text" name="phone" value="<?= htmlspecialchars($edit_row['phone'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (kg) *</label>
-                        <input type="number" step="0.01" name="weight" value="<?= htmlspecialchars($edit_row['weight'] ?? '') ?>" required min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
+                    
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Last Donation Date</label>
-                        <input type="date" name="last_donation_date" value="<?= htmlspecialchars($edit_row['last_donation_date'] ?? '') ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                        <input type="date" name="last_donation_date" value="<?= htmlspecialchars($edit_row['last_donation_date'] ?? '') ?>" max="<?= date('Y-m-d') ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
-                        <select name="available_status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <?php foreach (['Available','Unavailable'] as $st): ?>
-                                <option value="<?= $st ?>" <?= (($edit_row['available_status'] ?? 'Available') === $st) ? 'selected' : '' ?>><?= $st ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="lg:col-span-2">
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Address *</label>
-                        <textarea name="address" required rows="2" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none"><?= htmlspecialchars($edit_row['address'] ?? '') ?></textarea>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Status (Auto-calculated)</label>
+                        <input type="text" value="<?= htmlspecialchars($edit_row['available_status'] ?? 'Available') ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-600 cursor-not-allowed outline-none" title="Automatically calculated based on Last Donation Date">
                     </div>
                     <div class="flex items-end">
                         <button type="submit" name="update" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
@@ -640,7 +638,7 @@ function clearFilters() {
                 <select name="request_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     <option value="">-- Select Request --</option>
                     <?php mysqli_data_seek($pendingRequests, 0); while ($req = $pendingRequests->fetch_assoc()): ?>
-                        <option value="<?= $req['id'] ?>">
+                        <option value="<?= $req['id'] ?>" data-users-id="<?= $req['users_id'] ?>">
                             #<?= $req['id'] ?> — <?= htmlspecialchars($req['requester_name'] ?? 'N/A') ?> | <?= htmlspecialchars($req['blood_gp_name']) ?> | <?= $req['units'] ?> unit(s) | <?= htmlspecialchars($req['hospital']) ?> | <?= htmlspecialchars($req['required_date']) ?>
                         </option>
                     <?php endwhile; ?>
@@ -689,9 +687,25 @@ function closeHistoryModal() {
     document.getElementById('historyModal').classList.add('hidden');
 }
 
-function openAssignModal(donorId, donorName, bloodGroup) {
+function openAssignModal(donorId, donorName, bloodGroup, donorUserId) {
     document.getElementById('assignDonorId').value = donorId;
     document.getElementById('assignDonorInfo').textContent = donorName + ' (' + bloodGroup + ')';
+    
+    var select = document.querySelector('select[name="request_id"]');
+    if (select) {
+        Array.from(select.options).forEach(function(opt) {
+            if (opt.value === "") return;
+            if (opt.dataset.usersId == donorUserId) {
+                opt.style.display = 'none';
+                opt.disabled = true;
+            } else {
+                opt.style.display = '';
+                opt.disabled = false;
+            }
+        });
+        select.value = ""; 
+    }
+
     document.getElementById('assignModal').classList.remove('hidden');
 }
 

@@ -11,28 +11,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
   if (isset($_POST['action']) && $_POST['action'] === 'blood_received' && isset($_POST['request_id'])) {
     $req_id = (int)$_POST['request_id'];
     // Verify it belongs to the user and is 'Assigned' or 'Accepted'
-    $stmt = $conn->prepare("SELECT id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')");
+    $stmt = $conn->prepare("
+        SELECT id, units,
+               (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = blood_request.id AND da.status IN ('Completed', 'Confirmed')) AS received_units
+        FROM blood_request 
+        WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')
+    ");
     $stmt->bind_param("ii", $req_id, $_SESSION['user_id']);
     $stmt->execute();
     $res = $stmt->get_result();
     if ($res && $res->num_rows > 0) {
-      $updReq = $conn->prepare("UPDATE blood_request SET status = 'Completed', received_at = NOW() WHERE id = ?");
-      $updReq->bind_param("i", $req_id);
-      $updReq->execute();
+      $row = $res->fetch_assoc();
+      if ((int)$row['received_units'] < (int)$row['units']) {
+        $error_msg = "You cannot confirm until all requested units are received.";
+      } else {
+        $updReq = $conn->prepare("UPDATE blood_request SET status = 'Completed', received_at = NOW() WHERE id = ?");
+        $updReq->bind_param("i", $req_id);
+        $updReq->execute();
 
-      $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = NOW() WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
-      $updAssign->bind_param("i", $req_id);
-      $updAssign->execute();
+        $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = NOW() WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
+        $updAssign->bind_param("i", $req_id);
+        $updAssign->execute();
 
-      $adminQ = $conn->query("SELECT id FROM users WHERE role = 'Admin'");
-      $notifTitle = 'Request Completed';
-      $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #' . $req_id . ')';
-      while ($admin = $adminQ->fetch_assoc()) {
+        $notifTitle = 'Request Completed';
+        $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #' . $req_id . ')';
+        $admin_id = 0; // Admin is hardcoded as user_id 0
         $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'System', ?, ?)");
-        $notif->bind_param("iiss", $admin['id'], $req_id, $notifTitle, $notifMsg);
+        $notif->bind_param("iiss", $admin_id, $req_id, $notifTitle, $notifMsg);
         $notif->execute();
+        $success_msg = "Blood received successfully.";
       }
-      $success_msg = "Blood received successfully.";
     } else {
       $error_msg = "Invalid request or it is not in Assigned status.";
     }
@@ -66,7 +74,8 @@ $userId = $_SESSION['user_id'] ?? 0;
 $myRequests = [];
 if ($isLoggedIn && $userId > 0) {
   $stmt_myreq = $conn->prepare("SELECT r.id, r.units, r.hospital, r.required_date, r.status, r.urgency,
-                                         bg.blood_gp_name
+                                         bg.blood_gp_name,
+                                         (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = r.id AND da.status IN ('Completed', 'Confirmed')) AS received_units
                                   FROM blood_request r
                                   LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id
                                   WHERE r.users_id = ?
@@ -318,26 +327,52 @@ if ($isLoggedIn && $userId > 0) {
                         ?>
                         <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
                       </td>
-                      <td class="py-3 flex items-center gap-2">
-                        <?php if ($status === 'Assigned' || $status === 'Accepted'): ?>
-                          <button type="button" onclick="viewAssignment(<?= $br['id'] ?>)" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                            <i class="fas fa-eye mr-1"></i> View Assignment
-                          </button>
-                          <form method="POST" class="inline" onsubmit="return confirm('Are you sure you have received the blood? This will officially complete the request.');">
-                            <input type="hidden" name="action" value="blood_received">
-                            <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
-                            <button type="submit" class="bg-green-600 text-white hover:bg-green-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition">
-                              <i class="fas fa-check-circle mr-1"></i> Blood Received
-                            </button>
-                          </form>
+                      <td class="py-3">
+                        <?php if ($status === 'Assigned' || $status === 'Accepted' || $status === 'Completed'): ?>
+                          <?php
+                            $reqUnits = (int)($br['units'] ?? 1);
+                            $recvUnits = (int)($br['received_units'] ?? 0);
+                            $canComplete = ($recvUnits >= $reqUnits) && ($status !== 'Completed');
+                          ?>
+                          <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                              <?php if ($status !== 'Completed'): ?>
+                                <button type="button" onclick="viewAssignment(<?= $br['id'] ?>)" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                                  <i class="fas fa-eye mr-1"></i> View Assignment
+                                </button>
+                              <?php endif; ?>
+                              
+                              <?php if ($status === 'Completed'): ?>
+                                <button type="button" disabled class="bg-gray-300 text-gray-500 cursor-not-allowed px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition" title="Already Completed">
+                                  <i class="fas fa-check-circle mr-1"></i> Blood Received
+                                </button>
+                              <?php else: ?>
+                                <form method="POST" class="inline" <?= $canComplete ? 'onsubmit="return confirm(\'Are you sure you have received the blood? This will officially complete the request.\');"' : '' ?>>
+                                  <input type="hidden" name="action" value="blood_received">
+                                  <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
+                                  <button type="submit" 
+                                      class="<?= $canComplete ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed' ?> px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition"
+                                      <?= $canComplete ? '' : 'disabled title="Wait until all requested units are received"' ?>>
+                                    <i class="fas fa-check-circle mr-1"></i> Blood Received
+                                  </button>
+                                </form>
+                              <?php endif; ?>
+                            </div>
+                            <span class="text-xs font-bold text-gray-700 dark:text-gray-300"><?= $recvUnits ?> / <?= $reqUnits ?> Units</span>
+                          </div>
                         <?php elseif (in_array($status, ['Pending', 'Approved'])): ?>
-                          <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to cancel this request?');">
-                            <input type="hidden" name="action" value="cancel_request">
-                            <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
-                            <button type="submit" class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                              <i class="fas fa-times mr-1"></i> Cancel Request
-                            </button>
-                          </form>
+                          <div class="flex items-center gap-2">
+                            <a href="requestblood.php?edit=<?= $br['id'] ?>" class="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-block">
+                              <i class="fas fa-edit mr-1"></i> Update
+                            </a>
+                            <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to cancel this request?');">
+                              <input type="hidden" name="action" value="cancel_request">
+                              <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
+                              <button type="submit" class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                                <i class="fas fa-times mr-1"></i> Cancel Request
+                              </button>
+                            </form>
+                          </div>
                         <?php else: ?>
                           <span class="text-gray-400 text-xs">-</span>
                         <?php endif; ?>

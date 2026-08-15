@@ -70,7 +70,7 @@ if ($isLoggedIn) {
   // UPDATE - pre-fill form
   if (isset($_GET['edit'])) {
     $editId = (int)$_GET['edit'];
-    $stmt = $conn->prepare("SELECT d.*, d.blood_groups AS blood_gp_name FROM donor d WHERE d.id = ? AND d.user_id = ?");
+    $stmt = $conn->prepare("SELECT d.*, d.blood_groups AS blood_gp_name, u.username, u.email FROM donor d JOIN users u ON d.user_id = u.id WHERE d.id = ? AND d.user_id = ?");
     $stmt->bind_param("ii", $editId, $userId);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -466,29 +466,38 @@ if ($isLoggedIn) {
               <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">👤</div>
               <h2 class="text-xl font-bold text-gray-900">Personal Information</h2>
             </div>
+            <div class="grid sm:grid-cols-2 gap-5 mb-5">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                <input type="text" value="<?= htmlspecialchars($editMode ? ($editData['username'] ?? '') : $username) ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                <input type="email" value="<?= htmlspecialchars($editMode ? ($editData['email'] ?? '') : ($_SESSION['email'] ?? '')) ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
+              </div>
+            </div>
             <div class="grid sm:grid-cols-2 gap-5">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Gender <span class="text-red-500">*</span></label>
-                <select name="gender" required <?= $formDisabled ? 'disabled' : '' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+                <select name="gender" required <?= $formDisabled || $editMode ? 'disabled' : '' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition <?= $editMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white' ?>">
                   <option value="">Select gender</option>
                   <option value="Male" <?= ($editData['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
                   <option value="Female" <?= ($editData['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
                   <option value="Other" <?= ($editData['gender'] ?? '') === 'Other' ? 'selected' : '' ?>>Other</option>
                 </select>
+                <?php if ($editMode): ?><input type="hidden" name="gender" value="<?= htmlspecialchars($editData['gender'] ?? '') ?>"><?php endif; ?>
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Date Of Birth</label>
                 <input type="date" name="date_of_birth" id="dateOfBirth"
                   value="<?= htmlspecialchars($editData['date_of_birth'] ?? '') ?>"
-                  <?= $formDisabled ? 'disabled' : '' ?>
-                  class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+                  <?= $formDisabled || $editMode ? 'readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> />
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Age <span class="text-red-500">*</span></label>
                 <input type="number" name="age" id="ageField" placeholder="Min. 18 years" min="18" required
                   value="<?= htmlspecialchars($editData['age'] ?? '') ?>"
-                  <?= $formDisabled ? 'disabled' : '' ?>
-                  class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" readonly />
+                  <?= $formDisabled || $editMode ? 'readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> readonly />
               </div>
             </div>
           </div>
@@ -510,10 +519,9 @@ if ($isLoggedIn) {
               </div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Address <span class="text-red-500">*</span></label>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Address / Township <span class="text-red-500">*</span></label>
               <textarea name="address" placeholder="Your address" required
-                <?= $formDisabled ? 'disabled' : '' ?>
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" rows="3"><?= htmlspecialchars($editData['address'] ?? '') ?></textarea>
+                <?= $formDisabled || $editMode ? 'readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> rows="3"><?= htmlspecialchars($editData['address'] ?? '') ?></textarea>
             </div>
           </div>
 
@@ -526,7 +534,7 @@ if ($isLoggedIn) {
             <div class="grid sm:grid-cols-2 gap-5">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type <span class="text-red-500">*</span></label>
-                <select name="blood_groups" required <?= $formDisabled ? 'disabled' : '' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+                <select name="blood_groups" required <?= $formDisabled || $editMode ? 'disabled' : '' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition <?= $editMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white' ?>">
                   <option value="">Select blood type</option>
                   <?php
                   $blood_groups = $conn->query("SELECT blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
@@ -539,13 +547,13 @@ if ($isLoggedIn) {
                   endif;
                   ?>
                 </select>
+                <?php if ($editMode): ?><input type="hidden" name="blood_groups" value="<?= htmlspecialchars($editData['blood_groups'] ?? '') ?>"><?php endif; ?>
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (lb) <span class="text-red-500">*</span></label>
                 <input type="number" name="weight" id="weightField" placeholder="Min. 100 lb" min="100" required
                   value="<?= htmlspecialchars($editData['weight'] ?? '') ?>"
-                  <?= $formDisabled ? 'disabled' : '' ?>
-                  class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+                  <?= $formDisabled || $editMode ? 'readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> />
                 <p class="text-xs text-gray-400 mt-1">Minimum weight: 100 lb</p>
               </div>
               <div>

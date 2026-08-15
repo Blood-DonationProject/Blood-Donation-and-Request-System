@@ -45,7 +45,12 @@ if ($isLoggedIn) {
     $editData = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if ($editData) {
-      $editMode = true;
+      if (in_array($editData['status'], ['Pending', 'Approved'])) {
+        $editMode = true;
+      } else {
+        $message = 'This request cannot be edited anymore (Status: ' . htmlspecialchars($editData['status']) . ').';
+        $messageType = 'error';
+      }
     } else {
       $message = 'Record not found.';
       $messageType = 'error';
@@ -53,57 +58,74 @@ if ($isLoggedIn) {
   }
 
   // CREATE or UPDATE
-  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['blood_groups_id'])) {
-    $blood_groups_id = (int)$_POST['blood_groups_id'];
-    $units = max(1, (int)($_POST['units'] ?? 1));
-    $hospital = trim($_POST['hospital'] ?? '');
-    $required_date = $_POST['required_date'] ?? date('Y-m-d');
-    $status = $_POST['status'] ?? 'Pending';
-    $urgency = $_POST['urgency'] ?? 'Normal';
-    $updateId = (int)($_POST['update_id'] ?? 0);
+  if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0) {
+      // UPDATE ONLY URGENCY
+      $updateId = (int)$_POST['update_id'];
+      $urgency = $_POST['urgency'] ?? 'Normal';
+      
+      $chkStmt = $conn->prepare("SELECT status FROM blood_request WHERE id=? AND users_id=?");
+      $chkStmt->bind_param("ii", $updateId, $userId);
+      $chkStmt->execute();
+      $chkRes = $chkStmt->get_result()->fetch_assoc();
+      $chkStmt->close();
+      
+      if ($chkRes && in_array($chkRes['status'], ['Pending', 'Approved'])) {
+        $stmt = $conn->prepare("UPDATE blood_request SET urgency=? WHERE id=? AND users_id=?");
+        $stmt->bind_param("sii", $urgency, $updateId, $userId);
+        if ($stmt->execute()) {
+          $message = 'Blood request urgency updated successfully!';
+          $messageType = 'success';
+        } else {
+          $message = 'Failed to update request. Please try again.';
+          $messageType = 'error';
+        }
+        $stmt->close();
+      } else {
+        $message = 'This request cannot be edited at this stage.';
+        $messageType = 'error';
+      }
+    } elseif (isset($_POST['blood_groups_id'])) {
+      // INSERT NEW
+      $blood_groups_id = (int)$_POST['blood_groups_id'];
+      $units = max(1, min(5, (int)($_POST['units'] ?? 1)));
+      $hospital = trim($_POST['hospital'] ?? '');
+      $required_date = $_POST['required_date'] ?? date('Y-m-d');
+      $status = $_POST['status'] ?? 'Pending';
+      $urgency = $_POST['urgency'] ?? 'Normal';
 
-    if ($blood_groups_id < 1) {
-      $message = 'Please select a blood type.';
-      $messageType = 'error';
-    } elseif ($hospital === '') {
-      $message = 'Please enter the hospital name.';
-      $messageType = 'error';
-    } else {
-      $hasActive = false;
-      if ($updateId === 0) {
+      if ($blood_groups_id < 1) {
+        $message = 'Please select a blood type.';
+        $messageType = 'error';
+      } elseif ($hospital === '') {
+        $message = 'Please enter the hospital name.';
+        $messageType = 'error';
+      } else {
         $stmt = $conn->prepare("SELECT id FROM blood_request WHERE users_id = ? AND status IN ('Pending', 'Approved', 'Assigned', 'Accepted', 'Blood Received') LIMIT 1");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $stmt->store_result();
         if ($stmt->num_rows > 0) {
-          $hasActive = true;
           $message = 'You already have an active blood request. Please wait until it is completed.';
           $messageType = 'error';
-        }
-        $stmt->close();
-      }
-
-      if (!$hasActive) {
-        if ($updateId > 0) {
-          $stmt = $conn->prepare("UPDATE blood_request SET blood_groups_id=?, units=?, hospital=?, required_date=?, status=?, urgency=?, requester_name=? WHERE id=? AND users_id=?");
-          $stmt->bind_param("iisssssii", $blood_groups_id, $units, $hospital, $required_date, $status, $urgency, $username, $updateId, $userId);
         } else {
-          $stmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-          $stmt->bind_param("isiissss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status, $urgency);
-        }
-        if ($stmt->execute()) {
-          $message = $updateId > 0 ? 'Blood request updated successfully!' : 'Blood request submitted successfully!';
-          $messageType = 'success';
-        } else {
-          $message = 'Failed to save request. Please try again.';
-          $messageType = 'error';
+          $insStmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+          $insStmt->bind_param("isiissss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status, $urgency);
+          if ($insStmt->execute()) {
+            $message = 'Blood request submitted successfully!';
+            $messageType = 'success';
+          } else {
+            $message = 'Failed to save request. Please try again.';
+            $messageType = 'error';
+          }
+          $insStmt->close();
         }
         $stmt->close();
       }
     }
 
     if ($messageType === 'success') {
-      header('Location: requestblood.php?msg=' . ($updateId > 0 ? 'updated' : 'created'));
+      header('Location: requestblood.php?msg=' . (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0 ? 'updated' : 'created'));
       exit;
     }
     $editMode = false;
@@ -316,31 +338,41 @@ if ($isLoggedIn) {
           <div class="grid gap-5">
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Type <span class="text-red-500">*</span></label>
-              <select name="blood_groups_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
-                <option value="">Select blood type</option>
-                <?php foreach ($bloodGroups as $bg): ?>
-                  <option value="<?= $bg['id'] ?>" <?= ($editData['blood_groups_id'] ?? '') == $bg['id'] ? 'selected' : '' ?>><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
-                <?php endforeach; ?>
-              </select>
+              <?php if ($editMode): ?>
+                <input type="text" readonly value="<?= htmlspecialchars($editData['blood_gp_name'] ?? '') ?>" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
+              <?php else: ?>
+                <select name="blood_groups_id" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+                  <option value="">Select blood type</option>
+                  <?php foreach ($bloodGroups as $bg): ?>
+                    <option value="<?= $bg['id'] ?>"><?= htmlspecialchars($bg['blood_gp_name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              <?php endif; ?>
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Units Required <span class="text-red-500">*</span></label>
-              <input type="number" name="units" min="1" max="10"
-                value="<?= htmlspecialchars($editData['units'] ?? '1') ?>"
-                placeholder="e.g. 2" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+              <?php if ($editMode): ?>
+                <input type="text" readonly value="<?= (int)$editData['units'] ?> Unit<?= (int)$editData['units'] > 1 ? 's' : '' ?>" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
+              <?php else: ?>
+                <select name="units" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+                  <?php for ($i = 1; $i <= 5; $i++): ?>
+                    <option value="<?= $i ?>"><?= $i ?> Unit<?= $i > 1 ? 's' : '' ?></option>
+                  <?php endfor; ?>
+                </select>
+              <?php endif; ?>
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital <span class="text-red-500">*</span></label>
               <input type="text" name="hospital"
                 value="<?= htmlspecialchars($editData['hospital'] ?? '') ?>"
-                placeholder="e.g. City General Hospital" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+                placeholder="e.g. City General Hospital" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition <?= $editMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>" <?= $editMode ? 'readonly' : '' ?> />
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Required Date <span class="text-red-500">*</span></label>
-              <input type="date" name="required_date" id="requiredDate" min="<?= date('Y-m-d') ?>"
+              <input type="date" name="required_date" id="requiredDate" <?= !$editMode ? 'min="' . date('Y-m-d') . '"' : '' ?>
                 value="<?= htmlspecialchars($editData['required_date'] ?? date('Y-m-d')) ?>"
-                required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
-              <p class="text-xs text-gray-400 mt-1">Must be today or a future date</p>
+                required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition <?= $editMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>" <?= $editMode ? 'readonly' : '' ?> />
+              <?php if (!$editMode): ?><p class="text-xs text-gray-400 mt-1">Must be today or a future date</p><?php endif; ?>
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Urgency</label>
@@ -353,11 +385,7 @@ if ($isLoggedIn) {
             <?php if ($editMode): ?>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-                <select name="status" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
-                  <?php foreach (['Pending', 'Approved', 'Completed', 'Rejected'] as $st): ?>
-                    <option value="<?= $st ?>" <?= ($editData['status'] ?? 'Pending') === $st ? 'selected' : '' ?>><?= $st ?></option>
-                  <?php endforeach; ?>
-                </select>
+                <input type="text" readonly value="<?= htmlspecialchars($editData['status'] ?? 'Pending') ?>" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
               </div>
             <?php endif; ?>
           </div>

@@ -98,8 +98,8 @@ if (!$isLoggedIn) {
 
         try {
             if ($updateId > 0) {
-                $stmt = $conn->prepare("UPDATE donor SET gender=?, date_of_birth=?, age=?, blood_groups=?, phone=?, address=?, weight=?, last_donation_date=?, available_status=? WHERE id=? AND user_id=?");
-                $stmt->bind_param("ssisssdssii", $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status, $updateId, $userId);
+                $stmt = $conn->prepare("UPDATE donor SET phone=?, last_donation_date=?, available_status=? WHERE id=? AND user_id=?");
+                $stmt->bind_param("sssii", $phone, $last_donation_date, $available_status, $updateId, $userId);
             } else {
                 $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param("ississsdss", $userId, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);

@@ -180,7 +180,7 @@ if (isset($_POST['assign_donor'])) {
 
     if ($request_id > 0 && $donor_id > 0) {
         // Verify the request exists and is in a valid state
-        $check = $conn->prepare("SELECT id, status, assigned_donor_id FROM blood_request WHERE id = ?");
+        $check = $conn->prepare("SELECT id, users_id, status, assigned_donor_id FROM blood_request WHERE id = ?");
         $check->bind_param("i", $request_id);
         $check->execute();
         $result = $check->get_result();
@@ -188,13 +188,15 @@ if (isset($_POST['assign_donor'])) {
             $req = $result->fetch_assoc();
             if (in_array($req['status'], ['Pending', 'Approved']) && empty($req['assigned_donor_id'])) {
                 // Verify donor exists and is available
-                $donor_check = $conn->prepare("SELECT id, available_status FROM donor WHERE id = ?");
+                $donor_check = $conn->prepare("SELECT id, user_id, available_status FROM donor WHERE id = ?");
                 $donor_check->bind_param("i", $donor_id);
                 $donor_check->execute();
                 $donor_result = $donor_check->get_result();
                 if ($donor_result && $donor_result->num_rows > 0) {
                     $donor = $donor_result->fetch_assoc();
-                    if ($donor['available_status'] === 'Available') {
+                    if (isset($req['users_id']) && isset($donor['user_id']) && $req['users_id'] == $donor['user_id']) {
+                        $_SESSION['error'] = 'The requester cannot be assigned as a donor for their own blood request.';
+                    } else if ($donor['available_status'] === 'Available') {
                         // Assign donor and update status to Assigned
                         $assign = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Assigned' WHERE id = ?");
                         $assign->bind_param("ii", $donor_id, $request_id);
@@ -361,7 +363,7 @@ if (isset($_GET['view'])) {
 $assignable_requests = [];
 try {
     $result = $conn->query("
-        SELECT r.id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
+        SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
                r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
@@ -378,7 +380,7 @@ try {
 $available_donors = [];
 try {
     $result = $conn->query("
-        SELECT d.id, d.blood_groups, d.phone, d.weight, d.age, d.available_status,
+        SELECT d.id, d.user_id, d.blood_groups, d.phone, d.weight, d.age, d.available_status,
                d.last_donation_date, u.username
         FROM donor d
         JOIN users u ON d.user_id = u.id
@@ -395,7 +397,7 @@ try {
 $pending_requests = [];
 try {
     $result = $conn->query("
-        SELECT r.id, r.requester_name, bg.blood_gp_name AS blood_group, r.units, r.hospital, r.required_date, r.status
+        SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, r.units, r.hospital, r.required_date, r.status
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         WHERE r.status = 'Pending'
@@ -1305,6 +1307,7 @@ $stats = [
         var modalSelectedDonorId = null;
         var modalRequestId = null;
         var modalBloodGroup = null;
+        var modalRequesterUserId = null;
 
         // Find assignable request info from PHP data
         var assignableRequests = <?= json_encode($assignable_requests) ?>;
@@ -1336,6 +1339,7 @@ $stats = [
             if (!reqInfo) return;
 
             modalBloodGroup = reqInfo.blood_group;
+            modalRequesterUserId = reqInfo.users_id;
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId + ' — ' + reqInfo.requester_name;
             document.getElementById('modalBloodType').textContent = reqInfo.blood_group + ' (' + reqInfo.units + ' units needed)';
             document.getElementById('modalDonorSearch').value = '';
@@ -1361,6 +1365,7 @@ $stats = [
             var scored = [];
             allDonors.forEach(function(d) {
                 if (d.blood_groups !== bloodGroup) return;
+                if (modalRequesterUserId && d.user_id == modalRequesterUserId) return;
                 var match = calculateMatchScore(d, bloodGroup);
                 if (!searchQuery) {
                     scored.push({
