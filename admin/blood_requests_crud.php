@@ -115,7 +115,7 @@ if (isset($_GET['complete'])) {
         $stmt_assign->bind_param("i", $id);
         $stmt_assign->execute();
         $stmt_assign->close();
-        
+
         // Insert into donation history
         $req_stmt = $conn->prepare("SELECT users_id, assigned_donor_id, blood_groups_id, units FROM blood_request WHERE id=?");
         $req_stmt->bind_param("i", $id);
@@ -150,9 +150,9 @@ if (isset($_GET['complete'])) {
                 $notifType = 'StatusUpdate';
                 $notifTitle = 'Request Completed';
                 $notifMsg = "Request #" . $id . " has been successfully completed and recorded in your history.";
-                
+
                 $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-                
+
                 // Notify requester
                 $notifStmt->bind_param("iiisss", $req['users_id'], $id, $assignment_id, $notifType, $notifTitle, $notifMsg);
                 $notifStmt->execute();
@@ -729,74 +729,50 @@ $stats = [
                     </div>
                 <?php endif; ?>
 
-                <!-- Stats -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white rounded-xl border p-5 stat-card">
-                        <p class="text-gray-500 text-sm">Total Requests</p>
-                        <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
-                    </div>
-                    <div class="bg-white rounded-xl border p-5 stat-card">
-                        <p class="text-gray-500 text-sm">Pending</p>
-                        <h3 class="text-3xl font-bold mt-2 text-yellow-600"><?= $stats['pending'] ?></h3>
-                    </div>
-                    <div class="bg-white rounded-xl border p-5 stat-card">
-                        <p class="text-gray-500 text-sm">Approved</p>
-                        <h3 class="text-3xl font-bold mt-2 text-blue-600"><?= $stats['approved'] ?></h3>
-                    </div>
-                    <div class="bg-white rounded-xl border p-5 stat-card">
-                        <p class="text-gray-500 text-sm">Completed</p>
-                        <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['completed'] ?></h3>
-                    </div>
-                </div>
 
-                <!-- Toggle Form -->
-                <div class="mb-8">
-                    <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition flex items-center gap-2">
-                        <span>+</span>
-                        <span><?= $edit_row ? 'Edit Request' : 'Add New Request' ?></span>
-                    </button>
-                </div>
+
+
 
                 <!-- View Assignment Details -->
                 <?php if ($view_row): ?>
-                <div id="viewDetails" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
-                    <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-xl font-bold text-gray-800">Assignment Details (Request #<?= $view_row['id'] ?>)</h3>
-                        <a href="blood_requests_crud.php" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</a>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Requester Name</p>
-                            <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['requester_name'] ?: $view_row['requester_username']) ?></p>
+                    <div id="viewDetails" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-xl font-bold text-gray-800">Assignment Details (Request #<?= $view_row['id'] ?>)</h3>
+                            <a href="blood_requests_crud.php" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</a>
                         </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Donor Name</p>
-                            <p class="text-gray-900 font-medium"><?= $view_row['assigned_donor_id'] ? htmlspecialchars($view_row['donor_username']) : '<span class="text-gray-400 italic">Not Assigned</span>' ?></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Blood Group</p>
-                            <p class="text-red-600 font-bold bg-red-50 inline-block px-3 py-1 rounded-lg"><?= htmlspecialchars($view_row['blood_gp_name']) ?></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Units</p>
-                            <p class="text-gray-900 font-medium"><?= (int)$view_row['units'] ?></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Hospital</p>
-                            <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['hospital']) ?></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Required Date</p>
-                            <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['required_date']) ?></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Urgency</p>
-                            <?php $urgency = $view_row['Urgency'] ?? 'Normal'; ?>
-                            <p class="font-medium <?= $urgency == 'Urgent' ? 'text-red-600' : 'text-green-600' ?>"><?= htmlspecialchars($urgency) ?></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500 font-semibold mb-1">Assignment Status</p>
-                            <?php
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Requester Name</p>
+                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['requester_name'] ?: $view_row['requester_username']) ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Donor Name</p>
+                                <p class="text-gray-900 font-medium"><?= $view_row['assigned_donor_id'] ? htmlspecialchars($view_row['donor_username']) : '<span class="text-gray-400 italic">Not Assigned</span>' ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Blood Group</p>
+                                <p class="text-red-600 font-bold bg-red-50 inline-block px-3 py-1 rounded-lg"><?= htmlspecialchars($view_row['blood_gp_name']) ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Units</p>
+                                <p class="text-gray-900 font-medium"><?= (int)$view_row['units'] ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Hospital</p>
+                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['hospital']) ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Required Date</p>
+                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['required_date']) ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Urgency</p>
+                                <?php $urgency = $view_row['Urgency'] ?? 'Normal'; ?>
+                                <p class="font-medium <?= $urgency == 'Urgent' ? 'text-red-600' : 'text-green-600' ?>"><?= htmlspecialchars($urgency) ?></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 font-semibold mb-1">Assignment Status</p>
+                                <?php
                                 $st = $view_row['status'];
                                 $stClasses = 'bg-yellow-100 text-yellow-700';
                                 if ($st == 'Approved') $stClasses = 'bg-blue-100 text-blue-700';
@@ -805,16 +781,16 @@ $stats = [
                                 if ($st == 'Received') $stClasses = 'bg-teal-100 text-teal-700';
                                 if ($st == 'Completed') $stClasses = 'bg-green-100 text-green-700';
                                 if ($st == 'Rejected') $stClasses = 'bg-red-100 text-red-700';
-                            ?>
-                            <p class="inline-block px-3 py-1 rounded-full text-xs font-bold <?= $stClasses ?>"><?= htmlspecialchars($st) ?></p>
+                                ?>
+                                <p class="inline-block px-3 py-1 rounded-full text-xs font-bold <?= $stClasses ?>"><?= htmlspecialchars($st) ?></p>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Timeline -->
-                    <?php
+                        <!-- Timeline -->
+                        <?php
                         $st = $view_row['status'];
                         $ast = $view_row['assignment_status'] ?? '';
-                        
+
                         $steps = [
                             'Assigned' => ['status' => 'Pending', 'date' => null, 'label' => 'Assigned', 'color' => 'bg-gray-200'],
                             'Accepted' => ['status' => 'Pending', 'date' => null, 'label' => 'Accepted / Rejected', 'color' => 'bg-gray-200'],
@@ -828,7 +804,7 @@ $stats = [
                             $steps['Assigned']['date'] = $view_row['assigned_date'];
                             $steps['Assigned']['color'] = 'bg-indigo-500';
                         }
-                        
+
                         if (in_array($st, ['Accepted', 'Received', 'Completed']) || $ast == 'Accepted') {
                             $steps['Accepted']['status'] = 'Completed';
                             $steps['Accepted']['label'] = 'Accepted';
@@ -844,7 +820,7 @@ $stats = [
                         if (in_array($st, ['Received', 'Completed'])) {
                             $steps['Donation']['status'] = 'Completed';
                             $steps['Donation']['color'] = 'bg-blue-500';
-                            
+
                             $steps['Received']['status'] = 'Completed';
                             $steps['Received']['color'] = 'bg-teal-500';
                             $steps['Received']['date'] = $view_row['received_at'] ?? null;
@@ -854,48 +830,48 @@ $stats = [
                             $steps['Completed']['status'] = 'Completed';
                             $steps['Completed']['color'] = 'bg-green-500';
                         }
-                    ?>
-                    <div class="mt-8 border-t border-gray-100 pt-6">
-                        <h4 class="text-lg font-bold text-gray-800 mb-6">Status Timeline</h4>
-                        <div class="relative pl-5 border-l-2 border-gray-100 space-y-6">
-                            <?php foreach ($steps as $key => $step): ?>
-                                <div class="relative">
-                                    <div class="absolute -left-[1.6rem] w-4 h-4 rounded-full <?= $step['color'] ?> border-4 border-white shadow-sm"></div>
-                                    <p class="font-bold text-gray-800 text-sm flex items-center gap-2">
-                                        <?= htmlspecialchars($step['label']) ?>
-                                        <?php if ($step['status'] == 'Completed'): ?>
-                                            <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Done</span>
-                                        <?php elseif ($step['status'] == 'Rejected'): ?>
-                                            <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Rejected</span>
-                                        <?php else: ?>
-                                            <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">Pending</span>
+                        ?>
+                        <div class="mt-8 border-t border-gray-100 pt-6">
+                            <h4 class="text-lg font-bold text-gray-800 mb-6">Status Timeline</h4>
+                            <div class="relative pl-5 border-l-2 border-gray-100 space-y-6">
+                                <?php foreach ($steps as $key => $step): ?>
+                                    <div class="relative">
+                                        <div class="absolute -left-[1.6rem] w-4 h-4 rounded-full <?= $step['color'] ?> border-4 border-white shadow-sm"></div>
+                                        <p class="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                            <?= htmlspecialchars($step['label']) ?>
+                                            <?php if ($step['status'] == 'Completed'): ?>
+                                                <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Done</span>
+                                            <?php elseif ($step['status'] == 'Rejected'): ?>
+                                                <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Rejected</span>
+                                            <?php else: ?>
+                                                <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-wide">Pending</span>
+                                            <?php endif; ?>
+                                        </p>
+                                        <?php if ($step['date']): ?>
+                                            <p class="text-xs text-gray-500 mt-1"><i class="far fa-clock mr-1"></i><?= date('M j, Y g:i A', strtotime($step['date'])) ?></p>
                                         <?php endif; ?>
-                                    </p>
-                                    <?php if ($step['date']): ?>
-                                        <p class="text-xs text-gray-500 mt-1"><i class="far fa-clock mr-1"></i><?= date('M j, Y g:i A', strtotime($step['date'])) ?></p>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end">
+                            <?php if ($st === 'Rejected'): ?>
+                                <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, true)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Another Donor</button>
+                            <?php elseif ($st === 'Assigned'): ?>
+                                <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for donor response</span>
+                            <?php elseif ($st === 'Accepted'): ?>
+                                <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for Blood Received</span>
+                            <?php elseif ($st === 'Received'): ?>
+                                <button type="button" onclick="openCompleteModal(<?= (int)$view_row['id'] ?>)" class="bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-check-circle"></i> Mark as Completed</button>
+                            <?php elseif ($st === 'Completed'): ?>
+                                <button disabled class="bg-gray-200 text-gray-500 px-5 py-2.5 rounded-xl font-bold cursor-not-allowed flex items-center gap-2"><i class="fas fa-check-double"></i> Completed</button>
+                            <?php elseif (in_array($st, ['Pending', 'Approved']) && empty($view_row['assigned_donor_id'])): ?>
+                                <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, false)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Donor</button>
+                            <?php endif; ?>
                         </div>
                     </div>
-
-                    <!-- Actions -->
-                    <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end">
-                        <?php if ($st === 'Rejected'): ?>
-                            <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, true)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Another Donor</button>
-                        <?php elseif ($st === 'Assigned'): ?>
-                            <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for donor response</span>
-                        <?php elseif ($st === 'Accepted'): ?>
-                            <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for Blood Received</span>
-                        <?php elseif ($st === 'Received'): ?>
-                            <button type="button" onclick="openCompleteModal(<?= (int)$view_row['id'] ?>)" class="bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-check-circle"></i> Mark as Completed</button>
-                        <?php elseif ($st === 'Completed'): ?>
-                            <button disabled class="bg-gray-200 text-gray-500 px-5 py-2.5 rounded-xl font-bold cursor-not-allowed flex items-center gap-2"><i class="fas fa-check-double"></i> Completed</button>
-                        <?php elseif (in_array($st, ['Pending', 'Approved']) && empty($view_row['assigned_donor_id'])): ?>
-                            <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, false)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Donor</button>
-                        <?php endif; ?>
-                    </div>
-                </div>
                 <?php endif; ?>
 
                 <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
@@ -967,105 +943,38 @@ $stats = [
 
 
 
-                <!-- Recent Blood Requests -->
-                <?php if (count($recent_requests) > 0): ?>
-                    <div class="mb-8">
-                        <div class="bg-white rounded-2xl border border-pink-100 shadow-sm overflow-hidden">
-                            <div class="flex items-center justify-between px-6 py-5 border-b border-pink-50">
-                                <div>
-                                    <h3 class="text-lg font-bold text-gray-900">
-                                        <i class="fas fa-clock-rotate-left text-red-500 mr-2"></i>Recent Blood Requests
-                                    </h3>
-                                    <p class="text-sm text-gray-400 mt-1">Latest 5 blood requests from users</p>
-                                </div>
-                                <a href="requests.php" class="text-sm font-semibold text-red-600 hover:text-red-700 transition">
-                                    View All <i class="fas fa-arrow-right ml-1"></i>
-                                </a>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm">
-                                    <thead>
-                                        <tr class="bg-pink-50 border-b border-pink-100">
-                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Requester</th>
-                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Blood Group</th>
-                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Units</th>
-                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Required Date</th>
-                                            <th class="px-6 py-3 text-left font-semibold text-gray-600">Status</th>
-                                            <th class="px-6 py-3 text-center font-semibold text-gray-600">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($recent_requests as $rr): ?>
-                                            <tr class="border-b border-pink-50 hover:bg-red-50/30 transition">
-                                                <td class="px-6 py-4">
-                                                    <div class="flex items-center space-x-3">
-                                                        <div class="w-9 h-9 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs">
-                                                            <?= strtoupper(substr($rr['requester_name'] ?? 'U', 0, 2)) ?>
-                                                        </div>
-                                                        <span class="font-semibold text-gray-800"><?= htmlspecialchars($rr['requester_name'] ?? 'Unknown') ?></span>
-                                                    </div>
-                                                </td>
-                                                <td class="px-6 py-4">
-                                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                                                        <?= htmlspecialchars($rr['blood_group'] ?? '-') ?>
-                                                    </span>
-                                                </td>
-                                                <td class="px-6 py-4 font-semibold text-gray-800"><?= (int)$rr['units'] ?></td>
-                                                <td class="px-6 py-4 text-gray-600"><?= htmlspecialchars($rr['required_date']) ?></td>
-                                                <td class="px-6 py-4">
-                                                    <?php
-                                                    $statusColors = [
-                                                        'Pending'   => 'bg-yellow-100 text-yellow-700',
-                                                        'Approved'  => 'bg-blue-100 text-blue-700',
-                                                        'Assigned'  => 'bg-indigo-100 text-indigo-700',
-                                                        'Accepted'  => 'bg-purple-100 text-purple-700',
-                                                        'Received'  => 'bg-teal-100 text-teal-700',
-                                                        'Completed' => 'bg-green-100 text-green-700',
-                                                        'Rejected'  => 'bg-red-100 text-red-700',
-                                                    ];
-                                                    $statusColor = $statusColors[$rr['status']] ?? 'bg-gray-100 text-gray-700';
-                                                    ?>
-                                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold <?= $statusColor ?>">
-                                                        <?= htmlspecialchars($rr['status']) ?>
-                                                    </span>
-                                                </td>
-                                                <td class="px-6 py-4">
-                                                    <div class="flex items-center justify-center gap-2">
-                                                        <a href="blood_requests_crud.php?view=<?= (int)$rr['id'] ?>"
-                                                            class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
-                                                            <i class="fas fa-eye mr-1"></i>View
-                                                        </a>
-                                                        <?php if (in_array($rr['status'], ['Pending', 'Approved']) && empty($rr['assigned_donor_id'])): ?>
-                                                            <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>, false)" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
-                                                                <i class="fas fa-user-plus mr-1"></i>Assign Donor
-                                                            </button>
-                                                        <?php elseif ($rr['status'] === 'Assigned'): ?>
-                                                            <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">Wait for donor response</span>
-                                                        <?php elseif ($rr['status'] === 'Accepted'): ?>
-                                                            <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">Wait for Blood Received</span>
-                                                        <?php elseif ($rr['status'] === 'Rejected'): ?>
-                                                            <button type="button" onclick="openAssignModal(<?= (int)$rr['id'] ?>, true)" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
-                                                                <i class="fas fa-user-plus mr-1"></i>Assign Another Donor
-                                                            </button>
-                                                        <?php elseif ($rr['status'] === 'Received'): ?>
-                                                            <button type="button" onclick="openCompleteModal(<?= (int)$rr['id'] ?>)" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition">
-                                                                <i class="fas fa-check-circle mr-1"></i>Mark as Completed
-                                                            </button>
-                                                        <?php elseif ($rr['status'] === 'Completed'): ?>
-                                                            <button disabled class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-200 text-gray-500 cursor-not-allowed">
-                                                                <i class="fas fa-check-double mr-1"></i>Completed
-                                                            </button>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+
+                <!-- Filters for All Blood Requests -->
+                <div class="flex flex-wrap items-end gap-4 mb-6">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
+                        <input id="searchInput" type="text" placeholder="Search by name, hospital, or date..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
                     </div>
-                <?php endif; ?>
+                    <div class="w-40">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                        <select id="filterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                            <option value="">All</option>
+                            <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
+                                <option value="<?= $bg ?>"><?= $bg ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="w-40">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                        <select id="filterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                            <option value="">All</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Accepted">Accepted</option>
+                            <option value="Received">Received</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <button onclick="clearFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear Filters</button>
+                </div>
+
                 <!-- All Blood Requests Table -->
                 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
                     <div class="flex items-center justify-between px-6 py-5 border-b border-gray-50">
@@ -1109,7 +1018,9 @@ $stats = [
                                         ];
                                         $uc = $urgencyColors[$r['urgency'] ?? 'Normal'] ?? 'bg-gray-100 text-gray-700';
                                         ?>
-                                        <tr class="border-t border-slate-200 hover:bg-gray-50">
+                                        <tr class="request-row border-t border-slate-200 hover:bg-gray-50"
+                                            data-blood-group="<?= htmlspecialchars($r['blood_gp_name'] ?? '') ?>"
+                                            data-status="<?= htmlspecialchars($r['status'] ?? '') ?>">
                                             <td class="p-3 font-medium">#<?= $r['id'] ?></td>
                                             <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
                                             <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
@@ -1121,8 +1032,6 @@ $stats = [
                                             <td class="p-3">
                                                 <div class="flex gap-2">
                                                     <a href="blood_requests_crud.php?view=<?= $r['id'] ?>" class="text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
-                                                    <a href="blood_requests_crud.php?edit=<?= $r['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold">Edit</a>
-                                                    <button type="button" onclick="openDeleteModal('blood_requests_crud.php?delete=<?= $r['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold">Delete</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1616,22 +1525,22 @@ $stats = [
                     <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
                     <input type="text" id="modalDonorSearch" placeholder="Search matching donors..." class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-11 pr-4 py-3 text-sm focus:border-blue-500 focus:bg-white transition outline-none">
                 </div>
-                
+
                 <div class="mb-2 flex items-center justify-between text-xs font-semibold text-gray-500 px-1">
                     <span>MATCHING DONORS FOR: <span id="modalBloodType" class="text-red-600 font-bold ml-1"></span></span>
                 </div>
-                
+
                 <div id="modalDonorList" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1 custom-scrollbar">
                     <!-- Donors rendered via JS -->
                 </div>
-                
+
                 <div id="modalNoDonors" class="hidden text-center py-8">
                     <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user-slash"></i></div>
                     <p class="text-gray-500 font-medium">No matching donors found</p>
                     <p class="text-sm text-gray-400 mt-1">Try assigning a different blood type</p>
                 </div>
             </div>
-            
+
             <div class="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
                 <button onclick="closeAssignModal()" class="px-5 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition">Cancel</button>
                 <button id="modalAssignBtn" onclick="submitModalAssign()" disabled class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"><i class="fas fa-check"></i> Assign Selected Donor</button>
@@ -1695,7 +1604,7 @@ $stats = [
             var msg = isReassignMode ? 'Are you sure you want to assign another donor?' : 'Are you sure you want to assign this donor to this blood request?';
             document.getElementById('assignConfirmTitle').textContent = title;
             document.getElementById('assignConfirmMessage').textContent = msg;
-            
+
             document.getElementById('assignConfirmModal').classList.remove('hidden');
             document.getElementById('assignConfirmModal').classList.add('flex');
         }
@@ -1707,7 +1616,7 @@ $stats = [
 
         function executeModalAssign() {
             document.querySelector('#assignConfirmModal button:last-child').classList.add('opacity-50', 'pointer-events-none');
-            
+
             var form = document.createElement('form');
             form.method = 'POST';
             form.action = 'blood_requests_crud.php';
@@ -1733,6 +1642,46 @@ $stats = [
             document.body.appendChild(form);
             form.submit();
         }
+
+        // Filters JS
+        const searchInput = document.getElementById('searchInput');
+        const filterBloodGroup = document.getElementById('filterBloodGroup');
+        const filterStatus = document.getElementById('filterStatus');
+        const requestRows = document.querySelectorAll('.request-row');
+
+        function applyFilters() {
+            const q = searchInput.value.toLowerCase();
+            const bg = filterBloodGroup.value;
+            const status = filterStatus.value;
+            
+            requestRows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const rowBg = row.getAttribute('data-blood-group');
+                const rowStatus = row.getAttribute('data-status');
+                
+                const matchesSearch = text.includes(q);
+                const matchesBg = !bg || rowBg === bg;
+                const matchesStatus = !status || rowStatus === status;
+                
+                if (matchesSearch && matchesBg && matchesStatus) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function clearFilters() {
+            if(searchInput) searchInput.value = '';
+            if(filterBloodGroup) filterBloodGroup.value = '';
+            if(filterStatus) filterStatus.value = '';
+            applyFilters();
+        }
+
+        if(searchInput) searchInput.addEventListener('keyup', applyFilters);
+        if(filterBloodGroup) filterBloodGroup.addEventListener('change', applyFilters);
+        if(filterStatus) filterStatus.addEventListener('change', applyFilters);
     </script>
 </body>
+
 </html>

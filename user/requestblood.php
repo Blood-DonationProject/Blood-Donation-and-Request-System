@@ -283,7 +283,7 @@ if ($isLoggedIn) {
   <!-- Hero Banner -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-14">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center animate-fade-up">
-      <div class="inline-block bg-white/20 px-4 py-2 rounded-full text-sm font-semibold mb-4">🩸 <span data-i18n="emergency_help">Emergency Help</span></div>
+
       <h1 class="text-5xl font-bold mb-3" data-i18n="request_blood_title"><?= $editMode ? 'Edit Blood Request' : 'Request Blood' ?></h1>
       <p class="text-xl opacity-90 max-w-xl mx-auto"><?= $editMode ? 'Update your blood request details below.' : "Fill in the details below and we'll immediately match you with available donors in your area." ?></p>
     </div>
@@ -365,10 +365,7 @@ if ($isLoggedIn) {
 
         <!-- Submit -->
         <div class="bg-white rounded-2xl shadow p-8">
-          <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-            <span class="text-2xl">⚠️</span>
-            <p class="text-sm text-red-700">For life-threatening emergencies, please also call <span class="font-bold">1-800-BLOOD-999</span> directly. Our team is available 24/7.</p>
-          </div>
+
 
           <div class="grid grid-cols-2 gap-4">
             <?php if ($editMode): ?>

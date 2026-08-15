@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/db.php';
 
 $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
 $redirectTo = isset($_GET['redirect_to']) ? preg_replace('/[^a-zA-Z0-9_\-\.\/]/', '', $_GET['redirect_to']) : (isset($_POST['redirect_to']) ? preg_replace('/[^a-zA-Z0-9_\-\.\/]/', '', $_POST['redirect_to']) : '');
-$redirectToUrl = $redirectTo !== '' ? $redirectTo . '.php' : '';
+$redirectToUrl = $redirectTo !== '' ? (preg_match('/\.php$/', $redirectTo) ? $redirectTo : $redirectTo . '.php') : '';
 
 // Resolve relative path to an absolute URL from document root
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
@@ -33,6 +33,10 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
       $target = '../admin/donation_history_crud.php';
     } else {
       $target = 'index.php';
+      if (isset($_SESSION['donor_registration_flow']) && $_SESSION['donor_registration_flow'] === true) {
+          $target = 'donateform.php';
+          unset($_SESSION['donor_registration_flow']);
+      }
     }
   }
   if ($isAjax) {
@@ -91,6 +95,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $_SESSION['user_role'] = 'User';
               $loginSuccess = true;
               $targetPath = 'index.php';
+
+              if (isset($_SESSION['donor_registration_flow']) && $_SESSION['donor_registration_flow'] === true) {
+                  $targetPath = 'donateform.php';
+                  unset($_SESSION['donor_registration_flow']);
+              }
             }
           }
         }

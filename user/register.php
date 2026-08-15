@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $message = 'Password must be at least 8 characters long.';
     $messageType = 'error';
   } elseif (!$termsAccepted) {
-    $message = 'Please accept the terms and privacy policy to continue.';
+    $message = 'Please accept the Terms and Policy before registering.';
     $messageType = 'error';
   } else {
     $checkEmail = $conn->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
@@ -81,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkEmail->close();
   }
 }
+
+$prefillName = isset($_POST['name']) ? htmlspecialchars($_POST['name']) : '';
+$prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -207,13 +210,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="full_name_label">Full Name <span class="text-red-500">*</span></label>
               <input id="reg_name" name="name" type="text" data-i18n-placeholder="enter_full_name" placeholder="Your full name" required
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
+                value="<?= $prefillName ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
             </div>
 
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_label">Email Address <span class="text-red-500">*</span></label>
               <input id="reg_email" name="email" type="text" placeholder="you@example.com" required
-                class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
+                value="<?= $prefillEmail ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition text-sm" />
             </div>
 
             <div>
@@ -249,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <label class="flex items-start gap-3 cursor-pointer pt-1">
-              <input id="reg_terms" name="terms" value="1" type="checkbox" class="accent-red-600 w-4 h-4 mt-0.5 flex-shrink-0" />
+              <input id="reg_terms" name="terms" value="1" type="checkbox" <?= (isset($_POST['terms']) && $_POST['terms'] === '1') ? 'checked' : '' ?> class="accent-red-600 w-4 h-4 mt-0.5 flex-shrink-0" />
               <span class="text-sm text-gray-600"><span data-i18n="agree_terms">I agree to BloodLife's</span> <a href="#" class="text-red-600 underline" data-i18n="terms_of_service">Terms of Service</a> <span data-i18n="and">and</span> <a href="#" class="text-red-600 underline" data-i18n="privacy_policy">Privacy Policy</a></span>
             </label>
 
@@ -335,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       if (!terms) {
         event.preventDefault();
-        alert('Please accept the Terms of Service to continue.');
+        alert('Please accept the Terms and Policy before registering.');
         return false;
       }
 

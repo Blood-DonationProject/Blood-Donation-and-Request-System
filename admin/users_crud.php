@@ -169,27 +169,6 @@ if ($hasRoleColumn) {
                 <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
             <?php endif; ?>
 
-            <!-- Stats -->
-            <div class="grid grid-cols-1 <?= $hasRoleColumn ? 'md:grid-cols-4' : 'md:grid-cols-3' ?> gap-6 mb-8">
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Total Users</p>
-                    <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
-                </div>
-                <?php if ($hasRoleColumn): ?>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Admins</p>
-                    <h3 class="text-3xl font-bold mt-2 text-purple-600"><?= $stats['admins'] ?></h3>
-                </div>
-                <?php endif; ?>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Active Users</p>
-                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['active'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Inactive Users</p>
-                    <h3 class="text-3xl font-bold mt-2 text-red-600"><?= $stats['inactive'] ?></h3>
-                </div>
-            </div>
 
             <!-- Search and Filter -->
             <div class="flex flex-col md:flex-row gap-4 mb-6">
@@ -314,14 +293,11 @@ if ($hasRoleColumn) {
                                         <td class="p-3 text-gray-500"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                         <td class="p-3">
                                             <div class="flex gap-2 items-center">
-                                                <button onclick="viewUser(<?= htmlspecialchars(json_encode($u)) ?>)" class="text-gray-600 hover:text-gray-800 font-semibold" title="View Details">View</button>
-                                                <a href="users_crud.php?edit=<?= $u['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold" title="Edit User">Edit</a>
                                                 <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to <?= ($u['status'] ?? 'Active') === 'Active' ? 'deactivate' : 'activate' ?> this user?')">
                                                     <input type="hidden" name="id" value="<?= $u['id'] ?>">
                                                     <input type="hidden" name="new_status" value="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Inactive' : 'Active' ?>">
                                                     <button type="submit" name="toggle_status" class="<?= ($u['status'] ?? 'Active') === 'Active' ? 'text-orange-600 hover:text-orange-800' : 'text-green-600 hover:text-green-800' ?> font-semibold" title="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>"><?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?></button>
                                                 </form>
-                                                <button type="button" onclick="openDeleteModal('users_crud.php?delete=<?= $u['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold" title="Delete User">Delete</button>
                                             </div>
                                         </td>
                                     </tr>

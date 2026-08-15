@@ -121,14 +121,34 @@ if (isset($_POST['assign_donor'])) {
                                     $dupCheck->store_result();
                                     
                                     if ($dupCheck->num_rows === 0) {
-                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
-                                        $now = date('Y-m-d H:i:s');
-                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
-                                        
-                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
-                                        $emailLog->bind_param("iisssss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        // Insert as Pending
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
+                                        $emailLog->bind_param("iisss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject);
                                         $emailLog->execute();
+                                        $logId = $conn->insert_id;
                                         $emailLog->close();
+
+                                        $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
+                                        $htmlMessage = nl2br($message) . $trackingPixel;
+                                        
+                                        $htmlHeaders = $headers . "\r\n";
+                                        $htmlHeaders .= "MIME-Version: 1.0\r\n";
+                                        $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+
+                                        if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
+                                            $now = date('Y-m-d H:i:s');
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $now, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        } else {
+                                            $err = error_get_last();
+                                            $errMsg = $err ? $err['message'] : 'Unknown mail error';
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $errMsg, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        }
                                     }
                                     $dupCheck->close();
                                 }
@@ -160,14 +180,34 @@ if (isset($_POST['assign_donor'])) {
                                     $dupCheck->store_result();
                                     
                                     if ($dupCheck->num_rows === 0) {
-                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
-                                        $now = date('Y-m-d H:i:s');
-                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
-                                        
-                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
-                                        $emailLog->bind_param("iisssss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        // Insert as Pending
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
+                                        $emailLog->bind_param("iisss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject);
                                         $emailLog->execute();
+                                        $logId = $conn->insert_id;
                                         $emailLog->close();
+
+                                        $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
+                                        $htmlMessage = nl2br($message) . $trackingPixel;
+                                        
+                                        $htmlHeaders = $headers . "\r\n";
+                                        $htmlHeaders .= "MIME-Version: 1.0\r\n";
+                                        $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+
+                                        if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
+                                            $now = date('Y-m-d H:i:s');
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $now, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        } else {
+                                            $err = error_get_last();
+                                            $errMsg = $err ? $err['message'] : 'Unknown mail error';
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $errMsg, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        }
                                     }
                                     $dupCheck->close();
                                 }
@@ -327,21 +367,7 @@ if ($dhResult && $dhResult->num_rows > 0) {
                 <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
             <?php endif; ?>
 
-            <!-- Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Total Donors</p>
-                    <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Available</p>
-                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['available'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Unavailable</p>
-                    <h3 class="text-3xl font-bold mt-2 text-red-600"><?= $stats['unavailable'] ?></h3>
-                </div>
-            </div>
+
 
             <!-- Filters -->
             <div class="flex flex-wrap items-end gap-4 mb-6">
@@ -500,10 +526,6 @@ if ($dhResult && $dhResult->num_rows > 0) {
                                             <div class="flex gap-2 flex-wrap">
                                                 <a href="donor_crud.php?edit=<?= $d['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold text-xs">Edit</a>
                                                 <button onclick="openHistoryModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['username'] ?? '') ?>')" class="text-purple-600 hover:text-purple-800 font-semibold text-xs">History</button>
-                                                <?php if (($d['available_status'] ?? '') === 'Available'): ?>
-                                                <button onclick="openAssignModal(<?= $d['id'] ?>, '<?= htmlspecialchars($d['username'] ?? '') ?>', '<?= htmlspecialchars($d['blood_groups'] ?? '') ?>')" class="text-green-600 hover:text-green-800 font-semibold text-xs">Assign</button>
-                                                <?php endif; ?>
-                                                <button type="button" onclick="openDeleteModal('donor_crud.php?delete=<?= $d['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold text-xs">Delete</button>
                                             </div>
                                         </td>
                                     </tr>

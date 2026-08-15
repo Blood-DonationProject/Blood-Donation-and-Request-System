@@ -121,11 +121,24 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                         $is_read = $n['is_read'] == 1;
                                         $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100';
 
-                                        // Figure out the link for donors vs requesters
+                                        // Determine notification link dynamically based on type and title
                                         $link = "profile.php"; // default
-                                        if (isset($_SESSION['role']) && strtolower($_SESSION['role']) == 'donor') {
-                                            $link = "donordashboard.php";
+                                        
+                                        $nType = strtolower($n['type'] ?? '');
+                                        $nTitle = strtolower($n['title'] ?? '');
+                                        
+                                        if (in_array($nType, ['assignment', 'donation']) || strpos($nTitle, 'assign') !== false || strpos($nTitle, 'donat') !== false) {
+                                            $link = "donor.php";
+                                        } elseif (in_array($nType, ['statusupdate', 'system']) || strpos($nTitle, 'request') !== false || strpos($nTitle, 'receive') !== false || strpos($nTitle, 'status') !== false) {
+                                            $link = "bloodrequest.php";
+                                        } elseif (isset($_SESSION['role']) && strtolower($_SESSION['role']) == 'donor') {
+                                            $link = "donor.php";
                                         }
+
+                                        if (!empty($n['request_id']) && in_array($link, ['donor.php', 'bloodrequest.php'])) {
+                                            $link .= "#req-" . $n['request_id'];
+                                        }
+
                                         $read_link = "?mark_read=" . $n['id'] . "&redirect=" . urlencode($link);
                                     ?>
                                         <div class="block p-4 border-b border-gray-100 transition <?= $bgClass ?>">

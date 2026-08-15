@@ -105,19 +105,33 @@ $stats = [
                 <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
             <?php endif; ?>
 
-            <!-- Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Total Donations</p>
-                    <h3 class="text-3xl font-bold mt-2"><?= $stats['total'] ?></h3>
-                </div>
-                <div class="bg-white rounded-xl border p-5 stat-card">
-                    <p class="text-gray-500 text-sm">Total Units Donated</p>
-                    <h3 class="text-3xl font-bold mt-2 text-green-600"><?= $stats['total_units'] ?></h3>
-                </div>
-            </div>
 
             <!-- Form Removed as History is now Auto-Generated -->
+
+            <!-- Filters -->
+            <div class="flex flex-wrap items-end gap-4 mb-6">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
+                    <input id="searchInput" type="text" placeholder="Search by name, hospital, or date..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                </div>
+                <div class="w-40">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                    <select id="filterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All</option>
+                        <?php foreach (['A+','A-','B+','B-','AB+','AB-','O+','O-'] as $bg): ?>
+                            <option value="<?= $bg ?>"><?= $bg ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="w-40">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                    <select id="filterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
+                        <option value="">All</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+                <button onclick="clearFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear Filters</button>
+            </div>
 
             <!-- Data Table -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
@@ -145,7 +159,9 @@ $stats = [
                         <tbody>
                             <?php if (count($records) > 0): ?>
                                 <?php foreach ($records as $r): ?>
-                                    <tr class="border-t border-slate-200 hover:bg-gray-50">
+                                    <tr class="history-row border-t border-slate-200 hover:bg-gray-50"
+                                        data-blood-group="<?= htmlspecialchars($r['blood_gp_name'] ?? '') ?>"
+                                        data-status="<?= htmlspecialchars($r['status'] ?? '') ?>">
                                         <td class="p-3 font-medium">#<?= $r['id'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donor_name'] ?? '-') ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>                                        
@@ -170,6 +186,44 @@ $stats = [
 </div>
 
 <script>
+const searchInput = document.getElementById('searchInput');
+const filterBloodGroup = document.getElementById('filterBloodGroup');
+const filterStatus = document.getElementById('filterStatus');
+const rows = document.querySelectorAll('.history-row');
+
+function applyFilters() {
+    const q = searchInput.value.toLowerCase();
+    const bg = filterBloodGroup.value;
+    const status = filterStatus.value;
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const rowBg = row.getAttribute('data-blood-group');
+        const rowStatus = row.getAttribute('data-status');
+        
+        const matchesSearch = text.includes(q);
+        const matchesBg = !bg || rowBg === bg;
+        const matchesStatus = !status || rowStatus === status;
+        
+        if (matchesSearch && matchesBg && matchesStatus) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function clearFilters() {
+    if(searchInput) searchInput.value = '';
+    if(filterBloodGroup) filterBloodGroup.value = '';
+    if(filterStatus) filterStatus.value = '';
+    applyFilters();
+}
+
+if(searchInput) searchInput.addEventListener('keyup', applyFilters);
+if(filterBloodGroup) filterBloodGroup.addEventListener('change', applyFilters);
+if(filterStatus) filterStatus.addEventListener('change', applyFilters);
+
 function toggleAdminDropdown() {
     document.getElementById('adminDropdown').classList.toggle('hidden');
 }

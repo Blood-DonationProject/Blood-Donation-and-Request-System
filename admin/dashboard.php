@@ -6,24 +6,19 @@ require_once __DIR__ . '/../config/db.php';
 $stats = [
     'total_users'          => 0,
     'total_donors'         => 0,
-    'total_requests'       => 0,
-    'pending'              => 0,
-    'approved'             => 0,
-    'completed'            => 0,
-    'completed_donations'  => 0,
-    'certificates_issued'  => 0,
-    'today_donations'      => 0,
+    'pending'              => 0, // For notification bar
+    'pending_requests'     => 0,
+    'awaiting_assignment'  => 0,
+    'completed_requests'   => 0,
 ];
 
 try {
     $stats['total_users']          = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
     $stats['total_donors']         = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
-    $stats['total_requests']       = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
     $stats['pending']              = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Accepted', 'Rejected')")->fetch_assoc()['c'] ?? 0;
-    $stats['approved']             = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0;
-    $stats['completed']            = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
-    $stats['completed_donations']  = $conn->query("SELECT COUNT(*) AS c FROM donor_assignments WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
-    $stats['certificates_issued']  = $stats['completed_donations'];
+    $stats['pending_requests']     = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
+    $stats['awaiting_assignment']  = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Approved', 'Rejected') AND assigned_donor_id IS NULL")->fetch_assoc()['c'] ?? 0;
+    $stats['completed_requests']   = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
 } catch (Exception $e) {}
 
 
@@ -232,7 +227,7 @@ $current_time = date('h:i A');
                         <p class="text-sm text-gray-400 mt-1">Total Users</p>
                     </div>
 
-                    <!-- Total Donors -->
+                    <!-- Active Donors -->
                     <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.1s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
@@ -241,34 +236,34 @@ $current_time = date('h:i A');
                             <span class="text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Active</span>
                         </div>
                         <h3 class="text-3xl font-bold text-gray-900"><?= $stats['total_donors'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Total Donors</p>
+                        <p class="text-sm text-gray-400 mt-1">Active Donors</p>
                     </div>
 
-                    <!-- Total Blood Requests -->
+                    <!-- Pending Blood Requests -->
                     <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.2s;">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-pink-50 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-file-medical text-red-500 text-lg"></i>
-                            </div>
-                            <span class="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full"><?= $stats['pending'] ?> new</span>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['total_requests'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Total Blood Requests</p>
-                    </div>
-
-                    <!-- Pending Requests -->
-                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.3s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-clock text-yellow-500 text-lg"></i>
                             </div>
-                            <span class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">Awaiting</span>
+                            <span class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-full">Pending</span>
                         </div>
-                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['pending'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Pending Requests</p>
+                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['pending_requests'] ?></h3>
+                        <p class="text-sm text-gray-400 mt-1">Pending Blood Requests</p>
                     </div>
 
-                    <!-- Completed Donations -->
+                    <!-- Requests Awaiting Assignment -->
+                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.3s;">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-user-plus text-blue-500 text-lg"></i>
+                            </div>
+                            <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">Awaiting</span>
+                        </div>
+                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['awaiting_assignment'] ?></h3>
+                        <p class="text-sm text-gray-400 mt-1">Requests Awaiting Assignment</p>
+                    </div>
+
+                    <!-- Completed Requests -->
                     <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.4s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
@@ -276,20 +271,8 @@ $current_time = date('h:i A');
                             </div>
                             <span class="text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Done</span>
                         </div>
-                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['completed_donations'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Completed Donations</p>
-                    </div>
-
-                    <!-- Certificates Issued -->
-                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-100 shadow-sm animate-slide-in" style="animation-delay: 0.5s;">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-certificate text-red-500 text-lg"></i>
-                            </div>
-                            <span class="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Issued</span>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['certificates_issued'] ?></h3>
-                        <p class="text-sm text-gray-400 mt-1">Certificates Issued</p>
+                        <h3 class="text-3xl font-bold text-gray-900"><?= $stats['completed_requests'] ?></h3>
+                        <p class="text-sm text-gray-400 mt-1">Completed Requests</p>
                     </div>
 
                 </div>

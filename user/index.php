@@ -243,9 +243,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
 
                 <!-- Left Content -->
                 <div class="animate-fade-up">
-                    <div class="inline-block bg-red-100 text-red-700 px-4 py-2 rounded-full text-sm font-semibold mb-4" data-i18n="help_save_lives_today">
-                        ✨ Help Save Lives Today
-                    </div>
+
                     <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight mb-6">
                         <span class="text-gray-900" data-i18n="donate">Donate </span>
                         <span class="bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent" data-i18n="blood">Blood</span>
@@ -276,7 +274,7 @@ $totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()[
                         <div class="text-center mb-10">
                             <div class="text-8xl mb-4 inline-block bg-red-100 p-6 rounded-full">🩸</div>
                             <h2 class="text-3xl font-bold text-gray-900 mb-2" data-i18n="blood_availability">Blood Availability</h2>
-                            <p class="text-gray-600" data-i18n="realtime_inventory">Real-time inventory status</p>
+
                         </div>
 
                         <!-- Blood Type Grid -->

@@ -94,6 +94,12 @@ if (isset($_GET['action']) && isset($_GET['req_id'])) {
   exit;
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'register_donor') {
+  $_SESSION['donor_registration_flow'] = true;
+  header("Location: donateform.php");
+  exit;
+}
+
 // Assigned Requests
 $assignedRequests = [];
 if ($donorId > 0) {
@@ -557,9 +563,7 @@ if (count($donors) > 0) {
 
         <!-- Left: Text -->
         <div class="animate-fade-up">
-          <div class="inline-flex items-center gap-2 bg-white backdrop-blur-sm text-red-500 px-5 py-2 rounded-full text-sm font-semibold mb-6">
-            <i class="fas fa-heart-pulse"></i> <span>Save Lives Today</span>
-          </div>
+
           <h1 class="text-4xl text-pink-500 sm:text-5xl lg:text-6xl font-extrabold leading-tight mb-6">
             Become a<br>
             <span class="text-red-600">Blood Donor</span>
@@ -582,7 +586,7 @@ if (count($donors) > 0) {
             </div>
           <?php else: ?>
             <div class="flex flex-col sm:flex-row gap-4">
-              <a href="donateform.php" class="bg-white text-red-700 px-8 py-4 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl transition transform hover:scale-105 text-center">
+              <a href="donor.php?action=register_donor" class="bg-white text-red-700 px-8 py-4 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl transition transform hover:scale-105 text-center">
                 <i class="fas fa-hand-holding-heart mr-2"></i> <span data-i18n="register_as_donor">Register as Donor</span>
               </a>
               <a href="#process" class="border-2 border-white/50 text-red-500 px-8 py-4 rounded-xl font-bold hover:bg-red-50/10 transition text-center">
@@ -615,7 +619,7 @@ if (count($donors) > 0) {
           <div class="space-y-4">
             <?php if (count($assignedRequests) > 0): ?>
               <?php foreach ($assignedRequests as $ar): ?>
-                <div class="border-2 border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-blue-400 transition">
+                <div id="req-<?= $ar['id'] ?>" class="border-2 border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-blue-400 transition">
                   <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center font-bold text-blue-700 text-xl"><?= htmlspecialchars($ar['blood_gp_name'] ?? 'N/A') ?></div>
                   <div class="flex-1">
                     <div class="flex flex-wrap gap-2 mb-1">
@@ -652,9 +656,7 @@ if (count($donors) > 0) {
   <section class="section-white py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-12">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-users mr-1"></i> <span>Our Heroes</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Find Blood Donors</h2>
         <p class="text-gray-600 max-w-2xl mx-auto text-lg">
           Browse our registered donors and find the blood type you need.
@@ -796,7 +798,7 @@ if (count($donors) > 0) {
           </div>
           <h3 class="text-xl font-bold text-gray-900 mb-2">No Donors Yet</h3>
           <p class="text-gray-500">Be the first to register as a blood donor!</p>
-          <a href="donateform.php" class="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-700 transition mt-4">
+          <a href="donor.php?action=register_donor" class="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-700 transition mt-4">
             <i class="fas fa-hand-holding-heart"></i> Register as Donor
           </a>
         </div>
@@ -810,9 +812,7 @@ if (count($donors) > 0) {
   <section class="section-pink py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-heart mr-1"></i> <span>Make a Difference</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Why Your Donation Matters</h2>
         <p class="text-gray-600 max-w-2xl mx-auto text-lg">
           Every day, patients in hospitals need blood for surgeries, trauma care, and life-threatening conditions. Your one donation can save up to 3 lives.
@@ -873,9 +873,7 @@ if (count($donors) > 0) {
   <section class="section-white py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-clipboard-check mr-1"></i> <span>Check Your Eligibility</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Donor Eligibility</h2>
         <p class="text-gray-600 max-w-2xl mx-auto text-lg">
           Before you donate, make sure you meet these basic requirements to ensure your safety and the safety of recipients.
@@ -960,9 +958,7 @@ if (count($donors) > 0) {
   <section id="process" class="section-pink py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-list-ol mr-1"></i> <span>Simple Steps</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Blood Donation Process</h2>
         <p class="text-gray-600 max-w-2xl mx-auto text-lg">
           Donating blood is quick, easy, and safe. Here's what to expect during your visit.
@@ -1120,9 +1116,7 @@ if (count($donors) > 0) {
   <section class="section-white py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-gift mr-1"></i> <span>What You Get</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Benefits of Blood Donation</h2>
         <p class="text-gray-600 max-w-2xl mx-auto text-lg">
           Donating blood isn't just good for others — it's good for you too. Here's what you gain as a donor.
@@ -1187,9 +1181,7 @@ if (count($donors) > 0) {
   <section class="section-pink py-20">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-circle-question mr-1"></i> <span>Got Questions?</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Frequently Asked Questions</h2>
       </div>
 
@@ -1269,9 +1261,7 @@ if (count($donors) > 0) {
   <section class="section-white py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <span class="inline-block bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <i class="fas fa-envelope mr-1"></i> <span>Get in Touch</span>
-        </span>
+
         <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Contact Information</h2>
         <p class="text-gray-600 max-w-2xl mx-auto text-lg">
           Have questions? Reach out to us anytime. We're here to help you become a lifesaver.

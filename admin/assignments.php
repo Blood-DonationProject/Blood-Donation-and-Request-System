@@ -14,7 +14,7 @@ if (isset($_POST['assign_donor'])) {
 
     if ($request_id > 0 && $donor_id > 0) {
         // Verify the request exists and is in a valid state
-        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.hospital, br.required_date, bg.blood_group_name, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = ?");
+        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.hospital, br.required_date, bg.blood_gp_name AS blood_group_name, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = ?");
         $check->bind_param("i", $request_id);
         $check->execute();
         $result = $check->get_result();
@@ -102,14 +102,34 @@ if (isset($_POST['assign_donor'])) {
                                     $dupCheck->store_result();
                                     
                                     if ($dupCheck->num_rows === 0) {
-                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
-                                        $now = date('Y-m-d H:i:s');
-                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
-                                        
-                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
-                                        $emailLog->bind_param("iisssss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        // Insert as Pending
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
+                                        $emailLog->bind_param("iisss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject);
                                         $emailLog->execute();
+                                        $logId = $conn->insert_id;
                                         $emailLog->close();
+
+                                        $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
+                                        $htmlMessage = nl2br($message) . $trackingPixel;
+                                        
+                                        $htmlHeaders = $headers . "\r\n";
+                                        $htmlHeaders .= "MIME-Version: 1.0\r\n";
+                                        $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+
+                                        if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
+                                            $now = date('Y-m-d H:i:s');
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $now, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        } else {
+                                            $err = error_get_last();
+                                            $errMsg = $err ? $err['message'] : 'Unknown mail error';
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $errMsg, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        }
                                     }
                                     $dupCheck->close();
                                 }
@@ -141,14 +161,34 @@ if (isset($_POST['assign_donor'])) {
                                     $dupCheck->store_result();
                                     
                                     if ($dupCheck->num_rows === 0) {
-                                        $sentStatus = @mail($to, $subject, $message, $headers) ? 'Sent' : 'Failed';
-                                        $now = date('Y-m-d H:i:s');
-                                        $sent_at = ($sentStatus === 'Sent') ? $now : null;
-                                        
-                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status, sent_at) VALUES (?, ?, ?, ?, ?, 'Assignment', ?, ?)");
-                                        $emailLog->bind_param("iisssss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject, $sentStatus, $sent_at);
+                                        // Insert as Pending
+                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
+                                        $emailLog->bind_param("iisss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject);
                                         $emailLog->execute();
+                                        $logId = $conn->insert_id;
                                         $emailLog->close();
+
+                                        $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
+                                        $htmlMessage = nl2br($message) . $trackingPixel;
+                                        
+                                        $htmlHeaders = $headers . "\r\n";
+                                        $htmlHeaders .= "MIME-Version: 1.0\r\n";
+                                        $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+
+                                        if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
+                                            $now = date('Y-m-d H:i:s');
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $now, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        } else {
+                                            $err = error_get_last();
+                                            $errMsg = $err ? $err['message'] : 'Unknown mail error';
+                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
+                                            $updateLog->bind_param("si", $errMsg, $logId);
+                                            $updateLog->execute();
+                                            $updateLog->close();
+                                        }
                                     }
                                     $dupCheck->close();
                                 }
@@ -263,7 +303,7 @@ try {
         LEFT JOIN donor_assignments da ON da.id = (
             SELECT MAX(id) FROM donor_assignments WHERE request_id = r.id AND donor_id = d.id
         )
-        WHERE r.assigned_donor_id IS NOT NULL AND r.status IN ('Assigned', 'Approved', 'Completed', 'Rejected', 'Accepted')
+        WHERE r.assigned_donor_id IS NOT NULL AND r.status IN ('Assigned', 'Approved', 'Rejected', 'Accepted', 'Received') AND (da.status IS NULL OR da.status != 'Completed')
         ORDER BY r.required_date DESC
     ");
     if ($result && $result->num_rows > 0) {
@@ -323,33 +363,7 @@ if ($stats_query) {
     }
 }
 
-// Fetch all assignments
-$sql = "
-SELECT 
-    da.id AS assignment_id,
-    da.status AS assignment_status,
-    da.created_at AS assigned_date,
-    da.responded_at,
-    da.completed_at,
-    br.id AS request_id,
-    br.status AS request_status,
-    br.requester_name,
-    br.hospital,
-    br.units,
-    bg.blood_gp_name AS blood_group,
-    u_donor.username AS donor_name
-FROM donor_assignments da
-JOIN blood_request br ON da.request_id = br.id
-LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
-JOIN donor d ON da.donor_id = d.id
-JOIN users u_donor ON d.user_id = u_donor.id
-ORDER BY da.created_at DESC
-";
-$assignments = [];
-$res = $conn->query($sql);
-if ($res) {
-    $assignments = $res->fetch_all(MYSQLI_ASSOC);
-}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -465,49 +479,7 @@ if ($res) {
                     </div>
                 <?php endif; ?>
 
-                <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <!-- Active/Assigned -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-paper-plane text-blue-500 text-lg"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['active'] ?></h3>
-                        <p class="text-sm text-gray-500 mt-1">Active (Assigned)</p>
-                    </div>
-                    <!-- Accepted -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-green-50 dark:bg-green-500/10 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-thumbs-up text-green-500 text-lg"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['accepted'] ?></h3>
-                        <p class="text-sm text-gray-500 mt-1">Accepted</p>
-                    </div>
-                    <!-- Rejected -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-red-50 dark:bg-red-500/10 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-times-circle text-red-500 text-lg"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['rejected'] ?></h3>
-                        <p class="text-sm text-gray-500 mt-1">Rejected</p>
-                    </div>
-                    <!-- Completed/Received -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-check-circle text-emerald-500 text-lg"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 dark:text-white"><?= $stats['completed'] ?></h3>
-                        <p class="text-sm text-gray-500 mt-1">Received / Completed</p>
-                    </div>
-                </div>
+
 
                 <!-- Donor Assignment Section -->
                 <div class="mb-8">
@@ -688,71 +660,7 @@ if ($res) {
                     </div>
                 <?php endif; ?>
 
-                <!-- Main Table -->
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                    <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <h3 class="text-lg font-bold text-gray-800 dark:text-white">All Assignments</h3>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-sm border-b border-gray-100 dark:border-gray-700">
-                                    <th class="p-4 font-semibold">Req ID</th>
-                                    <th class="p-4 font-semibold">Requester</th>
-                                    <th class="p-4 font-semibold">Blood Group</th>
-                                    <th class="p-4 font-semibold">Donor</th>
-                                    <th class="p-4 font-semibold">Hospital</th>
-                                    <th class="p-4 font-semibold">Assigned Date</th>
-                                    <th class="p-4 font-semibold">Status</th>
-                                    <th class="p-4 font-semibold text-center">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-sm divide-y divide-gray-100 dark:divide-gray-700">
-                                <?php if (empty($assignments)): ?>
-                                    <tr>
-                                        <td colspan="8" class="p-4 text-center text-gray-500 dark:text-gray-400">No assignments found.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($assignments as $a):
-                                        $badgeColor = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-                                        if ($a['assignment_status'] === 'Accepted') $badgeColor = 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
-                                        if ($a['assignment_status'] === 'Rejected') $badgeColor = 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400';
-                                        if ($a['assignment_status'] === 'Received') $badgeColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400';
-                                        if ($a['assignment_status'] === 'Completed') $badgeColor = 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400';
-                                    ?>
-                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                            <td class="p-4 text-gray-900 dark:text-white font-medium">#<?= $a['request_id'] ?></td>
-                                            <td class="p-4 text-gray-700 dark:text-gray-300"><?= htmlspecialchars($a['requester_name'] ?? 'N/A') ?></td>
-                                            <td class="p-4">
-                                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
-                                                    <?= htmlspecialchars($a['blood_group'] ?? 'N/A') ?>
-                                                </span>
-                                            </td>
-                                            <td class="p-4 text-gray-700 dark:text-gray-300 font-semibold"><?= htmlspecialchars($a['donor_name']) ?></td>
-                                            <td class="p-4 text-gray-500 dark:text-gray-400"><?= htmlspecialchars($a['hospital']) ?></td>
-                                            <td class="p-4 text-gray-500 dark:text-gray-400"><?= date('M d, Y', strtotime($a['assigned_date'])) ?></td>
-                                            <td class="p-4">
-                                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold <?= $badgeColor ?>">
-                                                    <?= $a['assignment_status'] ?>
-                                                </span>
-                                            </td>
-                                            <td class="p-4 text-center space-x-2">
-                                                <button onclick="openTimelineModal(<?= htmlspecialchars(json_encode($a)) ?>)" class="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-lg transition shadow-sm" title="View Timeline">
-                                                    View
-                                                </button>
-                                                <?php if (isset($a['request_status']) && $a['request_status'] === 'Pending'): ?>
-                                                    <button onclick="openAssignModal(<?= $a['request_id'] ?>, false, '<?= $a['blood_group'] ?>', <?= $a['units'] ?? 1 ?>, '<?= addslashes($a['hospital']) ?>')" class="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-sm" title="Assign Donor">
-                                                        Assign Donor
-                                                    </button>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+
             </main>
         </div>
     </div>

@@ -8,48 +8,48 @@ $success_msg = '';
 $error_msg = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
-    if (isset($_POST['action']) && $_POST['action'] === 'blood_received' && isset($_POST['request_id'])) {
-        $req_id = (int)$_POST['request_id'];
-        // Verify it belongs to the user and is 'Assigned' or 'Accepted'
-        $stmt = $conn->prepare("SELECT id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')");
-        $stmt->bind_param("ii", $req_id, $_SESSION['user_id']);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if ($res && $res->num_rows > 0) {
-            $updReq = $conn->prepare("UPDATE blood_request SET status = 'Completed', received_at = NOW() WHERE id = ?");
-            $updReq->bind_param("i", $req_id);
-            $updReq->execute();
-            
-            $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = NOW() WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
-            $updAssign->bind_param("i", $req_id);
-            $updAssign->execute();
+  if (isset($_POST['action']) && $_POST['action'] === 'blood_received' && isset($_POST['request_id'])) {
+    $req_id = (int)$_POST['request_id'];
+    // Verify it belongs to the user and is 'Assigned' or 'Accepted'
+    $stmt = $conn->prepare("SELECT id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')");
+    $stmt->bind_param("ii", $req_id, $_SESSION['user_id']);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res && $res->num_rows > 0) {
+      $updReq = $conn->prepare("UPDATE blood_request SET status = 'Completed', received_at = NOW() WHERE id = ?");
+      $updReq->bind_param("i", $req_id);
+      $updReq->execute();
 
-            $adminQ = $conn->query("SELECT id FROM users WHERE role = 'Admin'");
-            $notifTitle = 'Request Completed';
-            $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #'.$req_id.')';
-            while ($admin = $adminQ->fetch_assoc()) {
-                $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'System', ?, ?)");
-                $notif->bind_param("iiss", $admin['id'], $req_id, $notifTitle, $notifMsg);
-                $notif->execute();
-            }
-            $success_msg = "Blood received successfully.";
-        } else {
-            $error_msg = "Invalid request or it is not in Assigned status.";
-        }
-    } elseif (isset($_POST['action']) && $_POST['action'] === 'cancel_request' && isset($_POST['request_id'])) {
-        $req_id = (int)$_POST['request_id'];
-        $stmt = $conn->prepare("SELECT id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Pending', 'Approved')");
-        $stmt->bind_param("ii", $req_id, $_SESSION['user_id']);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
-            $updReq = $conn->prepare("UPDATE blood_request SET status = 'Rejected' WHERE id = ?");
-            $updReq->bind_param("i", $req_id);
-            $updReq->execute();
-            $success_msg = "Request cancelled successfully.";
-        } else {
-            $error_msg = "Cannot cancel this request.";
-        }
+      $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = NOW() WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
+      $updAssign->bind_param("i", $req_id);
+      $updAssign->execute();
+
+      $adminQ = $conn->query("SELECT id FROM users WHERE role = 'Admin'");
+      $notifTitle = 'Request Completed';
+      $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #' . $req_id . ')';
+      while ($admin = $adminQ->fetch_assoc()) {
+        $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'System', ?, ?)");
+        $notif->bind_param("iiss", $admin['id'], $req_id, $notifTitle, $notifMsg);
+        $notif->execute();
+      }
+      $success_msg = "Blood received successfully.";
+    } else {
+      $error_msg = "Invalid request or it is not in Assigned status.";
     }
+  } elseif (isset($_POST['action']) && $_POST['action'] === 'cancel_request' && isset($_POST['request_id'])) {
+    $req_id = (int)$_POST['request_id'];
+    $stmt = $conn->prepare("SELECT id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Pending', 'Approved')");
+    $stmt->bind_param("ii", $req_id, $_SESSION['user_id']);
+    $stmt->execute();
+    if ($stmt->get_result()->num_rows > 0) {
+      $updReq = $conn->prepare("UPDATE blood_request SET status = 'Rejected' WHERE id = ?");
+      $updReq->bind_param("i", $req_id);
+      $updReq->execute();
+      $success_msg = "Request cancelled successfully.";
+    } else {
+      $error_msg = "Cannot cancel this request.";
+    }
+  }
 }
 
 $totalRequests = 0;
@@ -81,15 +81,17 @@ if ($isLoggedIn && $userId > 0) {
 
   // Fetch assignment details for 'Assigned' or 'Accepted' requests
   $assignments = [];
-  $assigned_reqs = array_filter($myRequests, function($r) { return in_array($r['status'], ['Assigned', 'Accepted']); });
+  $assigned_reqs = array_filter($myRequests, function ($r) {
+    return in_array($r['status'], ['Assigned', 'Accepted']);
+  });
   if (count($assigned_reqs) > 0) {
-      $req_ids = implode(',', array_column($assigned_reqs, 'id'));
-      $assignRes = $conn->query("SELECT da.request_id, u.username as donor_name, d.phone, d.blood_groups, d.address FROM donor_assignments da JOIN donor d ON da.donor_id = d.id JOIN users u ON d.user_id = u.id WHERE da.request_id IN ($req_ids) AND da.status IN ('Assigned', 'Accepted')");
-      if ($assignRes) {
-          while ($row = $assignRes->fetch_assoc()) {
-              $assignments[$row['request_id']] = $row;
-          }
+    $req_ids = implode(',', array_column($assigned_reqs, 'id'));
+    $assignRes = $conn->query("SELECT da.request_id, u.username as donor_name, d.phone, d.blood_groups, d.address FROM donor_assignments da JOIN donor d ON da.donor_id = d.id JOIN users u ON d.user_id = u.id WHERE da.request_id IN ($req_ids) AND da.status IN ('Assigned', 'Accepted')");
+    if ($assignRes) {
+      while ($row = $assignRes->fetch_assoc()) {
+        $assignments[$row['request_id']] = $row;
       }
+    }
   }
 }
 ?>
@@ -241,7 +243,7 @@ if ($isLoggedIn && $userId > 0) {
   <!-- Hero Banner -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-16">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center animate-fade-up">
-      <div class="inline-block bg-white/20 text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">🚨 <span data-i18n="live_requests">Live Requests</span></div>
+
       <h1 class="text-5xl font-bold mb-4" data-i18n="blood_requests_title">Blood Requests</h1>
       <p class="text-xl opacity-90 max-w-2xl mx-auto">Patients urgently need your help. Review open requests and respond — your one donation can save a life.</p>
 
@@ -261,116 +263,116 @@ if ($isLoggedIn && $userId > 0) {
 
   <!-- My Blood Requests Section -->
   <?php if ($isLoggedIn): ?>
-  <section class="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
-      <div class="flex items-center justify-between mb-5">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">📄</div>
-          <h2 class="text-xl font-bold text-gray-900">My Blood Requests</h2>
+    <section class="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="bg-white rounded-2xl shadow p-6 animate-fade-up">
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">📄</div>
+            <h2 class="text-xl font-bold text-gray-900">My Blood Requests</h2>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <?php if (!empty($success_msg)): ?>
+            <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg mb-4">
+              <p class="text-green-700 font-medium"><?= htmlspecialchars($success_msg) ?></p>
+            </div>
+          <?php endif; ?>
+          <?php if (!empty($error_msg)): ?>
+            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mb-4">
+              <p class="text-red-700 font-medium"><?= htmlspecialchars($error_msg) ?></p>
+            </div>
+          <?php endif; ?>
+
+          <?php if (count($myRequests) > 0): ?>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-100">
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
+                    <th class="text-left text-gray-500 font-semibold pb-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <?php foreach ($myRequests as $br): ?>
+                    <tr id="req-<?= $br['id'] ?>" class="hover:bg-gray-50">
+                      <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
+                      <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
+                      <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
+                      <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
+                      <td class="py-3">
+                        <?php
+                        $status = htmlspecialchars($br['status'] ?? 'Pending');
+                        $statusColors = [
+                          'Pending'   => 'bg-yellow-100 text-yellow-700',
+                          'Approved'  => 'bg-blue-100 text-blue-700',
+                          'Assigned'  => 'bg-blue-100 text-blue-700',
+                          'Accepted'  => 'bg-blue-100 text-blue-700',
+                          'Completed' => 'bg-green-100 text-green-700',
+                          'Rejected'  => 'bg-red-100 text-red-700',
+                        ];
+                        $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
+                        ?>
+                        <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
+                      </td>
+                      <td class="py-3 flex items-center gap-2">
+                        <?php if ($status === 'Assigned' || $status === 'Accepted'): ?>
+                          <button type="button" onclick="viewAssignment(<?= $br['id'] ?>)" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                            <i class="fas fa-eye mr-1"></i> View Assignment
+                          </button>
+                          <form method="POST" class="inline" onsubmit="return confirm('Are you sure you have received the blood? This will officially complete the request.');">
+                            <input type="hidden" name="action" value="blood_received">
+                            <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
+                            <button type="submit" class="bg-green-600 text-white hover:bg-green-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition">
+                              <i class="fas fa-check-circle mr-1"></i> Blood Received
+                            </button>
+                          </form>
+                        <?php elseif (in_array($status, ['Pending', 'Approved'])): ?>
+                          <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to cancel this request?');">
+                            <input type="hidden" name="action" value="cancel_request">
+                            <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
+                            <button type="submit" class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                              <i class="fas fa-times mr-1"></i> Cancel Request
+                            </button>
+                          </form>
+                        <?php else: ?>
+                          <span class="text-gray-400 text-xs">-</span>
+                        <?php endif; ?>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          <?php else: ?>
+            <div class="border-2 border-gray-100 rounded-xl p-8 text-center">
+              <p class="text-gray-500">No blood requests submitted yet.</p>
+            </div>
+          <?php endif; ?>
         </div>
       </div>
-      <div class="space-y-4">
-        <?php if (!empty($success_msg)): ?>
-            <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg mb-4">
-                <p class="text-green-700 font-medium"><?= htmlspecialchars($success_msg) ?></p>
-            </div>
-        <?php endif; ?>
-        <?php if (!empty($error_msg)): ?>
-            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mb-4">
-                <p class="text-red-700 font-medium"><?= htmlspecialchars($error_msg) ?></p>
-            </div>
-        <?php endif; ?>
+    </section>
 
-        <?php if (count($myRequests) > 0): ?>
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="border-b border-gray-100">
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="date">Date</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="blood_type">Blood Type</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="units">Units</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="hospital_col">Hospital</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3" data-i18n="status">Status</th>
-                      <th class="text-left text-gray-500 font-semibold pb-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                      <?php foreach ($myRequests as $br): ?>
-                        <tr class="hover:bg-gray-50">
-                          <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
-                          <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
-                          <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
-                          <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
-                          <td class="py-3">
-                            <?php
-                            $status = htmlspecialchars($br['status'] ?? 'Pending');
-                            $statusColors = [
-                              'Pending'   => 'bg-yellow-100 text-yellow-700',
-                              'Approved'  => 'bg-blue-100 text-blue-700',
-                              'Assigned'  => 'bg-blue-100 text-blue-700',
-                              'Accepted'  => 'bg-blue-100 text-blue-700',
-                              'Completed' => 'bg-green-100 text-green-700',
-                              'Rejected'  => 'bg-red-100 text-red-700',
-                            ];
-                            $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
-                            ?>
-                            <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
-                          </td>
-                          <td class="py-3 flex items-center gap-2">
-                              <?php if ($status === 'Assigned' || $status === 'Accepted'): ?>
-                                  <button type="button" onclick="viewAssignment(<?= $br['id'] ?>)" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                                      <i class="fas fa-eye mr-1"></i> View Assignment
-                                  </button>
-                                  <form method="POST" class="inline" onsubmit="return confirm('Are you sure you have received the blood? This will officially complete the request.');">
-                                      <input type="hidden" name="action" value="blood_received">
-                                      <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
-                                      <button type="submit" class="bg-green-600 text-white hover:bg-green-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition">
-                                          <i class="fas fa-check-circle mr-1"></i> Blood Received
-                                      </button>
-                                  </form>
-                              <?php elseif (in_array($status, ['Pending', 'Approved'])): ?>
-                                  <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to cancel this request?');">
-                                      <input type="hidden" name="action" value="cancel_request">
-                                      <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
-                                      <button type="submit" class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                                          <i class="fas fa-times mr-1"></i> Cancel Request
-                                      </button>
-                                  </form>
-                              <?php else: ?>
-                                  <span class="text-gray-400 text-xs">-</span>
-                              <?php endif; ?>
-                          </td>
-                        </tr>
-                      <?php endforeach; ?>
-                  </tbody>
-                </table>
-              </div>
-        <?php else: ?>
-          <div class="border-2 border-gray-100 rounded-xl p-8 text-center">
-            <p class="text-gray-500">No blood requests submitted yet.</p>
-          </div>
-        <?php endif; ?>
+    <!-- View Assignment Modal -->
+    <div id="assignmentModal" class="fixed inset-0 bg-black/60 z-[70] hidden items-center justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-fade-up">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold text-gray-900">Assignment Details</h3>
+          <button type="button" onclick="closeAssignmentModal()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="space-y-3" id="assignmentModalContent">
+          <!-- Content injected by JS -->
+        </div>
+        <div class="mt-6">
+          <button type="button" onclick="closeAssignmentModal()" class="w-full bg-gray-100 text-gray-800 font-bold py-2 rounded-xl hover:bg-gray-200 transition">Close</button>
+        </div>
       </div>
     </div>
-  </section>
-
-  <!-- View Assignment Modal -->
-  <div id="assignmentModal" class="fixed inset-0 bg-black/60 z-[70] hidden items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-fade-up">
-          <div class="flex items-center justify-between mb-4">
-              <h3 class="text-xl font-bold text-gray-900">Assignment Details</h3>
-              <button type="button" onclick="closeAssignmentModal()" class="text-gray-400 hover:text-gray-600">
-                  <i class="fas fa-times text-xl"></i>
-              </button>
-          </div>
-          <div class="space-y-3" id="assignmentModalContent">
-              <!-- Content injected by JS -->
-          </div>
-          <div class="mt-6">
-              <button type="button" onclick="closeAssignmentModal()" class="w-full bg-gray-100 text-gray-800 font-bold py-2 rounded-xl hover:bg-gray-200 transition">Close</button>
-          </div>
-      </div>
-  </div>
 
   <?php endif; ?>
 
@@ -379,11 +381,11 @@ if ($isLoggedIn && $userId > 0) {
 
   <script>
     const assignmentsData = <?= isset($assignments) ? json_encode($assignments) : '{}' ?>;
-    
+
     function viewAssignment(requestId) {
-        const data = assignmentsData[requestId];
-        if (data) {
-            let html = `
+      const data = assignmentsData[requestId];
+      if (data) {
+        let html = `
                 <div class="flex items-center space-x-3 mb-4">
                     <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xl font-bold shadow-sm">
                         ${data.donor_name.substring(0,2).toUpperCase()}
@@ -398,17 +400,17 @@ if ($isLoggedIn && $userId > 0) {
                     <p><i class="fas fa-map-marker-alt mr-2 text-gray-400"></i> ${data.address}</p>
                 </div>
             `;
-            document.getElementById('assignmentModalContent').innerHTML = html;
-            document.getElementById('assignmentModal').classList.remove('hidden');
-            document.getElementById('assignmentModal').classList.add('flex');
-        } else {
-            alert("No assignment details found.");
-        }
+        document.getElementById('assignmentModalContent').innerHTML = html;
+        document.getElementById('assignmentModal').classList.remove('hidden');
+        document.getElementById('assignmentModal').classList.add('flex');
+      } else {
+        alert("No assignment details found.");
+      }
     }
 
     function closeAssignmentModal() {
-        document.getElementById('assignmentModal').classList.add('hidden');
-        document.getElementById('assignmentModal').classList.remove('flex');
+      document.getElementById('assignmentModal').classList.add('hidden');
+      document.getElementById('assignmentModal').classList.remove('flex');
     }
 
     function toggleUserDropdown() {
