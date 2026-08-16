@@ -83,6 +83,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
             <!-- Desktop Menu -->
             <div class="hidden md:flex items-center space-x-8">
                 <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
+                <a href="about.php" class="text-gray-700 hover:text-red-600 font-medium transition">About Us</a>
                 <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
                 <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
 

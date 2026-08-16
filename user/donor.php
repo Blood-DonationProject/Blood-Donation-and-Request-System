@@ -241,25 +241,7 @@ if (count($donors) > 0) {
       }
     }
 
-    @keyframes heartbeat {
 
-      0%,
-      100% {
-        transform: scale(1);
-      }
-
-      15% {
-        transform: scale(1.15);
-      }
-
-      30% {
-        transform: scale(1);
-      }
-
-      45% {
-        transform: scale(1.1);
-      }
-    }
 
     .animate-fade-down {
       animation: fadeInDown 0.6s ease-out both;
@@ -285,9 +267,7 @@ if (count($donors) > 0) {
       animation: pulse-ring 2s ease-out infinite;
     }
 
-    .heartbeat {
-      animation: heartbeat 1.5s ease-in-out infinite;
-    }
+
 
     .hero-bg {
       background: linear-gradient(135deg, #dc2626 0%, #991b1b 40%, #be123c 70%, #e11d48 100%);
@@ -342,25 +322,7 @@ if (count($donors) > 0) {
       display: none;
     }
 
-    .faq-answer {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.4s ease, padding 0.4s ease;
-    }
 
-    .faq-answer.open {
-      max-height: 500px;
-      padding-top: 1rem;
-      padding-bottom: 0.5rem;
-    }
-
-    .faq-icon {
-      transition: transform 0.3s ease;
-    }
-
-    .faq-icon.rotated {
-      transform: rotate(180deg);
-    }
   </style>
   <style id="dark-mode-styles">
     /* Light mode resets */
@@ -806,66 +768,6 @@ if (count($donors) > 0) {
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 2. WHY DONATE BLOOD -->
-  <!-- ═══════════════════════════════════════════════════ -->
-  <section class="section-pink py-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
-
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Why Your Donation Matters</h2>
-        <p class="text-gray-600 max-w-2xl mx-auto text-lg">
-          Every day, patients in hospitals need blood for surgeries, trauma care, and life-threatening conditions. Your one donation can save up to 3 lives.
-        </p>
-      </div>
-
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-        <!-- Card 1 -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center">
-          <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-red-200">
-            <i class="fas fa-heart-pulse"></i>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-3">Save Lives</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">
-            Each pint of blood you donate can save up to 3 lives — patients fighting cancer, surviving accidents, or undergoing surgery.
-          </p>
-        </div>
-
-        <!-- Card 2 -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center">
-          <div class="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-pink-200">
-            <i class="fas fa-truck-medical"></i>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-3">Be There in Emergencies</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">
-            Every second counts when someone is in an accident or emergency. A ready blood supply gives them a fighting chance.
-          </p>
-        </div>
-
-        <!-- Card 3 -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center">
-          <div class="w-16 h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-rose-200">
-            <i class="fas fa-users"></i>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-3">Strengthen Your Community</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">
-            Local hospitals depend on community donors like you to keep their blood supply ready for anyone in need.
-          </p>
-        </div>
-
-        <!-- Card 4 -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center">
-          <div class="w-16 h-16 bg-gradient-to-br from-red-400 to-pink-500 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-red-100">
-            <i class="fas fa-rotate"></i>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-3">Build a Lifesaving Habit</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">
-            Blood is always needed. By donating regularly every 3 months, you help maintain a stable supply for your community.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- 3. DONOR ELIGIBILITY -->
@@ -918,37 +820,7 @@ if (count($donors) > 0) {
         </div>
       </div>
 
-      <!-- Who Should Not Donate -->
-      <div class="mt-12 max-w-3xl mx-auto">
-        <div class="bg-pink-50 rounded-2xl p-8 border border-pink-100">
-          <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <i class="fas fa-triangle-exclamation text-pink-500"></i>
-            <span>Who Should Not Donate?</span>
-          </h3>
-          <ul class="space-y-4">
-            <li class="flex items-center gap-3 text-gray-700">
-              <i class="fas fa-xmark-circle text-red-400 flex-shrink-0"></i>
-              <span>Pregnant or recently gave birth</span>
-            </li>
-            <li class="flex items-center gap-3 text-gray-700">
-              <i class="fas fa-xmark-circle text-red-400 flex-shrink-0"></i>
-              <span>Low hemoglobin or anemia</span>
-            </li>
-            <li class="flex items-center gap-3 text-gray-700">
-              <i class="fas fa-xmark-circle text-red-400 flex-shrink-0"></i>
-              <span>HIV, Hepatitis B, or Hepatitis C</span>
-            </li>
-            <li class="flex items-center gap-3 text-gray-700">
-              <i class="fas fa-xmark-circle text-red-400 flex-shrink-0"></i>
-              <span>Recent surgery, tattoo, or piercing</span>
-            </li>
-            <li class="flex items-center gap-3 text-gray-700">
-              <i class="fas fa-xmark-circle text-red-400 flex-shrink-0"></i>
-              <span>Currently sick or having fever</span>
-            </li>
-          </ul>
-        </div>
-      </div>
+
     </div>
   </section>
 
@@ -1110,150 +982,9 @@ if (count($donors) > 0) {
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 5. BENEFITS OF BLOOD DONATION -->
-  <!-- ═══════════════════════════════════════════════════ -->
-  <section class="section-white py-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
 
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Benefits of Blood Donation</h2>
-        <p class="text-gray-600 max-w-2xl mx-auto text-lg">
-          Donating blood isn't just good for others — it's good for you too. Here's what you gain as a donor.
-        </p>
-      </div>
 
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm">
-          <div class="w-14 h-14 bg-gradient-to-br from-red-500 to-pink-500 rounded-2xl flex items-center justify-center text-white text-2xl mb-5 shadow-lg shadow-red-200">
-            <i class="fas fa-certificate"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Donation Certificate</h4>
-          <p class="text-gray-500 text-sm">Receive an official certificate of your generous contribution.</p>
-        </div>
 
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm">
-          <div class="w-14 h-14 bg-gradient-to-br from-rose-500 to-red-500 rounded-2xl flex items-center justify-center text-white text-2xl mb-5 shadow-lg shadow-rose-200">
-            <i class="fas fa-heart-pulse"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Free Health Check</h4>
-          <p class="text-gray-500 text-sm">Get a free mini health screening including blood pressure and hemoglobin check.</p>
-        </div>
-
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm">
-          <div class="w-14 h-14 bg-gradient-to-br from-pink-400 to-rose-500 rounded-2xl flex items-center justify-center text-white text-2xl mb-5 shadow-lg shadow-pink-200">
-            <i class="fas fa-fire"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Calorie Burn</h4>
-          <p class="text-gray-500 text-sm">Your body burns about 650 calories per donation as it replenishes blood cells.</p>
-        </div>
-
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm">
-          <div class="w-14 h-14 bg-gradient-to-br from-red-400 to-pink-500 rounded-2xl flex items-center justify-center text-white text-2xl mb-5 shadow-lg shadow-red-100">
-            <i class="fas fa-face-smile-beam"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Emotional Well-being</h4>
-          <p class="text-gray-500 text-sm">Experience the joy and fulfillment of knowing you've helped save someone's life.</p>
-        </div>
-
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm">
-          <div class="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center text-white text-2xl mb-5 shadow-lg shadow-red-200">
-            <i class="fas fa-droplet"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Reduces Iron Levels</h4>
-          <p class="text-gray-500 text-sm">Regular donation helps maintain healthy iron levels, reducing the risk of certain diseases.</p>
-        </div>
-
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm">
-          <div class="w-14 h-14 bg-gradient-to-br from-pink-500 to-red-500 rounded-2xl flex items-center justify-center text-white text-2xl mb-5 shadow-lg shadow-pink-200">
-            <i class="fas fa-shield-heart"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Priority Access</h4>
-          <p class="text-gray-500 text-sm">Registered donors receive priority notifications for urgent blood requests and community events.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 7. FAQ -->
-  <!-- ═══════════════════════════════════════════════════ -->
-  <section class="section-pink py-20">
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
-
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Frequently Asked Questions</h2>
-      </div>
-
-      <div class="space-y-4">
-        <!-- FAQ 1 -->
-        <div class="bg-white rounded-xl border border-pink-100 shadow-sm overflow-hidden faq-item">
-          <button class="w-full flex items-center justify-between p-6 text-left" onclick="toggleFaq(this)">
-            <span class="font-semibold text-gray-900">Is donating blood painful?</span>
-            <i class="fas fa-chevron-down text-red-400 faq-icon"></i>
-          </button>
-          <div class="faq-answer px-6 text-gray-600">
-            <p>You may feel a brief pinch when the needle is inserted, but the actual donation process is generally painless. Most donors describe it as a minor discomfort that passes quickly.</p>
-          </div>
-        </div>
-
-        <!-- FAQ 2 -->
-        <div class="bg-white rounded-xl border border-pink-100 shadow-sm overflow-hidden faq-item">
-          <button class="w-full flex items-center justify-between p-6 text-left" onclick="toggleFaq(this)">
-            <span class="font-semibold text-gray-900">How long does the donation take?</span>
-            <i class="fas fa-chevron-down text-red-400 faq-icon"></i>
-          </button>
-          <div class="faq-answer px-6 text-gray-600">
-            <p>The actual blood collection takes about 8–10 minutes. The entire visit, including registration, screening, and recovery, typically takes about 30–45 minutes.</p>
-          </div>
-        </div>
-
-        <!-- FAQ 3 -->
-        <div class="bg-white rounded-xl border border-pink-100 shadow-sm overflow-hidden faq-item">
-          <button class="w-full flex items-center justify-between p-6 text-left" onclick="toggleFaq(this)">
-            <span class="font-semibold text-gray-900">How often can I donate blood?</span>
-            <i class="fas fa-chevron-down text-red-400 faq-icon"></i>
-          </button>
-          <div class="faq-answer px-6 text-gray-600">
-            <p>You can donate whole blood once every 56 days (8 weeks). This waiting period allows your body to fully replenish the donated blood cells.</p>
-          </div>
-        </div>
-
-        <!-- FAQ 4 -->
-        <div class="bg-white rounded-xl border border-pink-100 shadow-sm overflow-hidden faq-item">
-          <button class="w-full flex items-center justify-between p-6 text-left" onclick="toggleFaq(this)">
-            <span class="font-semibold text-gray-900">Is it safe to donate blood?</span>
-            <i class="fas fa-chevron-down text-red-400 faq-icon"></i>
-          </button>
-          <div class="faq-answer px-6 text-gray-600">
-            <p>Yes, absolutely. All donation equipment is sterile and used only once. The process is supervised by trained medical professionals, and your safety is our top priority.</p>
-          </div>
-        </div>
-
-        <!-- FAQ 5 -->
-        <div class="bg-white rounded-xl border border-pink-100 shadow-sm overflow-hidden faq-item">
-          <button class="w-full flex items-center justify-between p-6 text-left" onclick="toggleFaq(this)">
-            <span class="font-semibold text-gray-900">Will I feel weak after donating?</span>
-            <i class="fas fa-chevron-down text-red-400 faq-icon"></i>
-          </button>
-          <div class="faq-answer px-6 text-gray-600">
-            <p>Most people feel fine after donating. We recommend resting for a few minutes and enjoying refreshments. Drink plenty of fluids and avoid heavy lifting for the rest of the day.</p>
-          </div>
-        </div>
-
-        <!-- FAQ 6 -->
-        <div class="bg-white rounded-xl border border-pink-100 shadow-sm overflow-hidden faq-item">
-          <button class="w-full flex items-center justify-between p-6 text-left" onclick="toggleFaq(this)">
-            <span class="font-semibold text-gray-900">What blood types are needed most?</span>
-            <i class="fas fa-chevron-down text-red-400 faq-icon"></i>
-          </button>
-          <div class="faq-answer px-6 text-gray-600">
-            <p>All blood types are needed, but O-negative (universal donor) and B-negative are often in highest demand. However, the best blood type to donate is the one you have — every type saves lives!</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- 8. CONTACT INFORMATION -->
@@ -1299,25 +1030,7 @@ if (count($donors) > 0) {
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 9. FINAL CTA -->
-  <!-- ═══════════════════════════════════════════════════ -->
-  <section class="bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 text-white py-20 relative overflow-hidden">
-    <div class="absolute top-0 left-0 w-72 h-72 bg-white/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-    <div class="absolute bottom-0 right-0 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl translate-x-1/3 translate-y-1/3"></div>
 
-    <div class="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <div class="inline-flex items-center justify-center w-20 h-20 bg-white/15 rounded-full mb-6">
-        <i class="fas fa-hand-holding-heart text-4xl heartbeat"></i>
-      </div>
-      <h2 class="text-3xl sm:text-4xl font-extrabold mb-4">Become a Hero Today</h2>
-      <p class="text-lg text-pink-100 mb-8 max-w-xl mx-auto">
-        Your blood can give someone another chance to live.
-      </p>
-
-
-    </div>
-  </section>
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- FOOTER -->
@@ -1353,25 +1066,7 @@ if (count($donors) > 0) {
       }
     });
 
-    // FAQ accordion
-    function toggleFaq(btn) {
-      var answer = btn.nextElementSibling;
-      var icon = btn.querySelector('.faq-icon');
-      var isOpen = answer.classList.contains('open');
 
-      // Close all others
-      document.querySelectorAll('.faq-answer').forEach(function(el) {
-        el.classList.remove('open');
-      });
-      document.querySelectorAll('.faq-icon').forEach(function(el) {
-        el.classList.remove('rotated');
-      });
-
-      if (!isOpen) {
-        answer.classList.add('open');
-        icon.classList.add('rotated');
-      }
-    }
 
     // Donor card filtering
     var donorSearchInput = document.getElementById('donorSearchInput');

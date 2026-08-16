@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
     // Verify it belongs to the user and is 'Assigned' or 'Accepted'
     $stmt = $conn->prepare("
         SELECT id, units,
-               (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = blood_request.id AND da.status IN ('Completed', 'Confirmed')) AS received_units
+               (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = blood_request.id AND da.status IN ('Accepted', 'Completed', 'Confirmed')) AS received_units
         FROM blood_request 
         WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')
     ");
@@ -75,7 +75,7 @@ $myRequests = [];
 if ($isLoggedIn && $userId > 0) {
   $stmt_myreq = $conn->prepare("SELECT r.id, r.units, r.hospital, r.required_date, r.status, r.urgency,
                                          bg.blood_gp_name,
-                                         (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = r.id AND da.status IN ('Completed', 'Confirmed')) AS received_units
+                                         (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = r.id AND da.status IN ('Accepted', 'Completed', 'Confirmed')) AS received_units
                                   FROM blood_request r
                                   LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id
                                   WHERE r.users_id = ?

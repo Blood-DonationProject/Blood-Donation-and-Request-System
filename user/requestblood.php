@@ -88,7 +88,7 @@ if ($isLoggedIn) {
     } elseif (isset($_POST['blood_groups_id'])) {
       // INSERT NEW
       $blood_groups_id = (int)$_POST['blood_groups_id'];
-      $units = max(1, min(5, (int)($_POST['units'] ?? 1)));
+      $units = 1; // Always exactly 1 Unit
       $hospital = trim($_POST['hospital'] ?? '');
       $required_date = $_POST['required_date'] ?? date('Y-m-d');
       $status = $_POST['status'] ?? 'Pending';
@@ -354,18 +354,22 @@ if ($isLoggedIn) {
               <?php if ($editMode): ?>
                 <input type="text" readonly value="<?= (int)$editData['units'] ?> Unit<?= (int)$editData['units'] > 1 ? 's' : '' ?>" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
               <?php else: ?>
-                <select name="units" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
-                  <?php for ($i = 1; $i <= 5; $i++): ?>
-                    <option value="<?= $i ?>"><?= $i ?> Unit<?= $i > 1 ? 's' : '' ?></option>
-                  <?php endfor; ?>
-                </select>
+                <input type="text" readonly value="1 Unit" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
+                <input type="hidden" name="units" value="1">
               <?php endif; ?>
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital <span class="text-red-500">*</span></label>
-              <input type="text" name="hospital"
-                value="<?= htmlspecialchars($editData['hospital'] ?? '') ?>"
-                placeholder="e.g. City General Hospital" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition <?= $editMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>" <?= $editMode ? 'readonly' : '' ?> />
+              <?php if ($editMode): ?>
+                <input type="text" readonly value="<?= htmlspecialchars($editData['hospital'] ?? '') ?>" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
+              <?php else: ?>
+                <select name="hospital" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
+                  <option value="">Select Hospital</option>
+                  <?php foreach (['Aung Dispensary', 'Loilem General Hospital', 'PangLong General Hospital', 'Cherry Hospital', 'NamSam General Hospital', 'Taw Win Dispensary', 'Tun Hospital', 'Khaing Hospital'] as $hosp): ?>
+                    <option value="<?= htmlspecialchars($hosp) ?>"><?= htmlspecialchars($hosp) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              <?php endif; ?>
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Required Date <span class="text-red-500">*</span></label>
