@@ -719,24 +719,6 @@ if ($stats_query) {
                 </div>
                 <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 p-2 transition"><i class="fas fa-times text-lg"></i></button>
             </div>
-
-            <div class="p-5 border-b border-gray-100 bg-gray-50/50">
-                <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                    <div class="text-center px-4 border-r border-gray-100">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Required</p>
-                        <p class="text-xl font-bold text-gray-900" id="modalRequiredUnits">0</p>
-                    </div>
-                    <div class="text-center px-4 border-r border-gray-100">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Assigned</p>
-                        <p class="text-xl font-bold text-blue-600" id="modalAssignedUnits">0</p>
-                    </div>
-                    <div class="text-center px-4">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Remaining</p>
-                        <p class="text-xl font-bold text-red-500" id="modalRemainingUnits">0</p>
-                    </div>
-                </div>
-            </div>
-
             <div class="p-5 bg-gray-50/30 max-h-[500px] overflow-y-auto">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="font-bold text-gray-700 text-sm">Recommended Donors</h4>
@@ -923,12 +905,7 @@ if ($stats_query) {
                 .replace(/'/g, "&#039;");
         }
 
-        function updateProgressUI() {
-            document.getElementById('modalRequiredUnits').innerText = modalRequiredUnits;
-            document.getElementById('modalAssignedUnits').innerText = modalAssignedUnits;
-            var remaining = Math.max(0, modalRequiredUnits - modalAssignedUnits);
-            document.getElementById('modalRemainingUnits').innerText = remaining;
-        }
+
 
         function openAssignModal(requestId, reassign = false, bGroup = null, bUnits = null, hospital = null) {
             isReassignMode = reassign;
@@ -965,7 +942,7 @@ if ($stats_query) {
 
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId;
 
-            updateProgressUI();
+
             renderModalDonors(reqInfo.blood_group);
 
             document.getElementById('assignModal').classList.add('active');
@@ -1073,7 +1050,7 @@ if ($stats_query) {
                 .then(data => {
                     if (data.status === 'success') {
                         modalAssignedUnits++;
-                        updateProgressUI();
+
 
                         // Remove donor from available donors list
                         allDonors = allDonors.filter(d => d.id !== donorId);

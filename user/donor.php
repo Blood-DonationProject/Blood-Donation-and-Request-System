@@ -103,13 +103,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'register_donor') {
 // Assigned Requests
 $assignedRequests = [];
 if ($donorId > 0) {
-  $stmt_assigned = $conn->prepare("SELECT r.id, r.units, r.hospital, r.required_date, r.status, r.urgency,
-                                                bg.blood_gp_name
+  $stmt_assigned = $conn->prepare("SELECT r.id, r.units, r.hospital, r.required_date, r.status as req_status, r.urgency,
+                                                bg.blood_gp_name, ru.username as requester_name, ru.email as requester_email, rd.phone as requester_phone,
+                                                da.status as assignment_status, da.created_at as assigned_date
                                          FROM blood_request r
+                                         JOIN (SELECT request_id, MAX(id) as max_id FROM donor_assignments WHERE donor_id = ? GROUP BY request_id) da_max ON da_max.request_id = r.id
+                                         JOIN donor_assignments da ON da.id = da_max.max_id
                                          LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id
+                                         LEFT JOIN users ru ON r.users_id = ru.id
+                                         LEFT JOIN donor rd ON ru.id = rd.user_id
                                          WHERE r.assigned_donor_id = ?
                                          ORDER BY r.required_date DESC");
-  $stmt_assigned->bind_param("i", $donorId);
+  $stmt_assigned->bind_param("ii", $donorId, $donorId);
   $stmt_assigned->execute();
   $res_assigned = $stmt_assigned->get_result();
   if ($res_assigned) {
@@ -321,8 +326,6 @@ if (count($donors) > 0) {
     .step-arrow:last-child::after {
       display: none;
     }
-
-
   </style>
   <style id="dark-mode-styles">
     /* Light mode resets */
@@ -581,24 +584,71 @@ if (count($donors) > 0) {
           <div class="space-y-4">
             <?php if (count($assignedRequests) > 0): ?>
               <?php foreach ($assignedRequests as $ar): ?>
-                <div id="req-<?= $ar['id'] ?>" class="border-2 border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-blue-400 transition">
-                  <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center font-bold text-blue-700 text-xl"><?= htmlspecialchars($ar['blood_gp_name'] ?? 'N/A') ?></div>
-                  <div class="flex-1">
-                    <div class="flex flex-wrap gap-2 mb-1">
-                      <span class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">🔵 <?= htmlspecialchars($ar['status']) ?></span>
-                      <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full"><?= htmlspecialchars($ar['hospital']) ?></span>
+                <div id="req-<?= $ar['id'] ?>" class="border-2 border-blue-100 rounded-2xl p-5 sm:p-6 bg-white shadow-sm hover:shadow-md transition">
+                  <div class="flex flex-col md:flex-row gap-6">
+                    <!-- Left: Avatar & Badges -->
+                    <div class="flex flex-col items-center sm:items-start gap-4 md:w-48 flex-shrink-0 border-b md:border-b-0 md:border-r border-gray-100 pb-4 md:pb-0 md:pr-6">
+                      <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center font-bold text-blue-700 text-3xl shadow-inner mx-auto sm:mx-0">
+                        <?= htmlspecialchars($ar['blood_gp_name'] ?? 'N/A') ?>
+                      </div>
+                      <div class="flex flex-col w-full gap-2 text-center sm:text-left">
+                        <span class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                          🔵 Status: <?= htmlspecialchars($ar['assignment_status']) ?>
+                        </span>
+                        <?php if ($ar['urgency'] === 'Urgent'): ?>
+                          <span class="bg-red-50 text-red-600 border border-red-200 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                            🚨 Urgent Request
+                          </span>
+                        <?php endif; ?>
+                      </div>
                     </div>
-                    <p class="font-semibold text-gray-800">You have been assigned to donate.</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Required by <?= date('M j, Y', strtotime($ar['required_date'])) ?></p>
+
+                    <!-- Middle: Details Grid -->
+                    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                      <!-- Request Details -->
+                      <div>
+                        <h4 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2"><i class="fas fa-file-medical text-blue-400"></i> Request Info</h4>
+                        <div class="space-y-2 text-sm text-gray-700">
+                          <p><span class="font-semibold text-gray-900">Hospital:</span> <?= htmlspecialchars($ar['hospital']) ?></p>
+                          <p><span class="font-semibold text-gray-900">Required By:</span> <?= date('M j, Y', strtotime($ar['required_date'])) ?></p>
+                          <p><span class="font-semibold text-gray-900">Units Needed:</span> <?= htmlspecialchars($ar['units']) ?> Unit(s)</p>
+                        </div>
+                      </div>
+
+                      <!-- Requester Details -->
+                      <div>
+                        <h4 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2"><i class="fas fa-user text-rose-400"></i> Requester Info</h4>
+                        <div class="space-y-2 text-sm text-gray-700">
+                          <p><span class="font-semibold text-gray-900">Name:</span> <?= htmlspecialchars($ar['requester_name'] ?? 'N/A') ?></p>
+                          <p><span class="font-semibold text-gray-900">Phone:</span> <?= htmlspecialchars($ar['requester_phone'] ?? 'N/A') ?></p>
+                          <p><span class="font-semibold text-gray-900">Email:</span> <?= htmlspecialchars($ar['requester_email'] ?? 'N/A') ?></p>
+                        </div>
+                      </div>
+
+                      <!-- Assignment Details -->
+                      <div class="sm:col-span-2 bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between">
+                        <p class="text-sm text-gray-600"><i class="fas fa-calendar-check text-gray-400 mr-2"></i> <span class="font-semibold">Assigned On:</span> <?= date('M j, Y g:i A', strtotime($ar['assigned_date'])) ?></p>
+                      </div>
+                    </div>
+
+                    <!-- Right: Actions -->
+                    <div class="flex flex-col justify-center items-center md:items-end gap-3 md:w-40 flex-shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-gray-100 md:pl-6">
+                      <?php if ($ar['assignment_status'] === 'Assigned'): ?>
+                        <p class="text-xs text-gray-500 font-semibold mb-1 text-center md:text-right">Awaiting your response</p>
+                        <a href="?action=accept&req_id=<?= $ar['id'] ?>" class="w-full bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 shadow-sm hover:shadow-md transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to ACCEPT this assignment?')">
+                          <i class="fas fa-check"></i> Accept
+                        </a>
+                        <a href="?action=decline&req_id=<?= $ar['id'] ?>" class="w-full bg-white text-red-600 border-2 border-red-200 px-5 py-2 rounded-xl font-bold hover:bg-red-50 transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to DECLINE this assignment?')">
+                          <i class="fas fa-times"></i> Decline
+                        </a>
+                      <?php else: ?>
+                        <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 w-full h-full min-h-[100px]">
+                          <i class="fas fa-clipboard-check text-green-500 text-2xl mb-2"></i>
+                          <span class="text-sm font-bold text-gray-700 text-center">Action Taken</span>
+                        </div>
+                      <?php endif; ?>
+                    </div>
                   </div>
-                  <?php if ($ar['status'] !== 'Completed' && $ar['status'] !== 'Accepted' && $ar['status'] !== 'Rejected'): ?>
-                    <div class="flex flex-col gap-2">
-                      <button type="button" onclick="openAcceptModal(<?= $ar['id'] ?>)" class="bg-green-600 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm text-center">Accept</button>
-                      <button type="button" onclick="openDeclineModal(<?= $ar['id'] ?>)" class="bg-red-600 text-white px-5 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm text-center">Decline</button>
-                    </div>
-                  <?php else: ?>
-                    <span class="text-sm font-bold text-green-600">Action taken</span>
-                  <?php endif; ?>
                 </div>
               <?php endforeach; ?>
             <?php else: ?>
@@ -625,31 +675,7 @@ if (count($donors) > 0) {
         </p>
       </div>
 
-      <!-- Filters -->
-      <div class="flex flex-wrap items-end gap-4 mb-8 max-w-4xl mx-auto">
-        <div class="flex-1 min-w-[200px]">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Search</label>
-          <input id="donorSearchInput" type="text" placeholder="Search by name or township..." class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-        </div>
-        <div class="w-40">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
-          <select id="donorFilterBloodGroup" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-            <option value="">All</option>
-            <?php foreach (['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as $bg): ?>
-              <option value="<?= $bg ?>"><?= $bg ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="w-40">
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-          <select id="donorFilterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-            <option value="">All</option>
-            <option value="Available">Available</option>
-            <option value="Unavailable">Unavailable</option>
-          </select>
-        </div>
-        <button onclick="clearDonorFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear</button>
-      </div>
+
 
       <!-- Donor Carousel Wrapper -->
       <div class="relative w-full max-w-7xl mx-auto group" id="donorCarouselWrapper">

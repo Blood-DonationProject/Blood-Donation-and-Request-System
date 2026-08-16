@@ -30,13 +30,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $message = 'Please accept the Terms and Policy before registering.';
     $messageType = 'error';
   } else {
-    $checkEmail = $conn->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $checkEmail = $conn->prepare('SELECT id, status, last_activity FROM users WHERE email = ? LIMIT 1');
     $checkEmail->bind_param('s', $email);
     $checkEmail->execute();
-    $checkEmail->store_result();
+    $result = $checkEmail->get_result();
 
-    if ($checkEmail->num_rows > 0) {
-      $message = 'An account with this email already exists. Please use a different email address.';
+    if ($result && $result->num_rows > 0) {
+      $row = $result->fetch_assoc();
+      $isInactive = (isset($row['status']) && $row['status'] === 'Inactive');
+      
+      if (!$isInactive && !empty($row['last_activity'])) {
+          $lastActivityDate = new DateTime($row['last_activity']);
+          $threeYearsAgo = new DateTime('-3 years');
+          if ($lastActivityDate <= $threeYearsAgo) {
+              $isInactive = true;
+          }
+      }
+
+      if ($isInactive) {
+        $message = 'This email is already associated with an inactive account and cannot be used for a new registration.';
+      } else {
+        $message = 'An account with this email already exists. Please use a different email address.';
+      }
       $messageType = 'error';
     } else {
       $role = 'User';

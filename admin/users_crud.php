@@ -262,6 +262,8 @@ if ($hasRoleColumn) {
                                 <th class="p-3">Role</th>
                                 <?php endif; ?>
                                 <th class="p-3">Status</th>
+                                <th class="p-3 whitespace-nowrap">Last Login</th>
+                                <th class="p-3 whitespace-nowrap">Last Activity</th>
                                 <th class="p-3">Created</th>
                                 <th class="p-3">Actions</th>
                             </tr>
@@ -290,7 +292,9 @@ if ($hasRoleColumn) {
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $roleBadges[$u['role'] ?? 'User'] ?? 'bg-gray-100 text-gray-700' ?>"><?= htmlspecialchars($u['role'] ?? 'User') ?></span></td>
                                         <?php endif; ?>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($u['status'] ?? 'Active') ?></span></td>
-                                        <td class="p-3 text-gray-500"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
+                                        <td class="p-3 text-gray-500 text-xs whitespace-nowrap"><?= !empty($u['last_login']) ? date('M d, Y h:i A', strtotime($u['last_login'])) : 'Never' ?></td>
+                                        <td class="p-3 text-gray-500 text-xs whitespace-nowrap"><?= !empty($u['last_activity']) ? date('M d, Y h:i A', strtotime($u['last_activity'])) : 'Never' ?></td>
+                                        <td class="p-3 text-gray-500 text-xs whitespace-nowrap"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                         <td class="p-3">
                                             <div class="flex gap-2 items-center">
                                                 <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to <?= ($u['status'] ?? 'Active') === 'Active' ? 'deactivate' : 'activate' ?> this user?')">
@@ -303,7 +307,7 @@ if ($hasRoleColumn) {
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="<?= $hasRoleColumn ? 8 : 7 ?>" class="p-8 text-center text-gray-500">No users found.</td></tr>
+                                <tr><td colspan="<?= $hasRoleColumn ? 10 : 9 ?>" class="p-8 text-center text-gray-500">No users found.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

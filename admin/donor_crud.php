@@ -610,6 +610,7 @@ function clearFilters() {
             <div>
                 <h3 class="text-xl font-bold text-gray-800">Donation History</h3>
                 <p id="historyDonorName" class="text-sm text-gray-500"></p>
+                <p id="historyTotalDonations" class="text-sm font-semibold text-blue-600 mt-1"></p>
             </div>
             <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
@@ -670,6 +671,10 @@ function openHistoryModal(donorId, donorName) {
     document.getElementById('historyDonorName').textContent = donorName;
     var content = document.getElementById('historyContent');
     var records = donationHistory[donorId];
+    var totalDonations = (records && records.length) ? records.length : 0;
+    
+    document.getElementById('historyTotalDonations').textContent = 'Total Donations: ' + totalDonations;
+    
     if (records && records.length > 0) {
         var html = '<table class="w-full text-sm border-collapse"><thead><tr class="bg-gray-50 text-gray-600"><th class="p-3 text-left">Date</th><th class="p-3 text-left">Blood Group</th><th class="p-3 text-left">Units</th><th class="p-3 text-left">Requester</th><th class="p-3 text-left">Hospital</th><th class="p-3 text-left">Status</th></tr></thead><tbody>';
         records.forEach(function(r) {

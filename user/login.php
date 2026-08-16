@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Verify credentials against the database
     if (!$loginSuccess) {
-      $stmt = $conn->prepare("SELECT id, username, password, status FROM users WHERE email = ? LIMIT 1");
+      $stmt = $conn->prepare("SELECT id, username, password, status, last_activity, last_login FROM users WHERE email = ? LIMIT 1");
       if ($stmt) {
         $stmt->bind_param('s', $email);
         $stmt->execute();
@@ -86,9 +86,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
           if (password_verify($password, $storedPassword)) {
             $userStatus = $row['status'] ?? 'Active';
+            
+            // Check 3-year inactivity using last_activity
+            if ($userStatus === 'Active' && !empty($row['last_activity'])) {
+                $lastActivityDate = new DateTime($row['last_activity']);
+                $threeYearsAgo = new DateTime('-3 years');
+                if ($lastActivityDate <= $threeYearsAgo) {
+                    $userStatus = 'Inactive';
+                    // Update status in DB
+                    $updateStmt = $conn->prepare("UPDATE users SET status = 'Inactive' WHERE id = ?");
+                    if ($updateStmt) {
+                        $updateStmt->bind_param("i", $row['id']);
+                        $updateStmt->execute();
+                        $updateStmt->close();
+                    }
+                }
+            }
+
             if ($userStatus !== 'Active') {
               $errorMessage = 'Your account is inactive. Login access has been disabled.';
             } else {
+              // Update last_login and last_activity
+              $updateLoginStmt = $conn->prepare("UPDATE users SET last_login = NOW(), last_activity = NOW() WHERE id = ?");
+              if ($updateLoginStmt) {
+                  $updateLoginStmt->bind_param("i", $row['id']);
+                  $updateLoginStmt->execute();
+                  $updateLoginStmt->close();
+              }
+              $_SESSION['last_activity_update'] = time(); // track in session
+
               $_SESSION['logged_in'] = true;
               $_SESSION['username'] = $row['username'];
               $_SESSION['user_id'] = $row['id'];
@@ -302,6 +328,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <?php if (isset($_GET['access_denied']) && $_GET['access_denied'] === '1'): ?>
             <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded">
               <p class="text-red-700 text-sm">Access Denied. You do not have administrator privileges.</p>
+            </div>
+          <?php endif; ?>
+          <?php if (isset($_GET['inactive']) && $_GET['inactive'] === '1'): ?>
+            <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded">
+              <p class="text-red-700 text-sm">Your account is inactive. Login access has been disabled.</p>
             </div>
           <?php endif; ?>
           <?php if ($errorMessage): ?>

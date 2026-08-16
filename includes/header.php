@@ -7,13 +7,60 @@ $username = 'User';
 $notifications = [];
 if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
     require_once __DIR__ . '/../config/db.php';
-    $stmt = $conn->prepare("SELECT username FROM users WHERE id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT username, status, last_activity FROM users WHERE id = ? LIMIT 1");
     if ($stmt) {
         $stmt->bind_param('i', $_SESSION['user_id']);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($row = $result->fetch_assoc()) {
+            $isInactive = false;
+            
+            // Check status
+            if (isset($row['status']) && $row['status'] === 'Inactive') {
+                $isInactive = true;
+            }
+            
+            // Check 3-year inactivity using last_activity
+            if (!$isInactive && !empty($row['last_activity'])) {
+                $lastActivityDate = new DateTime($row['last_activity']);
+                $threeYearsAgo = new DateTime('-3 years');
+                if ($lastActivityDate <= $threeYearsAgo) {
+                    $isInactive = true;
+                    // Update status in DB
+                    $updateStmt = $conn->prepare("UPDATE users SET status = 'Inactive' WHERE id = ?");
+                    if ($updateStmt) {
+                        $updateStmt->bind_param("i", $_SESSION['user_id']);
+                        $updateStmt->execute();
+                        $updateStmt->close();
+                    }
+                }
+            }
+            
+            if ($isInactive) {
+                session_unset();
+                session_destroy();
+                $basePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\');
+                header("Location: " . $basePath . "/user/login.php?inactive=1");
+                exit;
+            }
             $username = $row['username'];
+            
+            // Track last_activity (update every 5 minutes)
+            if (!isset($_SESSION['last_activity_update']) || (time() - $_SESSION['last_activity_update']) > 300) {
+                $updateActivity = $conn->prepare("UPDATE users SET last_activity = NOW() WHERE id = ?");
+                if ($updateActivity) {
+                    $updateActivity->bind_param("i", $_SESSION['user_id']);
+                    $updateActivity->execute();
+                    $updateActivity->close();
+                }
+                $_SESSION['last_activity_update'] = time();
+            }
+        } else {
+            session_unset();
+            session_destroy();
+            $basePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\');
+            header("Location: " . $basePath . "/user/login.php");
+            exit;
         }
         $stmt->close();
     }
@@ -139,10 +186,6 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                                         $contactHtml .= '<p><span class="font-bold text-gray-900">Blood Group:</span> ' . htmlspecialchars($detail['blood_gp_name'] ?? '') . '</p>';
                                                         $contactHtml .= '<p><span class="font-bold text-gray-900">Hospital:</span> ' . htmlspecialchars($detail['hospital'] ?? '') . '</p>';
                                                         $contactHtml .= '<p><span class="font-bold text-gray-900">Required Date:</span> ' . htmlspecialchars($detail['required_date'] ?? '') . '</p>';
-                                                        $contactHtml .= '<div class="h-px bg-red-200 my-1"></div>';
-                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Name:</span> ' . htmlspecialchars($detail['requester_name'] ?? '') . '</p>';
-                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Phone:</span> ' . htmlspecialchars($detail['requester_phone'] ?? 'N/A') . '</p>';
-                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Email:</span> ' . htmlspecialchars($detail['requester_email'] ?? '') . '</p>';
                                                         $contactHtml .= '</div>';
                                                     } elseif ($nTitle == 'Donor Assigned') {
                                                         $contactHtml = '<div class="mt-2 p-2 bg-blue-50 rounded-lg text-xs space-y-1 text-gray-700 border border-blue-100 shadow-inner">';
