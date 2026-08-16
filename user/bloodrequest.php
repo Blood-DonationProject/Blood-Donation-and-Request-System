@@ -12,8 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
     $req_id = (int)$_POST['request_id'];
     // Verify it belongs to the user and is 'Assigned' or 'Accepted'
     $stmt = $conn->prepare("
-        SELECT id, units,
-               (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = blood_request.id AND da.status IN ('Accepted', 'Completed', 'Confirmed')) AS received_units
+        SELECT id, assigned_donor_id, blood_groups_id
         FROM blood_request 
         WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')
     ");
@@ -22,27 +21,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
     $res = $stmt->get_result();
     if ($res && $res->num_rows > 0) {
       $row = $res->fetch_assoc();
-      if ((int)$row['received_units'] < (int)$row['units']) {
-        $error_msg = "You cannot confirm until all requested units are received.";
-      } else {
-        $updReq = $conn->prepare("UPDATE blood_request SET status = 'Completed', received_at = NOW() WHERE id = ?");
-        $updReq->bind_param("i", $req_id);
-        $updReq->execute();
+      $updReq = $conn->prepare("UPDATE blood_request SET status = 'Completed', received_at = NOW() WHERE id = ?");
+      $updReq->bind_param("i", $req_id);
+      $updReq->execute();
 
-        $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = NOW() WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
-        $updAssign->bind_param("i", $req_id);
-        $updAssign->execute();
+      $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Completed', completed_at = NOW() WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
+      $updAssign->bind_param("i", $req_id);
+      $updAssign->execute();
 
-        $notifTitle = 'Request Completed';
-        $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #' . $req_id . ')';
-        $admin_id = 0; // Admin is hardcoded as user_id 0
-        $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'System', ?, ?)");
-        $notif->bind_param("iiss", $admin_id, $req_id, $notifTitle, $notifMsg);
-        $notif->execute();
-        $success_msg = "Blood received successfully.";
+      // Insert into donation history
+      if (!empty($row['assigned_donor_id'])) {
+          $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, 1, NOW(), 'Completed')");
+          $dhStmt->bind_param("iiii", $row['assigned_donor_id'], $_SESSION['user_id'], $req_id, $row['blood_groups_id']);
+          $dhStmt->execute();
+          $dhStmt->close();
       }
+
+      $notifTitle = 'Request Completed';
+      $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #' . $req_id . ')';
+      $admin_id = 0; // Admin is hardcoded as user_id 0
+      $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'System', ?, ?)");
+      $notif->bind_param("iiss", $admin_id, $req_id, $notifTitle, $notifMsg);
+      $notif->execute();
+      $success_msg = "Blood received successfully. Request is now completed.";
     } else {
-      $error_msg = "Invalid request or it is not in Assigned status.";
+      $error_msg = "Invalid request or it is not in an active assignment status.";
     }
   } elseif (isset($_POST['action']) && $_POST['action'] === 'cancel_request' && isset($_POST['request_id'])) {
     $req_id = (int)$_POST['request_id'];
@@ -73,9 +76,8 @@ try {
 $userId = $_SESSION['user_id'] ?? 0;
 $myRequests = [];
 if ($isLoggedIn && $userId > 0) {
-  $stmt_myreq = $conn->prepare("SELECT r.id, r.units, r.hospital, r.required_date, r.status, r.urgency,
-                                         bg.blood_gp_name,
-                                         (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = r.id AND da.status IN ('Accepted', 'Completed', 'Confirmed')) AS received_units
+  $stmt_myreq = $conn->prepare("SELECT r.id, r.hospital, r.required_date, r.status, r.urgency,
+                                         bg.blood_gp_name
                                   FROM blood_request r
                                   LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id
                                   WHERE r.users_id = ?
@@ -310,7 +312,7 @@ if ($isLoggedIn && $userId > 0) {
                     <tr id="req-<?= $br['id'] ?>" class="hover:bg-gray-50">
                       <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($br['required_date'])) ?></td>
                       <td class="py-3"><span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($br['blood_gp_name'] ?? '-') ?></span></td>
-                      <td class="py-3 text-gray-600"><?= (int)($br['units'] ?? 1) ?> unit</td>
+                      <td class="py-3 text-gray-600">1 Unit</td>
                       <td class="py-3 text-gray-600"><?= htmlspecialchars($br['hospital'] ?? '-') ?></td>
                       <td class="py-3">
                         <?php
@@ -329,11 +331,6 @@ if ($isLoggedIn && $userId > 0) {
                       </td>
                       <td class="py-3">
                         <?php if ($status === 'Assigned' || $status === 'Accepted' || $status === 'Completed'): ?>
-                          <?php
-                            $reqUnits = (int)($br['units'] ?? 1);
-                            $recvUnits = (int)($br['received_units'] ?? 0);
-                            $canComplete = ($recvUnits >= $reqUnits) && ($status !== 'Completed');
-                          ?>
                           <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
                               <?php if ($status !== 'Completed'): ?>
@@ -347,18 +344,16 @@ if ($isLoggedIn && $userId > 0) {
                                   <i class="fas fa-check-circle mr-1"></i> Blood Received
                                 </button>
                               <?php else: ?>
-                                <form method="POST" class="inline" <?= $canComplete ? 'onsubmit="return confirm(\'Are you sure you have received the blood? This will officially complete the request.\');"' : '' ?>>
+                                <form method="POST" class="inline" onsubmit="return confirm('Are you sure you have received the blood? This will officially complete the request.');">
                                   <input type="hidden" name="action" value="blood_received">
                                   <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
                                   <button type="submit" 
-                                      class="<?= $canComplete ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed' ?> px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition"
-                                      <?= $canComplete ? '' : 'disabled title="Wait until all requested units are received"' ?>>
+                                      class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition">
                                     <i class="fas fa-check-circle mr-1"></i> Blood Received
                                   </button>
                                 </form>
                               <?php endif; ?>
                             </div>
-                            <span class="text-xs font-bold text-gray-700 dark:text-gray-300"><?= $recvUnits ?> / <?= $reqUnits ?> Units</span>
                           </div>
                         <?php elseif (in_array($status, ['Pending', 'Approved'])): ?>
                           <div class="flex items-center gap-2">

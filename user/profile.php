@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
 // Handle blood request submission from profile
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
   $blood_groups_id = (int)($_POST['blood_groups_id'] ?? 0);
-  $units = max(1, (int)($_POST['units'] ?? 1));
+  $units = 1;
   $hospital = trim($_POST['hospital'] ?? '');
   $required_date = $_POST['required_date'] ?? date('Y-m-d');
 
@@ -164,7 +164,7 @@ $stmt->close();
 
 $donationCount = count($donations);
 foreach ($donations as $d) {
-  $totalUnits += (int)($d['units'] ?? 1);
+  $totalUnits += 1;
 }
 $livesSaved = $totalUnits * 3;
 
@@ -497,7 +497,7 @@ $stmt->close();
                           <td class="px-4 py-3">
                             <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full"><?= htmlspecialchars($d['blood_gp_name'] ?? '-') ?></span>
                           </td>
-                          <td class="px-4 py-3 text-gray-600"><?= (int)($d['units'] ?? 1) ?> <?= (int)($d['units'] ?? 1) > 1 ? 'units' : 'unit' ?></td>
+                          <td class="px-4 py-3 text-gray-600">1 Unit</td>
                           <td class="px-4 py-3 text-gray-600"><?= htmlspecialchars($d['hospital'] ?? '-') ?></td>
                           <td class="px-4 py-3">
                             <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full"><?= htmlspecialchars($d['status'] ?? 'Completed') ?></span>

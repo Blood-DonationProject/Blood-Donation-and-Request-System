@@ -18,7 +18,7 @@ $blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups OR
 if (isset($_POST['add'])) {
     $users_id = (int)$_POST['users_id'];
     $blood_groups_id = (int)$_POST['blood_groups_id'];
-    $units = (int)$_POST['units'];
+    $units = 1;
     $hospital = trim($_POST['hospital']);
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
@@ -53,7 +53,7 @@ if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
     $users_id = (int)$_POST['users_id'];
     $blood_groups_id = (int)$_POST['blood_groups_id'];
-    $units = (int)$_POST['units'];
+    $units = 1;
     $hospital = trim($_POST['hospital']);
     $required_date = $_POST['required_date'];
     $status = $_POST['status'];
@@ -757,7 +757,7 @@ $stats = [
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Units</p>
-                                <p class="text-gray-900 font-medium"><?= (int)$view_row['units'] ?></p>
+                                <p class="text-gray-900 font-medium">1 Unit</p>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Hospital</p>
@@ -909,10 +909,7 @@ $stats = [
                                 endif; ?>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Units *</label>
-                            <input type="number" name="units" value="<?= htmlspecialchars($edit_row['units'] ?? '') ?>" required min="1" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                        </div>
+
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital *</label>
                             <input type="text" name="hospital" value="<?= htmlspecialchars($edit_row['hospital'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
@@ -1024,7 +1021,7 @@ $stats = [
                                             <td class="p-3 font-medium">#<?= $r['id'] ?></td>
                                             <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
                                             <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
-                                            <td class="p-3"><?= (int)$r['units'] ?></td>
+                                            <td class="p-3">1 Unit</td>
                                             <td class="p-3"><?= htmlspecialchars($r['hospital']) ?></td>
                                             <td class="p-3"><?= htmlspecialchars($r['required_date']) ?></td>
                                             <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $uc ?>"><?= htmlspecialchars($r['urgency'] ?? 'Normal') ?></span></td>
@@ -1148,7 +1145,7 @@ $stats = [
             var units = el.getAttribute('data-units');
 
             document.getElementById('assignRequestId').value = requestId;
-            document.getElementById('selectedBloodType').textContent = bloodGroup + ' (' + units + ' units needed)';
+            document.getElementById('selectedBloodType').textContent = bloodGroup;
 
             // Show donor selection
             document.getElementById('noRequestSelected').classList.add('hidden');
@@ -1339,7 +1336,7 @@ $stats = [
             modalBloodGroup = reqInfo.blood_group;
             modalRequesterUserId = reqInfo.users_id;
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId + ' — ' + reqInfo.requester_name;
-            document.getElementById('modalBloodType').textContent = reqInfo.blood_group + ' (' + reqInfo.units + ' units needed)';
+            document.getElementById('modalBloodType').textContent = reqInfo.blood_group;
             document.getElementById('modalDonorSearch').value = '';
             document.getElementById('modalAssignBtn').disabled = true;
 

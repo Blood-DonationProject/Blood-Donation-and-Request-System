@@ -349,15 +349,7 @@ if ($isLoggedIn) {
                 </select>
               <?php endif; ?>
             </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Units Required <span class="text-red-500">*</span></label>
-              <?php if ($editMode): ?>
-                <input type="text" readonly value="<?= (int)$editData['units'] ?> Unit<?= (int)$editData['units'] > 1 ? 's' : '' ?>" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
-              <?php else: ?>
-                <input type="text" readonly value="1 Unit" class="w-full border-2 border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-4 py-3 focus:outline-none cursor-not-allowed">
-                <input type="hidden" name="units" value="1">
-              <?php endif; ?>
-            </div>
+
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Hospital <span class="text-red-500">*</span></label>
               <?php if ($editMode): ?>
@@ -467,7 +459,7 @@ if ($isLoggedIn) {
                         <?= htmlspecialchars($r['blood_gp_name'] ?? 'N/A') ?>
                       </span>
                     </td>
-                    <td class="py-3 pr-4 text-gray-600"><?= (int)$r['units'] ?> unit(s)</td>
+                    <td class="py-3 pr-4 text-gray-600">1 Unit</td>
                     <td class="py-3 pr-4 text-gray-800 font-medium"><?= htmlspecialchars($r['hospital']) ?></td>
                     <td class="py-3 pr-4 text-gray-600"><?= date('M j, Y', strtotime($r['required_date'])) ?></td>
                     <td class="py-3 pr-4">

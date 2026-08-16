@@ -154,7 +154,7 @@ $current_time = date('h:i A');
                                     <?= strtoupper(substr($pr['requester_name'] ?? 'U', 0, 2)) ?>
                                 </div>
                                 <div>
-                                    <p class="text-sm font-semibold text-gray-800"><?= htmlspecialchars($pr['blood_group']) ?> - <?= (int)$pr['units'] ?> units</p>
+                                    <p class="text-sm font-semibold text-gray-800"><?= htmlspecialchars($pr['blood_group']) ?> - 1 Unit</p>
                                     <p class="text-xs text-gray-400"><?= htmlspecialchars($pr['hospital']) ?></p>
                                 </div>
                             </div>

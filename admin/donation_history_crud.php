@@ -36,7 +36,7 @@ if ($result && $result->num_rows > 0) {
 
 $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM donor_assignments WHERE status='Completed'")->fetch_assoc()['c'] ?? 0,
-    'total_units' => $conn->query("SELECT COALESCE(SUM(br.units),0) AS c FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id WHERE da.status='Completed'")->fetch_assoc()['c'] ?? 0,
+    'total_units' => $conn->query("SELECT COUNT(*) AS c FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id WHERE da.status='Completed'")->fetch_assoc()['c'] ?? 0,
     'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
 ];
 ?>
@@ -167,7 +167,7 @@ $stats = [
                                         <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>                                        
                                         <td class="p-3"><?= htmlspecialchars($r['hospital'] ?? '-') ?></td>                                        
                                         <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
-                                        <td class="p-3"><?= (int)$r['units'] ?></td>
+                                        <td class="p-3">1 Unit</td>
                                         <td class="p-3"><?= htmlspecialchars($r['donation_date'] ?? 'N/A') ?></td>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-green-100 text-green-700"><?= htmlspecialchars($r['status']) ?></span></td>
                                             <!-- Actions Removed for Read-Only View -->

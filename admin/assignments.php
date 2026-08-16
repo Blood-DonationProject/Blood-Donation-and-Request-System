@@ -10,10 +10,11 @@ $success = '';
 // Assign donor action
 if (isset($_POST['assign_donor'])) {
     $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest');
-    
-    function respond_assignment($status, $message, $is_ajax) {
+
+    function respond_assignment($status, $message, $is_ajax)
+    {
         if ($is_ajax) {
-            if(ob_get_length()) ob_clean();
+            if (ob_get_length()) ob_clean();
             header('Content-Type: application/json');
             echo json_encode(['status' => $status, 'message' => $message]);
             exit;
@@ -47,7 +48,7 @@ if (isset($_POST['assign_donor'])) {
                 $donor_result = $donor_check->get_result();
                 if ($donor_result && $donor_result->num_rows > 0) {
                     $donor = $donor_result->fetch_assoc();
-                    
+
                     // Server-side validation for exact blood group match
                     if ($donor['blood_groups'] !== $req['blood_group_name']) {
                         respond_assignment('error', 'Mismatched blood type. Assignment aborted.', $is_ajax);
@@ -55,8 +56,7 @@ if (isset($_POST['assign_donor'])) {
                     // Server-side validation for self-assignment
                     else if (isset($req['users_id']) && isset($donor['user_id']) && $req['users_id'] == $donor['user_id']) {
                         respond_assignment('error', 'The requester cannot be assigned as a donor for their own blood request.', $is_ajax);
-                    }
-                    else if ($donor['available_status'] === 'Available') {
+                    } else if ($donor['available_status'] === 'Available') {
                         // Check for duplicate active assignment
                         $dupAssignCheck = $conn->prepare("SELECT COUNT(*) FROM donor_assignments WHERE request_id = ? AND donor_id = ? AND status NOT IN ('Cancelled', 'Rejected')");
                         $dupAssignCheck->bind_param("ii", $request_id, $donor_id);
@@ -64,14 +64,7 @@ if (isset($_POST['assign_donor'])) {
                         $isDuplicate = $dupAssignCheck->get_result()->fetch_row()[0] > 0;
                         $dupAssignCheck->close();
 
-                        // Check if required units are already fulfilled
-                        $unitCheck = $conn->prepare("SELECT units FROM blood_request WHERE id = ?");
-                        $unitCheck->bind_param("i", $request_id);
-                        $unitCheck->execute();
-                        $reqUnits = $unitCheck->get_result()->fetch_assoc()['units'];
-                        $unitCheck->close();
-                        
-                        $assignedCheck = $conn->prepare("SELECT COUNT(*) FROM donor_assignments WHERE request_id = ? AND status IN ('Assigned', 'Accepted', 'Received', 'Completed')");
+                        $assignedCheck = $conn->prepare("SELECT COUNT(*) FROM donor_assignments WHERE request_id = ? AND status NOT IN ('Cancelled', 'Rejected')");
                         $assignedCheck->bind_param("i", $request_id);
                         $assignedCheck->execute();
                         $assignedCount = $assignedCheck->get_result()->fetch_row()[0];
@@ -79,8 +72,8 @@ if (isset($_POST['assign_donor'])) {
 
                         if ($isDuplicate) {
                             respond_assignment('error', 'This donor is already assigned to this request.', $is_ajax);
-                        } else if ($assignedCount >= $reqUnits) {
-                            respond_assignment('error', 'This request already has the required number of donors assigned.', $is_ajax);
+                        } else if ($assignedCount >= 1) {
+                            respond_assignment('error', 'This request already has a donor assigned.', $is_ajax);
                         } else {
                             // Assign donor and update status to Assigned
                             $assign = $conn->prepare("UPDATE blood_request SET assigned_donor_id = ?, status = 'Assigned' WHERE id = ?");
@@ -116,7 +109,7 @@ if (isset($_POST['assign_donor'])) {
                                     $notifStmt->execute();
                                     $donorNotifId = $conn->insert_id;
                                     $notifStmt->close();
-                                    
+
                                     // Send Email to Donor
                                     if (!empty($donorUserRow['donor_email'])) {
                                         $to = $donorUserRow['donor_email'];
@@ -124,13 +117,13 @@ if (isset($_POST['assign_donor'])) {
                                         $subject = "New Blood Donation Assignment";
                                         $message = "Hello,\n\nYou have been assigned as a donor for a blood request.\n\nDetails:\n- Blood Group: " . $req['blood_group_name'] . "\n- Hospital/Requester: " . $req['hospital'] . "\n- Required Date: " . $req['required_date'] . "\n\nPlease log in to your dashboard to accept or decline the assignment.\n\nThank you,\nBloodLife Team";
                                         $headers = "From: noreply@bloodlife.com";
-                                        
+
                                         // Check duplicate email log
                                         $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
                                         $dupCheck->bind_param("i", $donorNotifId);
                                         $dupCheck->execute();
                                         $dupCheck->store_result();
-                                        
+
                                         if ($dupCheck->num_rows === 0) {
                                             // Insert as Pending
                                             $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
@@ -141,7 +134,7 @@ if (isset($_POST['assign_donor'])) {
 
                                             $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
                                             $htmlMessage = nl2br($message) . $trackingPixel;
-                                            
+
                                             $htmlHeaders = $headers . "\r\n";
                                             $htmlHeaders .= "MIME-Version: 1.0\r\n";
                                             $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
@@ -175,7 +168,7 @@ if (isset($_POST['assign_donor'])) {
                                     $reqNotifStmt->execute();
                                     $reqNotifId = $conn->insert_id;
                                     $reqNotifStmt->close();
-                                    
+
                                     // Send Email to Requester
                                     if (!empty($req['requester_email'])) {
                                         $to = $req['requester_email'];
@@ -183,13 +176,13 @@ if (isset($_POST['assign_donor'])) {
                                         $subject = "Donor Assigned to Your Request";
                                         $message = "Hello,\n\nGood news! A donor has been assigned to your blood request #" . $request_id . ".\nYou can view the details in your dashboard.\n\nThank you,\nBloodLife Team";
                                         $headers = "From: noreply@bloodlife.com";
-                                        
+
                                         // Check duplicate email log
                                         $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
                                         $dupCheck->bind_param("i", $reqNotifId);
                                         $dupCheck->execute();
                                         $dupCheck->store_result();
-                                        
+
                                         if ($dupCheck->num_rows === 0) {
                                             // Insert as Pending
                                             $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
@@ -200,7 +193,7 @@ if (isset($_POST['assign_donor'])) {
 
                                             $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
                                             $htmlMessage = nl2br($message) . $trackingPixel;
-                                            
+
                                             $htmlHeaders = $headers . "\r\n";
                                             $htmlHeaders .= "MIME-Version: 1.0\r\n";
                                             $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
@@ -253,7 +246,7 @@ if (isset($_POST['assign_donor'])) {
 // Unassign donor action
 if (isset($_GET['unassign'])) {
     $assignment_id = (int)$_GET['unassign'];
-    
+
     // Get donor_id and request_id from assignment
     $getDonor = $conn->prepare("SELECT donor_id, request_id FROM donor_assignments WHERE id = ?");
     $getDonor->bind_param("i", $assignment_id);
@@ -264,7 +257,7 @@ if (isset($_GET['unassign'])) {
     if ($donorRow) {
         $donor_id = $donorRow['donor_id'];
         $req_id = $donorRow['request_id'];
-        
+
         $stmt = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE id = ?");
         $stmt->bind_param("i", $assignment_id);
         $stmt->execute();
@@ -275,34 +268,12 @@ if (isset($_GET['unassign'])) {
         $restoreDonor->bind_param("i", $donor_id);
         $restoreDonor->execute();
         $restoreDonor->close();
-        
-        // Check if no more active assignments
-        $checkRem = $conn->prepare("SELECT COUNT(*) FROM donor_assignments WHERE request_id = ? AND status IN ('Assigned', 'Accepted', 'Received', 'Completed')");
-        $checkRem->bind_param("i", $req_id);
-        $checkRem->execute();
-        $remCount = $checkRem->get_result()->fetch_row()[0];
-        $checkRem->close();
-        
-        // Clear assigned_donor_id from blood_request if it matches the removed donor or if no active assignments left
-        $clearAssig = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL WHERE id = ? AND (assigned_donor_id = ? OR ? = 0)");
-        $clearAssig->bind_param("iii", $req_id, $donor_id, $remCount);
+
+        // Clear assigned_donor_id from blood_request and set back to Pending
+        $clearAssig = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL, status = 'Pending' WHERE id = ?");
+        $clearAssig->bind_param("i", $req_id);
         $clearAssig->execute();
         $clearAssig->close();
-        
-        // Also check required units to see if it's fully satisfied
-        $reqUnitsCheck = $conn->prepare("SELECT units FROM blood_request WHERE id = ?");
-        $reqUnitsCheck->bind_param("i", $req_id);
-        $reqUnitsCheck->execute();
-        $reqUnits = $reqUnitsCheck->get_result()->fetch_assoc()['units'] ?? 1;
-        $reqUnitsCheck->close();
-        
-        // If not fully assigned, set back to Pending so it appears in the list
-        if ($remCount < $reqUnits) {
-            $updReq = $conn->prepare("UPDATE blood_request SET status = 'Pending' WHERE id = ?");
-            $updReq->bind_param("i", $req_id);
-            $updReq->execute();
-            $updReq->close();
-        }
     }
 
     header('Location: assignments.php');
@@ -315,11 +286,10 @@ try {
     $result = $conn->query("
         SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
                r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id, r.urgency,
-               (SELECT COUNT(*) FROM donor_assignments da WHERE da.request_id = r.id AND da.status IN ('Assigned', 'Accepted', 'Received', 'Completed')) as assigned_units
+               0 as assigned_units
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        WHERE r.status IN ('Pending', 'Approved', 'Rejected', 'Assigned') 
-        HAVING assigned_units < r.units
+        WHERE r.status IN ('Pending', 'Approved', 'Rejected') AND r.assigned_donor_id IS NULL
         ORDER BY CASE WHEN r.urgency = 'Urgent' THEN 1 ELSE 2 END ASC, r.required_date ASC, r.id ASC
     ");
     if ($result && $result->num_rows > 0) {
@@ -583,12 +553,12 @@ if ($stats_query) {
                                                     </div>
                                                     <div>
                                                         <div class="flex items-center gap-2">
-                                                            <p class="font-bold text-gray-900 text-sm"><?= htmlspecialchars($ar['blood_group']) ?> - <?= (int)$ar['units'] ?> Unit<?= (int)$ar['units'] > 1 ? 's' : '' ?></p>
+                                                            <p class="font-bold text-gray-900 text-sm"><?= htmlspecialchars($ar['blood_group']) ?> - 1 Unit</p>
                                                             <?php if (($ar['urgency'] ?? '') === 'Urgent'): ?>
                                                                 <span class="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-200">URGENT</span>
                                                             <?php endif; ?>
                                                         </div>
-                                                        <p class="text-xs text-gray-500 font-semibold mt-1">Need: <?= (int)$ar['units'] - (int)$ar['assigned_units'] ?> more | Assigned: <?= (int)$ar['assigned_units'] ?></p>
+
                                                         <p class="text-[10px] text-gray-400 mt-0.5">Request #<?= $ar['id'] ?> - <?= htmlspecialchars($ar['requester_name'] ?? 'Unknown') ?></p>
                                                     </div>
                                                 </div>
@@ -749,7 +719,7 @@ if ($stats_query) {
                 </div>
                 <button onclick="closeAssignModal()" class="text-gray-400 hover:text-gray-600 p-2 transition"><i class="fas fa-times text-lg"></i></button>
             </div>
-            
+
             <div class="p-5 border-b border-gray-100 bg-gray-50/50">
                 <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                     <div class="text-center px-4 border-r border-gray-100">
@@ -945,14 +915,14 @@ if ($stats_query) {
         function escapeHtml(unsafe) {
             if (!unsafe) return '';
             return unsafe
-                 .toString()
-                 .replace(/&/g, "&amp;")
-                 .replace(/</g, "&lt;")
-                 .replace(/>/g, "&gt;")
-                 .replace(/"/g, "&quot;")
-                 .replace(/'/g, "&#039;");
+                .toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
-        
+
         function updateProgressUI() {
             document.getElementById('modalRequiredUnits').innerText = modalRequiredUnits;
             document.getElementById('modalAssignedUnits').innerText = modalAssignedUnits;
@@ -994,7 +964,7 @@ if ($stats_query) {
             modalRequesterUserId = reqInfo.users_id;
 
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId;
-            
+
             updateProgressUI();
             renderModalDonors(reqInfo.blood_group);
 
@@ -1008,7 +978,7 @@ if ($stats_query) {
             document.getElementById('assignModal').classList.add('hidden');
             document.getElementById('assignModal').classList.remove('flex');
             modalRequestId = null;
-            
+
             // Reload page if any donors were assigned to reflect changes in main lists
             if (modalAssignedUnits > 0) {
                 window.location.reload();
@@ -1076,13 +1046,13 @@ if ($stats_query) {
                 daysSince: daysSinceLastDonation
             };
         }
-        
+
         function assignDonorAjax(donorId, btnElement) {
             if (modalAssignedUnits >= modalRequiredUnits) {
                 alert('This request already has the required number of donors assigned.');
                 return;
             }
-            
+
             var originalText = btnElement.innerHTML;
             btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Assigning...';
             btnElement.disabled = true;
@@ -1091,41 +1061,41 @@ if ($stats_query) {
             formData.append('assign_donor', '1');
             formData.append('request_id', modalRequestId);
             formData.append('donor_id', donorId);
-            
+
             fetch('assignments.php', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    modalAssignedUnits++;
-                    updateProgressUI();
-                    
-                    // Remove donor from available donors list
-                    allDonors = allDonors.filter(d => d.id !== donorId);
-                    
-                    if (modalAssignedUnits >= modalRequiredUnits) {
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 800);
-                    } else {
-                        renderModalDonors(modalBloodGroup);
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
-                } else {
-                    alert(data.message || 'Error assigning donor');
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        modalAssignedUnits++;
+                        updateProgressUI();
+
+                        // Remove donor from available donors list
+                        allDonors = allDonors.filter(d => d.id !== donorId);
+
+                        if (modalAssignedUnits >= modalRequiredUnits) {
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 800);
+                        } else {
+                            renderModalDonors(modalBloodGroup);
+                        }
+                    } else {
+                        alert(data.message || 'Error assigning donor');
+                        btnElement.innerHTML = originalText;
+                        btnElement.disabled = false;
+                    }
+                })
+                .catch(err => {
+                    alert('Error connecting to server');
                     btnElement.innerHTML = originalText;
                     btnElement.disabled = false;
-                }
-            })
-            .catch(err => {
-                alert('Error connecting to server');
-                btnElement.innerHTML = originalText;
-                btnElement.disabled = false;
-            });
+                });
         }
 
         function renderModalDonors(bloodGroup) {
@@ -1133,7 +1103,7 @@ if ($stats_query) {
             var noDonors = document.getElementById('modalNoDonors');
 
             var remaining = modalRequiredUnits - modalAssignedUnits;
-            
+
             if (remaining <= 0) {
                 bestDonorDetails.innerHTML = '';
                 bestDonorDetails.classList.add('hidden');
@@ -1147,7 +1117,10 @@ if ($stats_query) {
                 if (d.blood_groups !== bloodGroup) return;
                 if (modalRequesterUserId && d.user_id == modalRequesterUserId) return;
                 var match = calculateMatchScore(d, bloodGroup);
-                scored.push({ donor: d, match: match });
+                scored.push({
+                    donor: d,
+                    match: match
+                });
             });
 
             scored.sort(function(a, b) {
@@ -1191,14 +1164,14 @@ if ($stats_query) {
                 }
                 html += '    </div>';
                 html += '  </div>';
-                
+
                 html += '  <div class="grid grid-cols-2 gap-2 text-[11px] font-medium text-gray-600 mb-4 bg-gray-50/50 p-2 rounded-lg">';
                 html += '    <p class="flex items-center"><i class="fas fa-phone w-4 text-gray-400"></i>' + escapeHtml(d.phone) + '</p>';
                 html += '    <p class="flex items-center truncate" title="' + escapeHtml(d.address || 'Unknown') + '"><i class="fas fa-map-marker-alt w-4 text-gray-400"></i>' + escapeHtml(d.address || 'Unknown') + '</p>';
                 html += '    <p class="flex items-center"><i class="fas fa-calendar-alt w-4 text-gray-400"></i>' + (d.last_donation_date ? escapeHtml(d.last_donation_date) : 'Never') + '</p>';
                 html += '    <p class="flex items-center"><i class="fas fa-heartbeat w-4 text-gray-400"></i><span class="' + elColor + ' ml-1">' + elText + '</span></p>';
                 html += '  </div>';
-                
+
                 html += '  <button onclick="assignDonorAjax(' + d.id + ', this)" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2">';
                 html += '    <i class="fas fa-user-plus"></i> Assign Donor';
                 html += '  </button>';

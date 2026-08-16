@@ -50,7 +50,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
     }
 
     // Fetch user notifications
-    $stmt_notif = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+    $stmt_notif = $conn->prepare("SELECT id, request_id, assignment_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
     $notifCount = 0;
     if ($stmt_notif) {
         $stmt_notif->bind_param('i', $_SESSION['user_id']);
@@ -122,15 +122,53 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                         $is_read = $n['is_read'] == 1;
                                         $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100';
 
+                                        // Fetch extra contact info for successful assignments
+                                        $contactHtml = '';
+                                        $nTitle = $n['title'] ?? '';
+                                        if (!empty($n['assignment_id']) && (strpos($nTitle, 'Assignment') !== false || strpos($nTitle, 'Assigned') !== false)) {
+                                            $detailQuery = "SELECT br.users_id AS requester_user_id, br.hospital, br.required_date, bg.blood_gp_name, ru.username AS requester_name, ru.email AS requester_email, rd.phone AS requester_phone, du.username AS donor_name, du.email AS donor_email, d.phone AS donor_phone FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id JOIN donor d ON da.donor_id = d.id JOIN users du ON d.user_id = du.id JOIN users ru ON br.users_id = ru.id LEFT JOIN donor rd ON ru.id = rd.user_id WHERE da.id = ?";
+                                            $stmtDetail = $conn->prepare($detailQuery);
+                                            if ($stmtDetail) {
+                                                $stmtDetail->bind_param("i", $n['assignment_id']);
+                                                $stmtDetail->execute();
+                                                $detailRes = $stmtDetail->get_result();
+                                                if ($detail = $detailRes->fetch_assoc()) {
+                                                    if ($nTitle == 'New Assignment' || strpos($nTitle, 'Assignment') !== false) {
+                                                        $n['title'] = 'Donor Assignment';
+                                                        $contactHtml = '<div class="mt-2 p-2 bg-red-50 rounded-lg text-xs space-y-1 text-gray-700 border border-red-100 shadow-inner">';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Blood Group:</span> ' . htmlspecialchars($detail['blood_gp_name'] ?? '') . '</p>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Hospital:</span> ' . htmlspecialchars($detail['hospital'] ?? '') . '</p>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Required Date:</span> ' . htmlspecialchars($detail['required_date'] ?? '') . '</p>';
+                                                        $contactHtml .= '<div class="h-px bg-red-200 my-1"></div>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Name:</span> ' . htmlspecialchars($detail['requester_name'] ?? '') . '</p>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Phone:</span> ' . htmlspecialchars($detail['requester_phone'] ?? 'N/A') . '</p>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Email:</span> ' . htmlspecialchars($detail['requester_email'] ?? '') . '</p>';
+                                                        $contactHtml .= '</div>';
+                                                    } elseif ($nTitle == 'Donor Assigned') {
+                                                        $contactHtml = '<div class="mt-2 p-2 bg-blue-50 rounded-lg text-xs space-y-1 text-gray-700 border border-blue-100 shadow-inner">';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Blood Group:</span> ' . htmlspecialchars($detail['blood_gp_name'] ?? '') . '</p>';
+                                                        $contactHtml .= '<div class="h-px bg-blue-200 my-1"></div>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Donor Name:</span> ' . htmlspecialchars($detail['donor_name'] ?? '') . '</p>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Donor Phone:</span> ' . htmlspecialchars($detail['donor_phone'] ?? '') . '</p>';
+                                                        $contactHtml .= '<p><span class="font-bold text-gray-900">Donor Email:</span> ' . htmlspecialchars($detail['donor_email'] ?? '') . '</p>';
+                                                        $contactHtml .= '</div>';
+                                                    }
+                                                }
+                                                $stmtDetail->close();
+                                            }
+                                        }
+
                                         // Determine notification link dynamically based on type and title
                                         $link = "profile.php"; // default
                                         
                                         $nType = strtolower($n['type'] ?? '');
-                                        $nTitle = strtolower($n['title'] ?? '');
+                                        $nTitle2 = strtolower($n['title'] ?? '');
                                         
-                                        if (in_array($nType, ['assignment', 'donation']) || strpos($nTitle, 'assign') !== false || strpos($nTitle, 'donat') !== false) {
+                                        if ($n['title'] === 'Donor Assigned') {
+                                            $link = "bloodrequest.php";
+                                        } elseif (in_array($nType, ['assignment', 'donation']) || strpos($nTitle2, 'assign') !== false || strpos($nTitle2, 'donat') !== false) {
                                             $link = "donor.php";
-                                        } elseif (in_array($nType, ['statusupdate', 'system']) || strpos($nTitle, 'request') !== false || strpos($nTitle, 'receive') !== false || strpos($nTitle, 'status') !== false) {
+                                        } elseif (in_array($nType, ['statusupdate', 'system']) || strpos($nTitle2, 'request') !== false || strpos($nTitle2, 'receive') !== false || strpos($nTitle2, 'status') !== false) {
                                             $link = "bloodrequest.php";
                                         } elseif (isset($_SESSION['role']) && strtolower($_SESSION['role']) == 'donor') {
                                             $link = "donor.php";
@@ -152,6 +190,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                                 <?php endif; ?>
                                             </div>
                                             <p class="text-xs text-gray-700 mt-1 font-medium"><?= htmlspecialchars($n['message']) ?></p>
+                                            <?= $contactHtml ?>
                                             <div class="mt-2 flex items-center justify-between">
                                                 <p class="text-[11px] text-gray-500 font-semibold"><?= date('M j, Y · g:i A', strtotime($n['created_at'])) ?></p>
                                                 <a href="<?= htmlspecialchars($read_link) ?>" class="text-[11px] font-bold text-red-600 hover:text-red-700">

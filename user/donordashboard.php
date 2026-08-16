@@ -282,7 +282,7 @@ if ($isLoggedIn) {
                     <tr class="hover:bg-gray-50">
                       <td class="py-3 text-gray-700 font-medium"><?= date('M j, Y', strtotime($d['donation_date'])) ?></td>
                       <td class="py-3 text-gray-600"><?= htmlspecialchars($d['blood_gp_name'] ?? '-') ?></td>
-                      <td class="py-3 text-gray-600"><?= htmlspecialchars($d['units'] ?? '1') ?> unit(s)</td>
+                      <td class="py-3 text-gray-600">1 Unit</td>
                       <td class="py-3"><span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">✅ <?= htmlspecialchars($d['status'] ?? 'Completed') ?></span></td>
                     </tr>
                   <?php endforeach; ?>
