@@ -905,13 +905,15 @@ if (count($donors) > 0) {
           <div class="absolute top-10 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-red-300 to-pink-300 hidden lg:block"></div>
         </div>
 
-        <!-- Step 5 -->
+
+
+        <!-- Step 6 -->
         <div class="flex flex-col items-center text-center flex-1">
           <div class="w-20 h-20 bg-gradient-to-br from-red-600 to-rose-600 rounded-full flex items-center justify-center text-white text-3xl mb-4 shadow-lg shadow-red-200 hover:scale-110 transition-transform">
-            <i class="fas fa-certificate"></i>
+            <i class="fas fa-check"></i>
           </div>
-          <h4 class="font-bold text-gray-900 mb-2">Receive Certificate</h4>
-          <p class="text-gray-500 text-sm px-2">Get your donation certificate and know you've saved lives.</p>
+          <h4 class="font-bold text-gray-900 mb-2"> Mark as Completed</h4>
+          <p class="text-gray-500 text-sm px-2">Admin confirms the donation is completed.</p>
         </div>
       </div>
 
