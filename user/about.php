@@ -77,8 +77,8 @@ require_once __DIR__ . '/../config/db.php';
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
     <!-- Header -->
     <div class="text-center mb-16 animate-fade-down">
-      <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4">About Us</h1>
-      <p class="text-lg sm:text-xl text-red-600 max-w-2xl mx-auto font-bold">Blood Donation & Request Communication System</p>
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-500 mb-4">About Us</h1>
+      <p class="text-lg sm:text-xl text-red-600 max-w-2xl mx-auto font-bold">Blood Communication System</p>
     </div>
 
     <!-- Top Grid: About, Purpose, Goal -->
@@ -90,7 +90,7 @@ require_once __DIR__ . '/../config/db.php';
         </div>
         <h2 class="text-2xl font-bold text-gray-900 mb-4">About Our System</h2>
         <p class="text-gray-600 text-lg leading-relaxed">
-          Blood Donation & Request Communication System is a platform that connects blood donors with people who need blood.
+          Blood Communication System is a platform that connects blood donors with people who need blood.
         </p>
       </div>
 
@@ -117,72 +117,7 @@ require_once __DIR__ . '/../config/db.php';
       </div>
     </div>
 
-    <!-- How It Works Section -->
-    <div class="mb-12">
-      <div class="text-center mb-10">
-        <h2 class="text-3xl font-extrabold text-gray-900 mb-4">How It Works</h2>
-        <p class="text-gray-600 text-lg">A simple and efficient process to save lives</p>
-      </div>
 
-      <div class="flex flex-col md:flex-row items-center justify-between gap-4 relative w-full">
-
-        <!-- Background connector line (desktop) -->
-        <div class="hidden md:block absolute top-10 left-[10%] right-[10%] h-1 bg-pink-100 dark:bg-gray-700 -translate-y-1/2 z-0 rounded-full"></div>
-
-        <!-- Step 1 -->
-        <div class="flex-1 w-full flex flex-col items-center relative z-10 group">
-          <div class="w-20 h-20 bg-white border-4 border-pink-100 dark:border-gray-600 text-pink-600 dark:text-pink-400 rounded-full flex items-center justify-center text-3xl mb-4 shadow-md group-hover:scale-110 group-hover:border-pink-300 dark:group-hover:border-pink-500 transition-all duration-300">
-            <i class="fas fa-hand-holding-medical"></i>
-          </div>
-          <div class="bg-white p-4 rounded-xl shadow-sm border border-pink-100 dark:border-gray-700 text-center w-full max-w-[220px]">
-            <h3 class="font-bold text-gray-900 text-base sm:text-lg">1. Request Blood</h3>
-          </div>
-          <!-- Mobile Arrow -->
-          <div class="block md:hidden text-pink-200 dark:text-gray-600 text-3xl my-4">
-            <i class="fas fa-arrow-down"></i>
-          </div>
-        </div>
-
-        <!-- Step 2 -->
-        <div class="flex-1 w-full flex flex-col items-center relative z-10 group">
-          <div class="w-20 h-20 bg-white border-4 border-pink-100 dark:border-gray-600 text-pink-600 dark:text-pink-400 rounded-full flex items-center justify-center text-3xl mb-4 shadow-md group-hover:scale-110 group-hover:border-pink-300 dark:group-hover:border-pink-500 transition-all duration-300">
-            <i class="fas fa-user-check"></i>
-          </div>
-          <div class="bg-white p-4 rounded-xl shadow-sm border border-pink-100 dark:border-gray-700 text-center w-full max-w-[220px]">
-            <h3 class="font-bold text-gray-900 text-base sm:text-lg">2. Assign Suitable Donor</h3>
-          </div>
-          <!-- Mobile Arrow -->
-          <div class="block md:hidden text-pink-200 dark:text-gray-600 text-3xl my-4">
-            <i class="fas fa-arrow-down"></i>
-          </div>
-        </div>
-
-        <!-- Step 3 -->
-        <div class="flex-1 w-full flex flex-col items-center relative z-10 group">
-          <div class="w-20 h-20 bg-white border-4 border-pink-100 dark:border-gray-600 text-pink-600 dark:text-pink-400 rounded-full flex items-center justify-center text-3xl mb-4 shadow-md group-hover:scale-110 group-hover:border-pink-300 dark:group-hover:border-pink-500 transition-all duration-300">
-            <i class="fas fa-heart"></i>
-          </div>
-          <div class="bg-white p-4 rounded-xl shadow-sm border border-pink-100 dark:border-gray-700 text-center w-full max-w-[220px]">
-            <h3 class="font-bold text-gray-900 text-base sm:text-lg">3. Donate Blood</h3>
-          </div>
-          <!-- Mobile Arrow -->
-          <div class="block md:hidden text-pink-200 dark:text-gray-600 text-3xl my-4">
-            <i class="fas fa-arrow-down"></i>
-          </div>
-        </div>
-
-        <!-- Step 4 -->
-        <div class="flex-1 w-full flex flex-col items-center relative z-10 group">
-          <div class="w-20 h-20 bg-white border-4 border-pink-100 dark:border-gray-600 text-pink-600 dark:text-pink-400 rounded-full flex items-center justify-center text-3xl mb-4 shadow-md group-hover:scale-110 group-hover:border-pink-300 dark:group-hover:border-pink-500 transition-all duration-300">
-            <i class="fas fa-check-circle"></i>
-          </div>
-          <div class="bg-white p-4 rounded-xl shadow-sm border border-pink-100 dark:border-gray-700 text-center w-full max-w-[220px]">
-            <h3 class="font-bold text-gray-900 text-base sm:text-lg">4. Blood Received</h3>
-          </div>
-        </div>
-
-      </div>
-    </div>
   </main>
 
   <?php include __DIR__ . '/../includes/footer.php'; ?>

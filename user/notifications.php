@@ -105,38 +105,58 @@ $stmt->close();
             $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100/50';
             
             // Fetch extra contact info for successful assignments
+            // Fetch extra contact info for successful assignments or requests
             $contactHtml = '';
             $nTitle = $n['title'] ?? '';
-            if (!empty($n['assignment_id']) && (strpos($nTitle, 'Assignment') !== false || strpos($nTitle, 'Assigned') !== false)) {
-                $detailQuery = "SELECT br.users_id AS requester_user_id, br.hospital, br.required_date, bg.blood_gp_name, ru.username AS requester_name, ru.email AS requester_email, rd.phone AS requester_phone, du.username AS donor_name, du.email AS donor_email, d.phone AS donor_phone FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id JOIN donor d ON da.donor_id = d.id JOIN users du ON d.user_id = du.id JOIN users ru ON br.users_id = ru.id LEFT JOIN donor rd ON ru.id = rd.user_id WHERE da.id = ?";
+            
+            if (!empty($n['assignment_id'])) {
+                // Fetch assignment specific info
+                $detailQuery = "SELECT br.status AS req_status, da.status AS assign_status, br.hospital, br.required_date, bg.blood_gp_name, ru.username AS requester_name, ru.email AS requester_email, rd.phone AS requester_phone, du.username AS donor_name, du.email AS donor_email, d.phone AS donor_phone FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id JOIN donor d ON da.donor_id = d.id JOIN users du ON d.user_id = du.id JOIN users ru ON br.users_id = ru.id LEFT JOIN donor rd ON ru.id = rd.user_id WHERE da.id = ?";
                 $stmtDetail = $conn->prepare($detailQuery);
                 if ($stmtDetail) {
                     $stmtDetail->bind_param("i", $n['assignment_id']);
                     $stmtDetail->execute();
                     $detailRes = $stmtDetail->get_result();
                     if ($detail = $detailRes->fetch_assoc()) {
-                        if ($nTitle == 'New Assignment' || strpos($nTitle, 'Assignment') !== false) {
-                            $n['title'] = 'Donor Assignment';
-                            $contactHtml = '<div class="mt-3 p-3 bg-red-50 rounded-xl text-sm space-y-1.5 text-gray-700 border border-red-100 shadow-sm">';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Blood Group:</span> ' . htmlspecialchars($detail['blood_gp_name'] ?? '') . '</p>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Hospital:</span> ' . htmlspecialchars($detail['hospital'] ?? '') . '</p>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Required Date:</span> ' . htmlspecialchars($detail['required_date'] ?? '') . '</p>';
-                            $contactHtml .= '<div class="h-px bg-red-200 my-2"></div>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Name:</span> ' . htmlspecialchars($detail['requester_name'] ?? '') . '</p>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Phone:</span> ' . htmlspecialchars($detail['requester_phone'] ?? 'N/A') . '</p>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Requester Email:</span> ' . htmlspecialchars($detail['requester_email'] ?? '') . '</p>';
-                            $contactHtml .= '</div>';
-                        } elseif ($nTitle == 'Donor Assigned') {
-                            $contactHtml = '<div class="mt-3 p-3 bg-blue-50 rounded-xl text-sm space-y-1.5 text-gray-700 border border-blue-100 shadow-sm">';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Blood Group:</span> ' . htmlspecialchars($detail['blood_gp_name'] ?? '') . '</p>';
-                            $contactHtml .= '<div class="h-px bg-blue-200 my-2"></div>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Donor Name:</span> ' . htmlspecialchars($detail['donor_name'] ?? '') . '</p>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Donor Phone:</span> ' . htmlspecialchars($detail['donor_phone'] ?? '') . '</p>';
-                            $contactHtml .= '<p><span class="font-bold text-gray-900">Donor Email:</span> ' . htmlspecialchars($detail['donor_email'] ?? '') . '</p>';
-                            $contactHtml .= '</div>';
+                        $contactHtml = '<div class="mt-4 p-4 bg-gray-50 rounded-xl text-sm space-y-2 text-gray-700 border border-gray-200">';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-tint text-red-500 w-5"></i> Blood Group:</span> ' . htmlspecialchars($detail['blood_gp_name'] ?? '') . '</p>';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-hospital text-blue-500 w-5"></i> Hospital:</span> ' . htmlspecialchars($detail['hospital'] ?? '') . '</p>';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-calendar-alt text-green-500 w-5"></i> Required Date:</span> ' . htmlspecialchars($detail['required_date'] ?? '') . '</p>';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-info-circle text-purple-500 w-5"></i> Assignment Status:</span> ' . htmlspecialchars($detail['assign_status'] ?? '') . '</p>';
+                        $contactHtml .= '<div class="h-px bg-gray-200 my-3"></div>';
+                        
+                        if (isset($_SESSION['role']) && strtolower($_SESSION['role']) == 'donor' || $nTitle == 'New Assignment' || strpos($nTitle, 'Assignment') !== false) {
+                            $contactHtml .= '<p class="font-bold text-gray-900 mb-1">Requester Information</p>';
+                            $contactHtml .= '<p><span class="font-semibold text-gray-600">Name:</span> ' . htmlspecialchars($detail['requester_name'] ?? '') . '</p>';
+                            $contactHtml .= '<p><span class="font-semibold text-gray-600">Phone:</span> ' . htmlspecialchars($detail['requester_phone'] ?? 'N/A') . '</p>';
+                            $contactHtml .= '<p><span class="font-semibold text-gray-600">Email:</span> ' . htmlspecialchars($detail['requester_email'] ?? '') . '</p>';
+                        } else {
+                            $contactHtml .= '<p class="font-bold text-gray-900 mb-1">Donor Information</p>';
+                            $contactHtml .= '<p><span class="font-semibold text-gray-600">Name:</span> ' . htmlspecialchars($detail['donor_name'] ?? '') . '</p>';
+                            $contactHtml .= '<p><span class="font-semibold text-gray-600">Phone:</span> ' . htmlspecialchars($detail['donor_phone'] ?? '') . '</p>';
+                            $contactHtml .= '<p><span class="font-semibold text-gray-600">Email:</span> ' . htmlspecialchars($detail['donor_email'] ?? '') . '</p>';
                         }
+                        $contactHtml .= '</div>';
                     }
                     $stmtDetail->close();
+                }
+            } elseif (!empty($n['request_id'])) {
+                // Fetch request specific info
+                $reqQuery = "SELECT br.status AS req_status, br.hospital, br.required_date, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = ?";
+                $stmtReq = $conn->prepare($reqQuery);
+                if ($stmtReq) {
+                    $stmtReq->bind_param("i", $n['request_id']);
+                    $stmtReq->execute();
+                    $reqRes = $stmtReq->get_result();
+                    if ($reqDetail = $reqRes->fetch_assoc()) {
+                        $contactHtml = '<div class="mt-4 p-4 bg-gray-50 rounded-xl text-sm space-y-2 text-gray-700 border border-gray-200">';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-tint text-red-500 w-5"></i> Blood Group:</span> ' . htmlspecialchars($reqDetail['blood_gp_name'] ?? '') . '</p>';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-hospital text-blue-500 w-5"></i> Hospital:</span> ' . htmlspecialchars($reqDetail['hospital'] ?? '') . '</p>';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-calendar-alt text-green-500 w-5"></i> Required Date:</span> ' . htmlspecialchars($reqDetail['required_date'] ?? '') . '</p>';
+                        $contactHtml .= '<p><span class="font-bold text-gray-900"><i class="fas fa-info-circle text-purple-500 w-5"></i> Request Status:</span> ' . htmlspecialchars($reqDetail['req_status'] ?? '') . '</p>';
+                        $contactHtml .= '</div>';
+                    }
+                    $stmtReq->close();
                 }
             }
 
@@ -162,13 +182,13 @@ $stmt->close();
 
             $read_link = "?mark_read=" . $n['id'] . "&redirect=" . urlencode($link);
           ?>
-            <div class="p-5 transition <?= $bgClass ?>">
+            <div id="notif-row-<?= $n['id'] ?>" class="p-5 transition <?= $bgClass ?>">
               <div class="flex items-start gap-4">
                 <div class="mt-1">
                   <?php if (!$is_read): ?>
-                    <div class="w-3 h-3 rounded-full bg-red-600 shadow-sm shadow-red-200"></div>
+                    <div id="notif-dot-<?= $n['id'] ?>" class="w-3 h-3 rounded-full bg-red-600 shadow-sm shadow-red-200"></div>
                   <?php else: ?>
-                    <div class="w-3 h-3 rounded-full bg-gray-300"></div>
+                    <div id="notif-dot-<?= $n['id'] ?>" class="w-3 h-3 rounded-full bg-gray-300"></div>
                   <?php endif; ?>
                 </div>
                 
@@ -178,22 +198,34 @@ $stmt->close();
                     <span class="text-xs font-semibold text-gray-400 whitespace-nowrap"><?= date('M j, Y · g:i A', strtotime($n['created_at'])) ?></span>
                   </div>
                   <p class="text-sm text-gray-600 mt-1"><?= htmlspecialchars($n['message']) ?></p>
-                  <?= $contactHtml ?>
                   
                   <div class="mt-3">
                     <?php if (!$is_read): ?>
-                      <a href="<?= htmlspecialchars($read_link) ?>" class="text-sm font-semibold text-red-600 hover:text-red-800 transition">
+                      <button id="notif-btn-<?= $n['id'] ?>" type="button" onclick="openNotifModal(<?= $n['id'] ?>, false)" class="text-sm font-semibold text-red-600 hover:text-red-800 transition">
                         View Details &rarr;
-                      </a>
+                      </button>
                     <?php else: ?>
-                      <a href="<?= htmlspecialchars($link) ?>" class="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
+                      <button id="notif-btn-<?= $n['id'] ?>" type="button" onclick="openNotifModal(<?= $n['id'] ?>, true)" class="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
                         View Details &rarr;
-                      </a>
+                      </button>
                     <?php endif; ?>
                   </div>
                 </div>
               </div>
             </div>
+
+            <!-- Hidden Template for Modal Content -->
+            <template id="notif-content-<?= $n['id'] ?>">
+                <div class="mb-4">
+                    <h3 class="text-xl font-bold text-gray-900"><?= htmlspecialchars($n['title']) ?></h3>
+                    <p class="text-sm text-gray-500 mt-1"><?= date('M j, Y · g:i A', strtotime($n['created_at'])) ?></p>
+                </div>
+                <div class="text-gray-700 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <p><?= nl2br(htmlspecialchars($n['message'])) ?></p>
+                </div>
+                <?= $contactHtml ?>
+            </template>
+
           <?php endforeach; ?>
         </div>
       <?php else: ?>
@@ -232,7 +264,83 @@ $stmt->close();
 
   <?php include __DIR__ . '/../includes/footer.php'; ?>
 
+  <!-- Notification Modal -->
+  <div id="notifModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity opacity-0" id="notifModalBackdrop" onclick="closeNotifModal()"></div>
+      <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-10 transform scale-95 opacity-0 transition-all duration-300 flex flex-col max-h-[90vh]" id="notifModalPanel">
+          <!-- Close button -->
+          <button onclick="closeNotifModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-8 h-8 flex items-center justify-center rounded-full transition z-20">
+              <i class="fas fa-times"></i>
+          </button>
+          
+          <!-- Modal Body (Scrollable) -->
+          <div class="p-6 md:p-8 overflow-y-auto" id="notifModalBody">
+              <!-- Populated via JS -->
+          </div>
+          
+          <!-- Modal Footer -->
+          <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-3xl flex justify-end shrink-0">
+              <button onclick="closeNotifModal()" class="px-6 py-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 shadow-sm transition">
+                  Close
+              </button>
+          </div>
+      </div>
+  </div>
+
   <script>
+    function openNotifModal(id, isRead) {
+        const modal = document.getElementById('notifModal');
+        const backdrop = document.getElementById('notifModalBackdrop');
+        const panel = document.getElementById('notifModalPanel');
+        const body = document.getElementById('notifModalBody');
+        const template = document.getElementById('notif-content-' + id);
+        
+        if (template) {
+            body.innerHTML = template.innerHTML;
+        }
+        
+        // Show modal
+        modal.classList.remove('hidden');
+        // Animate in
+        setTimeout(() => {
+            backdrop.classList.remove('opacity-0');
+            panel.classList.remove('opacity-0', 'scale-95');
+        }, 10);
+
+        // Mark as read via AJAX if not read
+        if (!isRead) {
+            fetch('?mark_read=' + id).then(() => {
+                // Update UI dot
+                const dot = document.getElementById('notif-dot-' + id);
+                if (dot) dot.className = 'w-3 h-3 rounded-full bg-gray-300';
+                
+                // Update row background
+                const row = document.getElementById('notif-row-' + id);
+                if (row) row.className = 'p-5 transition bg-white hover:bg-gray-50';
+                
+                // Update view details button state
+                const btn = document.getElementById('notif-btn-' + id);
+                if (btn) {
+                    btn.className = 'text-sm font-medium text-gray-500 hover:text-gray-700 transition';
+                    btn.setAttribute('onclick', `openNotifModal(${id}, true)`);
+                }
+            }).catch(err => console.error("Error marking read:", err));
+        }
+    }
+
+    function closeNotifModal() {
+        const modal = document.getElementById('notifModal');
+        const backdrop = document.getElementById('notifModalBackdrop');
+        const panel = document.getElementById('notifModalPanel');
+        
+        backdrop.classList.add('opacity-0');
+        panel.classList.add('opacity-0', 'scale-95');
+        
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+
     function toggleTheme() {
         var t = localStorage.getItem('bloodlife-theme') === 'dark' ? 'light' : 'dark';
         localStorage.setItem('bloodlife-theme', t);
@@ -248,13 +356,19 @@ $stmt->close();
         document.getElementById('userDropdown').classList.toggle('hidden');
     }
     document.addEventListener('click', function(e) {
-        const nMenu = document.getElementById('notifMenu');
-        const nDrop = document.getElementById('notifDropdown');
-        if (nMenu && nDrop && !nMenu.contains(e.target)) nDrop.classList.add('hidden');
-        
-        const uMenu = document.getElementById('userMenu');
-        const uDrop = document.getElementById('userDropdown');
-        if (uMenu && uDrop && !uMenu.contains(e.target)) uDrop.classList.add('hidden');
+        var notifPanel = e.target.closest('#notifDropdown');
+        var notifBtn = e.target.closest('button[onclick="toggleNotifDropdown()"]');
+        if (!notifPanel && !notifBtn) {
+            var nd = document.getElementById('notifDropdown');
+            if (nd) nd.classList.add('hidden');
+        }
+
+        var userPanel = e.target.closest('#userDropdown');
+        var userBtn = e.target.closest('button[onclick="toggleUserDropdown()"]');
+        if (!userPanel && !userBtn) {
+            var ud = document.getElementById('userDropdown');
+            if (ud) ud.classList.add('hidden');
+        }
     });
   </script>
 </body>

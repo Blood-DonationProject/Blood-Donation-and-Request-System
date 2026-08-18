@@ -14,12 +14,12 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
         $result = $stmt->get_result();
         if ($row = $result->fetch_assoc()) {
             $isInactive = false;
-            
+
             // Check status
             if (isset($row['status']) && $row['status'] === 'Inactive') {
                 $isInactive = true;
             }
-            
+
             // Check 3-year inactivity using last_activity
             if (!$isInactive && !empty($row['last_activity'])) {
                 $lastActivityDate = new DateTime($row['last_activity']);
@@ -35,7 +35,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                     }
                 }
             }
-            
+
             if ($isInactive) {
                 session_unset();
                 session_destroy();
@@ -44,7 +44,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                 exit;
             }
             $username = $row['username'];
-            
+
             // Track last_activity (update every 5 minutes)
             if (!isset($_SESSION['last_activity_update']) || (time() - $_SESSION['last_activity_update']) > 300) {
                 $updateActivity = $conn->prepare("UPDATE users SET last_activity = NOW() WHERE id = ?");
@@ -130,10 +130,9 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
             <!-- Desktop Menu -->
             <div class="hidden md:flex items-center space-x-8">
                 <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="home">Home</a>
-                <a href="about.php" class="text-gray-700 hover:text-red-600 font-medium transition">About Us</a>
                 <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="donors">Donors</a>
                 <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition" data-i18n="requests">Requests</a>
-
+                <a href="about.php" class="text-gray-700 hover:text-red-600 font-medium transition">About Us</a>
 
                 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
                     <span class="theme-icon-sun"><svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -203,10 +202,10 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
 
                                         // Determine notification link dynamically based on type and title
                                         $link = "profile.php"; // default
-                                        
+
                                         $nType = strtolower($n['type'] ?? '');
                                         $nTitle2 = strtolower($n['title'] ?? '');
-                                        
+
                                         if ($n['title'] === 'Donor Assigned') {
                                             $link = "bloodrequest.php";
                                         } elseif (in_array($nType, ['assignment', 'donation']) || strpos($nTitle2, 'assign') !== false || strpos($nTitle2, 'donat') !== false) {
