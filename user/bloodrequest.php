@@ -35,6 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
           $dhStmt->bind_param("iiii", $row['assigned_donor_id'], $_SESSION['user_id'], $req_id, $row['blood_groups_id']);
           $dhStmt->execute();
           $dhStmt->close();
+
+          // Mark donor as available again
+          $updDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+          $updDonor->bind_param("i", $row['assigned_donor_id']);
+          $updDonor->execute();
+          $updDonor->close();
       }
 
       $notifTitle = 'Request Completed';
@@ -49,13 +55,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
     }
   } elseif (isset($_POST['action']) && $_POST['action'] === 'cancel_request' && isset($_POST['request_id'])) {
     $req_id = (int)$_POST['request_id'];
-    $stmt = $conn->prepare("SELECT id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Pending', 'Approved')");
+    $stmt = $conn->prepare("SELECT id, status, assigned_donor_id FROM blood_request WHERE id = ? AND users_id = ? AND status IN ('Pending', 'Approved', 'Assigned', 'Accepted')");
     $stmt->bind_param("ii", $req_id, $_SESSION['user_id']);
     $stmt->execute();
-    if ($stmt->get_result()->num_rows > 0) {
+    $res = $stmt->get_result();
+    if ($res->num_rows > 0) {
+      $row = $res->fetch_assoc();
       $updReq = $conn->prepare("UPDATE blood_request SET status = 'Rejected' WHERE id = ?");
       $updReq->bind_param("i", $req_id);
       $updReq->execute();
+
+      if (in_array($row['status'], ['Assigned', 'Accepted']) && !empty($row['assigned_donor_id'])) {
+          $donor_id = $row['assigned_donor_id'];
+          // Update donor assignment
+          $updAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
+          $updAssign->bind_param("i", $req_id);
+          $updAssign->execute();
+
+          // Update donor availability
+          $updDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+          $updDonor->bind_param("i", $donor_id);
+          $updDonor->execute();
+
+          // Get donor user details to send email
+          $donorStmt = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM donor d JOIN users u ON d.user_id = u.id WHERE d.id = ?");
+          $donorStmt->bind_param("i", $donor_id);
+          $donorStmt->execute();
+          $donorRes = $donorStmt->get_result();
+          if ($donorRes->num_rows > 0) {
+              $donorUser = $donorRes->fetch_assoc();
+              
+              // In-app Notification
+              $notifTitle = 'Assignment Cancelled';
+              $notifMsg = 'Your assigned blood donation request has been cancelled by the requester. You are now marked as Available.';
+              $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'Assignment_Cancelled', ?, ?)");
+              $notif->bind_param("iiss", $donorUser['user_id'], $req_id, $notifTitle, $notifMsg);
+              $notif->execute();
+              $notification_id = $conn->insert_id;
+          }
+      }
       $success_msg = "Request cancelled successfully.";
     } else {
       $error_msg = "Cannot cancel this request.";
@@ -330,20 +368,21 @@ if ($isLoggedIn && $userId > 0) {
                         <span class="<?= $color ?> text-xs font-bold px-2 py-1 rounded-full" data-i18n="<?= strtolower($status) ?>"><?= $status ?></span>
                       </td>
                       <td class="py-3">
-                        <?php if ($status === 'Assigned' || $status === 'Accepted' || $status === 'Completed'): ?>
+                        <?php if ($status === 'Completed'): ?>
                           <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
-                              <?php if ($status !== 'Completed'): ?>
-                                <button type="button" onclick="viewAssignment(<?= $br['id'] ?>)" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                                  <i class="fas fa-eye mr-1"></i> View Assignment
-                                </button>
-                              <?php endif; ?>
-                              
-                              <?php if ($status === 'Completed'): ?>
                                 <button type="button" disabled class="bg-gray-300 text-gray-500 cursor-not-allowed px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition" title="Already Completed">
                                   <i class="fas fa-check-circle mr-1"></i> Blood Received
                                 </button>
-                              <?php else: ?>
+                            </div>
+                          </div>
+                        <?php elseif ($status === 'Assigned' || $status === 'Accepted'): ?>
+                          <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="viewAssignment(<?= $br['id'] ?>)" class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                                  <i class="fas fa-eye mr-1"></i> View Assignment
+                                </button>
+                                
                                 <form method="POST" class="inline" onsubmit="return confirm('Are you sure you have received the blood? This will officially complete the request.');">
                                   <input type="hidden" name="action" value="blood_received">
                                   <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
@@ -352,7 +391,15 @@ if ($isLoggedIn && $userId > 0) {
                                     <i class="fas fa-check-circle mr-1"></i> Blood Received
                                   </button>
                                 </form>
-                              <?php endif; ?>
+                            </div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to cancel this request?');">
+                                  <input type="hidden" name="action" value="cancel_request">
+                                  <input type="hidden" name="request_id" value="<?= $br['id'] ?>">
+                                  <button type="submit" class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                                    <i class="fas fa-times mr-1"></i> Cancel Request
+                                  </button>
+                                </form>
                             </div>
                           </div>
                         <?php elseif (in_array($status, ['Pending', 'Approved'])): ?>
@@ -369,7 +416,7 @@ if ($isLoggedIn && $userId > 0) {
                             </form>
                           </div>
                         <?php else: ?>
-                          <span class="text-gray-400 text-xs">-</span>
+                          <span class="text-gray-400 text-xs font-bold">No Action</span>
                         <?php endif; ?>
                       </td>
                     </tr>

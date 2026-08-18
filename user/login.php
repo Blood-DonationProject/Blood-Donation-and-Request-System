@@ -63,11 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetPath = '';
 
     // Hardcoded admin credentials
-    if ($email === 'admin@gmail.com' && $password === 'password123') {
+    if ($email === 'bloodcommunicationsystem@gmail.com' && $password === 'password123') {
       $_SESSION['logged_in'] = true;
       $_SESSION['user_id'] = 0;
       $_SESSION['username'] = 'admin';
-      $_SESSION['user_email'] = 'admin@gmail.com';
+      $_SESSION['user_email'] = 'bloodcommunicationsystem@gmail.com';
       $_SESSION['user_role'] = 'Admin';
       $loginSuccess = true;
       $targetPath = '../admin/donation_history_crud.php';

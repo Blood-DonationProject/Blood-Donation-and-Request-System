@@ -2,6 +2,7 @@
 include 'auth_check.php';
 require_once __DIR__ . '/../config/db.php';
 
+
 $error = '';
 $success = '';
 
@@ -57,7 +58,14 @@ if (isset($_POST['assign_donor'])) {
                     else if (isset($req['users_id']) && isset($donor['user_id']) && $req['users_id'] == $donor['user_id']) {
                         respond_assignment('error', 'The requester cannot be assigned as a donor for their own blood request.', $is_ajax);
                     } else if ($donor['available_status'] === 'Available') {
-                        // Check for duplicate active assignment
+                        // Check if this donor already has an active assignment anywhere
+                        $activeDonorCheck = $conn->prepare("SELECT COUNT(*) FROM donor_assignments WHERE donor_id = ? AND status IN ('Assigned', 'Accepted')");
+                        $activeDonorCheck->bind_param("i", $donor_id);
+                        $activeDonorCheck->execute();
+                        $hasActiveAssignment = $activeDonorCheck->get_result()->fetch_row()[0] > 0;
+                        $activeDonorCheck->close();
+
+                        // Check for duplicate active assignment for this request
                         $dupAssignCheck = $conn->prepare("SELECT COUNT(*) FROM donor_assignments WHERE request_id = ? AND donor_id = ? AND status NOT IN ('Cancelled', 'Rejected')");
                         $dupAssignCheck->bind_param("ii", $request_id, $donor_id);
                         $dupAssignCheck->execute();
@@ -70,7 +78,9 @@ if (isset($_POST['assign_donor'])) {
                         $assignedCount = $assignedCheck->get_result()->fetch_row()[0];
                         $assignedCheck->close();
 
-                        if ($isDuplicate) {
+                        if ($hasActiveAssignment) {
+                            respond_assignment('error', 'This donor already has an active assignment for another request.', $is_ajax);
+                        } else if ($isDuplicate) {
                             respond_assignment('error', 'This donor is already assigned to this request.', $is_ajax);
                         } else if ($assignedCount >= 1) {
                             respond_assignment('error', 'This request already has a donor assigned.', $is_ajax);
@@ -110,52 +120,6 @@ if (isset($_POST['assign_donor'])) {
                                     $donorNotifId = $conn->insert_id;
                                     $notifStmt->close();
 
-                                    // Send Email to Donor
-                                    if (!empty($donorUserRow['donor_email'])) {
-                                        $to = $donorUserRow['donor_email'];
-                                        $recipientName = $donorUserRow['username'];
-                                        $subject = "New Blood Donation Assignment";
-                                        $message = "Hello,\n\nYou have been assigned as a donor for a blood request.\n\nDetails:\n- Blood Group: " . $req['blood_group_name'] . "\n- Hospital/Requester: " . $req['hospital'] . "\n- Required Date: " . $req['required_date'] . "\n\nPlease log in to your dashboard to accept or decline the assignment.\n\nThank you,\nBloodLife Team";
-                                        $headers = "From: noreply@bloodlife.com";
-
-                                        // Check duplicate email log
-                                        $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
-                                        $dupCheck->bind_param("i", $donorNotifId);
-                                        $dupCheck->execute();
-                                        $dupCheck->store_result();
-
-                                        if ($dupCheck->num_rows === 0) {
-                                            // Insert as Pending
-                                            $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
-                                            $emailLog->bind_param("iisss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject);
-                                            $emailLog->execute();
-                                            $logId = $conn->insert_id;
-                                            $emailLog->close();
-
-                                            $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
-                                            $htmlMessage = nl2br($message) . $trackingPixel;
-
-                                            $htmlHeaders = $headers . "\r\n";
-                                            $htmlHeaders .= "MIME-Version: 1.0\r\n";
-                                            $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
-
-                                            if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
-                                                $now = date('Y-m-d H:i:s');
-                                                $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
-                                                $updateLog->bind_param("si", $now, $logId);
-                                                $updateLog->execute();
-                                                $updateLog->close();
-                                            } else {
-                                                $err = error_get_last();
-                                                $errMsg = $err ? $err['message'] : 'Unknown mail error';
-                                                $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
-                                                $updateLog->bind_param("si", $errMsg, $logId);
-                                                $updateLog->execute();
-                                                $updateLog->close();
-                                            }
-                                        }
-                                        $dupCheck->close();
-                                    }
                                 }
 
                                 // Send notification to Requester
@@ -169,52 +133,6 @@ if (isset($_POST['assign_donor'])) {
                                     $reqNotifId = $conn->insert_id;
                                     $reqNotifStmt->close();
 
-                                    // Send Email to Requester
-                                    if (!empty($req['requester_email'])) {
-                                        $to = $req['requester_email'];
-                                        $recipientName = $req['requester_name'] ?? null;
-                                        $subject = "Donor Assigned to Your Request";
-                                        $message = "Hello,\n\nGood news! A donor has been assigned to your blood request #" . $request_id . ".\nYou can view the details in your dashboard.\n\nThank you,\nBloodLife Team";
-                                        $headers = "From: noreply@bloodlife.com";
-
-                                        // Check duplicate email log
-                                        $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
-                                        $dupCheck->bind_param("i", $reqNotifId);
-                                        $dupCheck->execute();
-                                        $dupCheck->store_result();
-
-                                        if ($dupCheck->num_rows === 0) {
-                                            // Insert as Pending
-                                            $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
-                                            $emailLog->bind_param("iisss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject);
-                                            $emailLog->execute();
-                                            $logId = $conn->insert_id;
-                                            $emailLog->close();
-
-                                            $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
-                                            $htmlMessage = nl2br($message) . $trackingPixel;
-
-                                            $htmlHeaders = $headers . "\r\n";
-                                            $htmlHeaders .= "MIME-Version: 1.0\r\n";
-                                            $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
-
-                                            if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
-                                                $now = date('Y-m-d H:i:s');
-                                                $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
-                                                $updateLog->bind_param("si", $now, $logId);
-                                                $updateLog->execute();
-                                                $updateLog->close();
-                                            } else {
-                                                $err = error_get_last();
-                                                $errMsg = $err ? $err['message'] : 'Unknown mail error';
-                                                $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
-                                                $updateLog->bind_param("si", $errMsg, $logId);
-                                                $updateLog->execute();
-                                                $updateLog->close();
-                                            }
-                                        }
-                                        $dupCheck->close();
-                                    }
                                 }
 
                                 respond_assignment('success', 'Donor assigned successfully!', $is_ajax);
@@ -286,10 +204,11 @@ try {
     $result = $conn->query("
         SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
                r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id, r.urgency,
-               0 as assigned_units
+               0 as assigned_units,
+               (SELECT GROUP_CONCAT(donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Rejected') AS rejected_donors
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        WHERE r.status IN ('Pending', 'Approved', 'Rejected') AND r.assigned_donor_id IS NULL
+        WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL
         ORDER BY CASE WHEN r.urgency = 'Urgent' THEN 1 ELSE 2 END ASC, r.required_date ASC, r.id ASC
     ");
     if ($result && $result->num_rows > 0) {
@@ -310,6 +229,10 @@ try {
         WHERE d.available_status = 'Available'
           AND u.status = 'Active'
           AND (d.last_donation_date IS NULL OR DATEDIFF(CURRENT_DATE, d.last_donation_date) >= 90)
+          AND NOT EXISTS (
+              SELECT 1 FROM donor_assignments da 
+              WHERE da.donor_id = d.id AND da.status IN ('Assigned', 'Accepted')
+          )
         ORDER BY d.blood_groups ASC, u.username ASC
     ");
     if ($result && $result->num_rows > 0) {
@@ -349,7 +272,7 @@ if (isset($_GET['complete_assignment'])) {
     $id = (int)$_GET['complete_assignment'];
 
     // Verify status is Received
-    $check = $conn->prepare("SELECT request_id, status FROM donor_assignments WHERE id = ?");
+    $check = $conn->prepare("SELECT request_id, donor_id, status FROM donor_assignments WHERE id = ?");
     $check->bind_param("i", $id);
     $check->execute();
     $resCheck = $check->get_result();
@@ -365,6 +288,10 @@ if (isset($_GET['complete_assignment'])) {
                 $success = "Assignment marked as completed.";
                 // Update blood request status
                 $conn->query("UPDATE blood_request SET status = 'Completed' WHERE id = $req_id");
+                
+                // Update donor available_status
+                $donor_id = $row['donor_id'];
+                $conn->query("UPDATE donor SET available_status = 'Available' WHERE id = $donor_id");
             } else {
                 $error = "Failed to update assignment: " . $conn->error;
             }
@@ -542,7 +469,8 @@ if ($stats_query) {
                                             data-blood-groups-id="<?= (int)$ar['blood_groups_id'] ?>"
                                             data-units="<?= (int)$ar['units'] ?>"
                                             data-assigned-units="<?= (int)$ar['assigned_units'] ?>"
-                                            data-hospital="<?= htmlspecialchars($ar['hospital']) ?>">
+                                            data-hospital="<?= htmlspecialchars($ar['hospital']) ?>"
+                                            data-rejected-donors="<?= htmlspecialchars($ar['rejected_donors'] ?? '') ?>">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex items-center space-x-3">
                                                     <div class="relative w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
@@ -892,6 +820,7 @@ if ($stats_query) {
         var modalRequiredUnits = 1;
         var modalAssignedUnits = 0;
         var isReassignMode = false;
+        var modalRejectedDonors = [];
         var allDonors = <?= json_encode($available_donors) ?>;
 
         function escapeHtml(unsafe) {
@@ -920,6 +849,7 @@ if ($stats_query) {
                         units: parseInt(item.getAttribute('data-units')) || 1,
                         assigned_units: parseInt(item.getAttribute('data-assigned-units')) || 0,
                         hospital: item.getAttribute('data-hospital'),
+                        rejected_donors: item.getAttribute('data-rejected-donors') || '',
                         requester_name: item.querySelector('p.font-bold') ? item.querySelector('p.font-bold').innerText : 'Unknown'
                     };
                 }
@@ -931,7 +861,8 @@ if ($stats_query) {
                     blood_group: bGroup || 'Unknown',
                     units: parseInt(bUnits) || 1,
                     assigned_units: 0,
-                    hospital: hospital || ''
+                    hospital: hospital || '',
+                    rejected_donors: ''
                 };
             }
             modalBloodGroup = reqInfo.blood_group;
@@ -942,6 +873,7 @@ if ($stats_query) {
 
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId;
 
+            modalRejectedDonors = reqInfo.rejected_donors ? reqInfo.rejected_donors.split(',').map(Number) : [];
 
             renderModalDonors(reqInfo.blood_group);
 
@@ -1091,6 +1023,7 @@ if ($stats_query) {
 
             var scored = [];
             allDonors.forEach(function(d) {
+                if (modalRejectedDonors.includes(parseInt(d.id))) return;
                 if (d.blood_groups !== bloodGroup) return;
                 if (modalRequesterUserId && d.user_id == modalRequesterUserId) return;
                 var match = calculateMatchScore(d, bloodGroup);

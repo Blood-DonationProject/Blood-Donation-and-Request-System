@@ -109,52 +109,6 @@ if (isset($_POST['assign_donor'])) {
                                 $donorNotifId = $conn->insert_id;
                                 $notifStmt->close();
                                 
-                                // Send Email to Donor
-                                if (!empty($donorUserRow['donor_email'])) {
-                                    $to = $donorUserRow['donor_email'];
-                                    $recipientName = $donorUserRow['username'];
-                                    $subject = "New Blood Donation Assignment";
-                                    $message = "Hello,\n\nYou have a new blood donation assignment for Request #" . $request_id . ".\nPlease log in to your dashboard to accept or decline the assignment.\n\nThank you,\nBloodLife Team";
-                                    $headers = "From: noreply@bloodlife.com";
-                                    
-                                    // Check duplicate email log
-                                    $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
-                                    $dupCheck->bind_param("i", $donorNotifId);
-                                    $dupCheck->execute();
-                                    $dupCheck->store_result();
-                                    
-                                    if ($dupCheck->num_rows === 0) {
-                                        // Insert as Pending
-                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
-                                        $emailLog->bind_param("iisss", $donorNotifId, $donorUserRow['user_id'], $to, $recipientName, $subject);
-                                        $emailLog->execute();
-                                        $logId = $conn->insert_id;
-                                        $emailLog->close();
-
-                                        $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
-                                        $htmlMessage = nl2br($message) . $trackingPixel;
-                                        
-                                        $htmlHeaders = $headers . "\r\n";
-                                        $htmlHeaders .= "MIME-Version: 1.0\r\n";
-                                        $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
-
-                                        if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
-                                            $now = date('Y-m-d H:i:s');
-                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
-                                            $updateLog->bind_param("si", $now, $logId);
-                                            $updateLog->execute();
-                                            $updateLog->close();
-                                        } else {
-                                            $err = error_get_last();
-                                            $errMsg = $err ? $err['message'] : 'Unknown mail error';
-                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
-                                            $updateLog->bind_param("si", $errMsg, $logId);
-                                            $updateLog->execute();
-                                            $updateLog->close();
-                                        }
-                                    }
-                                    $dupCheck->close();
-                                }
                             }
 
                             // Send notification to Requester
@@ -168,52 +122,6 @@ if (isset($_POST['assign_donor'])) {
                                 $reqNotifId = $conn->insert_id;
                                 $reqNotifStmt->close();
                                 
-                                // Send Email to Requester
-                                if (!empty($req['requester_email'])) {
-                                    $to = $req['requester_email'];
-                                    $recipientName = $req['requester_name'] ?? null;
-                                    $subject = "Donor Assigned to Your Request";
-                                    $message = "Hello,\n\nGood news! A donor has been assigned to your blood request #" . $request_id . ".\nYou can view the details in your dashboard.\n\nThank you,\nBloodLife Team";
-                                    $headers = "From: noreply@bloodlife.com";
-                                    
-                                    // Check duplicate email log
-                                    $dupCheck = $conn->prepare("SELECT id FROM email_logs WHERE notification_id = ?");
-                                    $dupCheck->bind_param("i", $reqNotifId);
-                                    $dupCheck->execute();
-                                    $dupCheck->store_result();
-                                    
-                                    if ($dupCheck->num_rows === 0) {
-                                        // Insert as Pending
-                                        $emailLog = $conn->prepare("INSERT INTO email_logs (notification_id, user_id, recipient_email, recipient_name, subject, email_type, status) VALUES (?, ?, ?, ?, ?, 'Assignment', 'Pending')");
-                                        $emailLog->bind_param("iisss", $reqNotifId, $req['users_id'], $to, $recipientName, $subject);
-                                        $emailLog->execute();
-                                        $logId = $conn->insert_id;
-                                        $emailLog->close();
-
-                                        $trackingPixel = '<img src="http://' . $_SERVER['HTTP_HOST'] . '/Blood-Donation-and-Request-System/admin/email_tracker.php?log_id=' . $logId . '" width="1" height="1" style="display:none;" />';
-                                        $htmlMessage = nl2br($message) . $trackingPixel;
-                                        
-                                        $htmlHeaders = $headers . "\r\n";
-                                        $htmlHeaders .= "MIME-Version: 1.0\r\n";
-                                        $htmlHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
-
-                                        if (@mail($to, $subject, $htmlMessage, $htmlHeaders)) {
-                                            $now = date('Y-m-d H:i:s');
-                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Sent', sent_at = ? WHERE id = ?");
-                                            $updateLog->bind_param("si", $now, $logId);
-                                            $updateLog->execute();
-                                            $updateLog->close();
-                                        } else {
-                                            $err = error_get_last();
-                                            $errMsg = $err ? $err['message'] : 'Unknown mail error';
-                                            $updateLog = $conn->prepare("UPDATE email_logs SET status = 'Failed', error_message = ? WHERE id = ?");
-                                            $updateLog->bind_param("si", $errMsg, $logId);
-                                            $updateLog->execute();
-                                            $updateLog->close();
-                                        }
-                                    }
-                                    $dupCheck->close();
-                                }
                             }
 
                             $_SESSION['success'] = 'Donor assigned successfully!';

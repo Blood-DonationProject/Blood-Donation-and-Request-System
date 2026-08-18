@@ -273,6 +273,12 @@ if (isset($_GET['unassign'])) {
     $stmt->execute();
     $stmt->close();
 
+    // Cancel the donor assignment
+    $cancelAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
+    $cancelAssign->bind_param("i", $id);
+    $cancelAssign->execute();
+    $cancelAssign->close();
+
     // Restore donor availability to Available
     if ($donorRow && $donorRow['assigned_donor_id']) {
         $restoreDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
@@ -287,6 +293,28 @@ if (isset($_GET['unassign'])) {
 
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
+    
+    // Get the assigned donor_id before deleting
+    $getDonor = $conn->prepare("SELECT assigned_donor_id FROM blood_request WHERE id = ? AND assigned_donor_id IS NOT NULL");
+    $getDonor->bind_param("i", $id);
+    $getDonor->execute();
+    $donorRow = $getDonor->get_result()->fetch_assoc();
+    $getDonor->close();
+
+    // Restore donor availability to Available
+    if ($donorRow && $donorRow['assigned_donor_id']) {
+        $restoreDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+        $restoreDonor->bind_param("i", $donorRow['assigned_donor_id']);
+        $restoreDonor->execute();
+        $restoreDonor->close();
+    }
+    
+    // Cancel the donor assignment
+    $cancelAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
+    $cancelAssign->bind_param("i", $id);
+    $cancelAssign->execute();
+    $cancelAssign->close();
+
     $conn->query("DELETE FROM blood_request WHERE id = $id");
     header('Location: blood_requests_crud.php');
     exit;

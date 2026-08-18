@@ -34,11 +34,9 @@ $stmt->execute();
 $notificationsList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// Fetch email logs for Admin
-$emailLogs = $conn->query("SELECT id, recipient_email, subject, status, sent_at, delivered_at, opened_at, error_message FROM email_logs ORDER BY created_at DESC LIMIT 50")->fetch_all(MYSQLI_ASSOC);
 
 $currentPage = 'notifications.php';
-$pageData = ['title' => 'Notifications', 'description' => 'View all your recent notifications.'];
+$pageData = ['title' => 'Notifications', 'description' => 'View and manage all system notifications.'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -193,56 +191,6 @@ $pageData = ['title' => 'Notifications', 'description' => 'View all your recent 
                 </div>
                 <?php endif; ?>
 
-                <!-- Email Status Section -->
-                <div class="mt-12 mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Email Status Logs</h2>
-                    <p class="text-gray-500 mt-1">Recent email delivery and open tracking logs. <br><span class="text-xs text-gray-400"><i class="fas fa-info-circle mr-1"></i>Note: Email-open tracking may not be 100% accurate due to email privacy settings.</span></p>
-                </div>
-                
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-gray-50 text-gray-600 text-sm border-b border-gray-100">
-                                    <th class="py-3 px-4 font-semibold">Recipient Email</th>
-                                    <th class="py-3 px-4 font-semibold">Subject</th>
-                                    <th class="py-3 px-4 font-semibold">Status</th>
-                                    <th class="py-3 px-4 font-semibold">Sent At</th>
-                                    <th class="py-3 px-4 font-semibold">Delivered At</th>
-                                    <th class="py-3 px-4 font-semibold">Opened At</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100 text-sm">
-                                <?php if (count($emailLogs) > 0): ?>
-                                    <?php foreach ($emailLogs as $log): 
-                                        $statusClass = 'bg-gray-100 text-gray-700';
-                                        if ($log['status'] === 'Sent') $statusClass = 'bg-blue-100 text-blue-700';
-                                        if ($log['status'] === 'Delivered') $statusClass = 'bg-green-100 text-green-700';
-                                        if ($log['status'] === 'Opened') $statusClass = 'bg-purple-100 text-purple-700';
-                                        if ($log['status'] === 'Failed' || $log['status'] === 'Bounced') $statusClass = 'bg-red-100 text-red-700';
-                                    ?>
-                                    <tr class="hover:bg-gray-50 transition">
-                                        <td class="py-3 px-4 text-gray-800"><?= htmlspecialchars($log['recipient_email']) ?></td>
-                                        <td class="py-3 px-4 text-gray-600"><?= htmlspecialchars($log['subject']) ?></td>
-                                        <td class="py-3 px-4">
-                                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold <?= $statusClass ?>" title="<?= htmlspecialchars($log['error_message'] ?? '') ?>">
-                                                <?= htmlspecialchars($log['status']) ?>
-                                            </span>
-                                        </td>
-                                        <td class="py-3 px-4 text-gray-500 whitespace-nowrap"><?= $log['sent_at'] ? date('M j, Y g:i A', strtotime($log['sent_at'])) : '-' ?></td>
-                                        <td class="py-3 px-4 text-gray-500 whitespace-nowrap"><?= $log['delivered_at'] ? date('M j, Y g:i A', strtotime($log['delivered_at'])) : '-' ?></td>
-                                        <td class="py-3 px-4 text-gray-500 whitespace-nowrap"><?= $log['opened_at'] ? date('M j, Y g:i A', strtotime($log['opened_at'])) : '-' ?></td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <tr>
-                                        <td colspan="6" class="py-6 text-center text-gray-500">No email logs found.</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
             </div>
         </div>

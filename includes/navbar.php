@@ -7,6 +7,7 @@ $pageTitles = [
     'donation_history_crud.php' => ['title' => 'Donation History', 'description' => 'Track and manage blood donation records.'],
     'blood_requests_crud.php' => ['title' => 'Blood Requests', 'description' => 'Manage blood request submissions from users.'],
     'assignments.php' => ['title' => 'Assignments', 'description' => 'Track and manage donor assignments.'],
+    'notifications.php' => ['title' => 'Notifications', 'description' => 'View and manage all system notifications.'],
 ];
 $pageData = $pageTitles[$currentPage] ?? ['title' => 'Dashboard', 'description' => ''];
 

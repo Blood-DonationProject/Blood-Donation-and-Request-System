@@ -57,7 +57,7 @@ if (isset($_GET['action']) && isset($_GET['req_id'])) {
       $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
       $notif->execute();
     }
-  } elseif ($_GET['action'] === 'decline' && $d_id > 0) {
+  } elseif ($_GET['action'] === 'reject' && $d_id > 0) {
     // Update blood_request: unassign donor and set to Pending
     $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Pending', assigned_donor_id = NULL WHERE id = ? AND assigned_donor_id = ?");
     $stmt_a->bind_param("ii", $r_id, $d_id);
@@ -81,13 +81,29 @@ if (isset($_GET['action']) && isset($_GET['req_id'])) {
     if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
     $get_assign->close();
 
-    $msg = "Donor " . htmlspecialchars($username) . " has declined the assignment for Request #" . $r_id . ".";
+    $msg = "Donor " . htmlspecialchars($username) . " has rejected the assignment for Request #" . $r_id . ".";
     $notifType = 'StatusUpdate';
-    $notifTitle = 'Assignment Declined';
+    $notifTitle = 'Assignment Rejected';
     $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
     foreach ($admins as $admin_id) {
       $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
       $notif->execute();
+    }
+    
+    // Notify Requester
+    $get_req = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM blood_request br JOIN users u ON br.users_id = u.id WHERE br.id = ?");
+    $get_req->bind_param("i", $r_id);
+    $get_req->execute();
+    $req_user = $get_req->get_result()->fetch_assoc();
+    $get_req->close();
+
+    if ($req_user) {
+        $reqMsg = "The assigned donor rejected your blood request. We are finding another donor.";
+        $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Rejected', ?)");
+        $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
+        $reqNotif->execute();
+        $notifId = $conn->insert_id;
+        $reqNotif->close();
     }
   }
   header("Location: donor.php");
@@ -638,8 +654,8 @@ if (count($donors) > 0) {
                         <a href="?action=accept&req_id=<?= $ar['id'] ?>" class="w-full bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 shadow-sm hover:shadow-md transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to ACCEPT this assignment?')">
                           <i class="fas fa-check"></i> Accept
                         </a>
-                        <a href="?action=decline&req_id=<?= $ar['id'] ?>" class="w-full bg-white text-red-600 border-2 border-red-200 px-5 py-2 rounded-xl font-bold hover:bg-red-50 transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to DECLINE this assignment?')">
-                          <i class="fas fa-times"></i> Decline
+                        <a href="?action=reject&req_id=<?= $ar['id'] ?>" class="w-full bg-white text-red-600 border-2 border-red-200 px-5 py-2 rounded-xl font-bold hover:bg-red-50 transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to REJECT this assignment?')">
+                          <i class="fas fa-times"></i> Reject
                         </a>
                       <?php else: ?>
                         <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 w-full h-full min-h-[100px]">

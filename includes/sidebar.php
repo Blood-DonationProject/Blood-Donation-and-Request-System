@@ -32,12 +32,11 @@
         <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'blood_requests_crud.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>📋</span> <span>Blood Requests</span>
         </a>
-
-        <?php if (($_SESSION['user_role'] ?? '') === 'Admin'): ?>
-        <a href="email_logs.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'email_logs.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
-            <span>📧</span> <span>Email Logs</span>
+        <a href="notifications.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'notifications.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
+            <span>🔔</span> <span>Notifications</span>
         </a>
-        <?php endif; ?>
+
+
     </nav>
     <div class="p-4 border-t border-gray-200">
         <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
