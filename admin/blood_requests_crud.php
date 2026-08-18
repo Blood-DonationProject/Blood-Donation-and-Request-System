@@ -261,28 +261,28 @@ if (isset($_POST['assign_donor'])) {
 // Unassign donor action
 if (isset($_GET['unassign'])) {
     $id = (int)$_GET['unassign'];
-    // Get the assigned donor_id before unassigning
-    $getDonor = $conn->prepare("SELECT assigned_donor_id FROM blood_request WHERE id = ? AND assigned_donor_id IS NOT NULL");
-    $getDonor->bind_param("i", $id);
-    $getDonor->execute();
-    $donorRow = $getDonor->get_result()->fetch_assoc();
-    $getDonor->close();
+    // Check if there is an active assignment that is exactly 'Assigned'
+    $checkAssign = $conn->prepare("SELECT id, donor_id FROM donor_assignments WHERE request_id = ? AND status = 'Assigned'");
+    $checkAssign->bind_param("i", $id);
+    $checkAssign->execute();
+    $assignRow = $checkAssign->get_result()->fetch_assoc();
+    $checkAssign->close();
 
-    $stmt = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL, status = 'Pending' WHERE id = ? AND assigned_donor_id IS NOT NULL");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $stmt->close();
+    if ($assignRow) {
+        $stmt = $conn->prepare("UPDATE blood_request SET assigned_donor_id = NULL, status = 'Pending' WHERE id = ? AND assigned_donor_id IS NOT NULL");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
 
-    // Cancel the donor assignment
-    $cancelAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE request_id = ? AND status IN ('Assigned', 'Accepted')");
-    $cancelAssign->bind_param("i", $id);
-    $cancelAssign->execute();
-    $cancelAssign->close();
+        // Cancel the donor assignment
+        $cancelAssign = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE id = ?");
+        $cancelAssign->bind_param("i", $assignRow['id']);
+        $cancelAssign->execute();
+        $cancelAssign->close();
 
-    // Restore donor availability to Available
-    if ($donorRow && $donorRow['assigned_donor_id']) {
+        // Restore donor availability to Available
         $restoreDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
-        $restoreDonor->bind_param("i", $donorRow['assigned_donor_id']);
+        $restoreDonor->bind_param("i", $assignRow['donor_id']);
         $restoreDonor->execute();
         $restoreDonor->close();
     }

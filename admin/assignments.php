@@ -165,18 +165,19 @@ if (isset($_POST['assign_donor'])) {
 if (isset($_GET['unassign'])) {
     $assignment_id = (int)$_GET['unassign'];
 
-    // Get donor_id and request_id from assignment
-    $getDonor = $conn->prepare("SELECT donor_id, request_id FROM donor_assignments WHERE id = ?");
+    // Get donor_id, request_id, and status from assignment
+    $getDonor = $conn->prepare("SELECT donor_id, request_id, status FROM donor_assignments WHERE id = ?");
     $getDonor->bind_param("i", $assignment_id);
     $getDonor->execute();
     $donorRow = $getDonor->get_result()->fetch_assoc();
     $getDonor->close();
 
-    if ($donorRow) {
+    // Only allow Unassign if the assignment status is 'Assigned' (not Accepted, Rejected, etc.)
+    if ($donorRow && $donorRow['status'] === 'Assigned') {
         $donor_id = $donorRow['donor_id'];
         $req_id = $donorRow['request_id'];
 
-        $stmt = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE id = ? AND status = 'Assigned'");
         $stmt->bind_param("i", $assignment_id);
         $stmt->execute();
         $stmt->close();
@@ -256,7 +257,7 @@ try {
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         JOIN donor d ON da.donor_id = d.id
         JOIN users u ON d.user_id = u.id
-        WHERE da.status NOT IN ('Completed', 'Cancelled')
+        WHERE da.status IN ('Assigned', 'Accepted', 'Pending')
         ORDER BY da.created_at DESC
     ");
     if ($result && $result->num_rows > 0) {
@@ -292,6 +293,15 @@ if (isset($_GET['complete_assignment'])) {
                 // Update donor available_status
                 $donor_id = $row['donor_id'];
                 $conn->query("UPDATE donor SET available_status = 'Available' WHERE id = $donor_id");
+
+                // Add to donation history
+                $bg_query = $conn->query("SELECT blood_groups_id FROM blood_request WHERE id = $req_id");
+                if ($bg_query && $bg_query->num_rows > 0) {
+                    $bg_row = $bg_query->fetch_assoc();
+                    $bg_id = $bg_row['blood_groups_id'];
+                    $admin_id = $_SESSION['user_id'] ?? 0;
+                    $conn->query("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES ($donor_id, $admin_id, $req_id, $bg_id, 1, CURRENT_DATE(), 'Completed')");
+                }
             } else {
                 $error = "Failed to update assignment: " . $conn->error;
             }
@@ -598,14 +608,6 @@ if ($stats_query) {
                                                     <?php if ($statusDisplay === 'Assigned'): ?>
                                                         <a href="assignments.php?unassign=<?= $asr['assignment_id'] ?>" onclick="return confirm('Remove this donor assignment?')" class="text-red-500 hover:text-red-700 transition" title="Unassign">
                                                             <i class="fas fa-user-minus"></i>
-                                                        </a>
-                                                    <?php elseif ($statusDisplay === 'Accepted'): ?>
-                                                        <a href="assignments.php?unassign=<?= $asr['assignment_id'] ?>" onclick="return confirm('Remove this donor assignment?')" class="text-red-500 hover:text-red-700 transition" title="Unassign">
-                                                            <i class="fas fa-user-minus"></i>
-                                                        </a>
-                                                    <?php elseif ($statusDisplay === 'Rejected'): ?>
-                                                        <a href="assignments.php?unassign=<?= $asr['assignment_id'] ?>" onclick="return confirm('Remove this rejected assignment?')" class="text-red-500 hover:text-red-700 transition" title="Remove">
-                                                            <i class="fas fa-trash"></i>
                                                         </a>
                                                     <?php elseif ($statusDisplay === 'Received'): ?>
                                                         <!-- Mark as Completed -->

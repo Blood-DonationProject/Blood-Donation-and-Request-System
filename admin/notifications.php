@@ -4,12 +4,6 @@ require_once __DIR__ . '/../config/db.php';
 
 $userId = $_SESSION['user_id'];
 
-// Pagination
-$limit = 10;
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-if ($page < 1) $page = 1;
-$offset = ($page - 1) * $limit;
-
 // Filter
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
 $filterQuery = "";
@@ -19,17 +13,9 @@ if ($filter === 'unread') {
     $filterQuery = " AND is_read = 1";
 }
 
-// Total count for pagination
-$countStmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications WHERE user_id = ?" . $filterQuery);
-$countStmt->bind_param("i", $userId);
-$countStmt->execute();
-$totalNotifs = $countStmt->get_result()->fetch_assoc()['total'];
-$countStmt->close();
-$totalPages = ceil($totalNotifs / $limit);
-
 // Fetch notifications
-$stmt = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ?" . $filterQuery . " ORDER BY created_at DESC LIMIT ? OFFSET ?");
-$stmt->bind_param("iii", $userId, $limit, $offset);
+$stmt = $conn->prepare("SELECT id, request_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ?" . $filterQuery . " ORDER BY created_at DESC");
+$stmt->bind_param("i", $userId);
 $stmt->execute();
 $notificationsList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -99,7 +85,7 @@ $pageData = ['title' => 'Notifications', 'description' => 'View and manage all s
                             <a href="?filter=read" class="px-4 py-1.5 text-sm font-medium rounded-md transition <?= $filter === 'read' ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50' ?>">Read</a>
                         </div>
                         
-                        <?php if ($totalNotifs > 0): ?>
+                        <?php if (count($notificationsList) > 0): ?>
                         <a href="?read_notifs=1" class="text-sm font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition shadow-sm border border-blue-100">
                             <i class="fas fa-check-double mr-1"></i> Mark all as read
                         </a>
@@ -170,26 +156,7 @@ $pageData = ['title' => 'Notifications', 'description' => 'View and manage all s
                     <?php endif; ?>
                 </div>
 
-                <!-- Pagination -->
-                <?php if ($totalPages > 1): ?>
-                <div class="mt-8 flex justify-center">
-                    <nav class="flex items-center gap-1 bg-white p-1 rounded-xl shadow-sm border border-gray-200">
-                    <?php if ($page > 1): ?>
-                        <a href="?page=<?= $page - 1 ?>&filter=<?= urlencode($filter) ?>" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50 transition"><i class="fas fa-chevron-left text-sm"></i></a>
-                    <?php endif; ?>
-                    
-                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                        <a href="?page=<?= $i ?>&filter=<?= urlencode($filter) ?>" class="px-4 py-2 rounded-lg font-medium transition <?= $i === $page ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50' ?>">
-                        <?= $i ?>
-                        </a>
-                    <?php endfor; ?>
 
-                    <?php if ($page < $totalPages): ?>
-                        <a href="?page=<?= $page + 1 ?>&filter=<?= urlencode($filter) ?>" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-50 transition"><i class="fas fa-chevron-right text-sm"></i></a>
-                    <?php endif; ?>
-                    </nav>
-                </div>
-                <?php endif; ?>
 
 
             </div>

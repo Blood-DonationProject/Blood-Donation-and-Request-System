@@ -15,28 +15,27 @@ $records = [];
 $edit_row = null;
 
 $result = $conn->query("
-    SELECT da.id, da.donor_id, da.request_id, da.completed_at AS donation_date, da.status,
+    SELECT dh.id, dh.donor_id, dh.request_id, dh.donation_date, dh.status,
            u1.username AS donor_name,
            u2.username AS requester_name,
            bg.blood_gp_name,
            br.units,
            br.hospital
-    FROM donor_assignments da
-    LEFT JOIN donor d ON da.donor_id = d.id
+    FROM donation_history dh
+    LEFT JOIN donor d ON dh.donor_id = d.id
     LEFT JOIN users u1 ON d.user_id = u1.id
-    LEFT JOIN blood_request br ON da.request_id = br.id
+    LEFT JOIN blood_request br ON dh.request_id = br.id
     LEFT JOIN users u2 ON br.users_id = u2.id
-    LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
-    WHERE da.status = 'Completed'
-    ORDER BY da.completed_at DESC
+    LEFT JOIN blood_groups bg ON dh.blood_groups_id = bg.id
+    ORDER BY dh.donation_date DESC, dh.id DESC
 ");
 if ($result && $result->num_rows > 0) {
     $records = $result->fetch_all(MYSQLI_ASSOC);
 }
 
 $stats = [
-    'total' => $conn->query("SELECT COUNT(*) AS c FROM donor_assignments WHERE status='Completed'")->fetch_assoc()['c'] ?? 0,
-    'total_units' => $conn->query("SELECT COUNT(*) AS c FROM donor_assignments da JOIN blood_request br ON da.request_id = br.id WHERE da.status='Completed'")->fetch_assoc()['c'] ?? 0,
+    'total' => $conn->query("SELECT COUNT(*) AS c FROM donation_history")->fetch_assoc()['c'] ?? 0,
+    'total_units' => $conn->query("SELECT SUM(units) AS c FROM donation_history")->fetch_assoc()['c'] ?? 0,
     'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
 ];
 ?>

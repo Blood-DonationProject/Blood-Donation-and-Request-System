@@ -121,8 +121,6 @@ $current_time = date('h:i A');
             transform: translateY(-2px);
             box-shadow: 0 12px 24px -8px rgba(220, 38, 38, 0.25);
         }
-
-
     </style>
     <style id="dark-mode-styles">
         html:not(.dark) body {
@@ -348,6 +346,7 @@ $current_time = date('h:i A');
 
             if (!bell && !notifPanel) {
                 var np = document.getElementById('adminNotifDropdown');
+
                 if (np) np.classList.add('hidden');
             }
             if (!admin) {
