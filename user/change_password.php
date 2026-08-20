@@ -23,8 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
   } elseif ($newPassword !== $confirmPassword) {
     $message = 'New passwords do not match.';
     $messageType = 'error';
-  } elseif (strlen($newPassword) < 6) {
-    $message = 'New password must be at least 6 characters long.';
+  } elseif (strlen($newPassword) < 8) {
+    $message = 'New password must be at least 8 characters long.';
+    $messageType = 'error';
+  } elseif ($newPassword === $currentPassword) {
+    $message = 'New password cannot be the same as the current password.';
     $messageType = 'error';
   } else {
     // Check current password
@@ -130,11 +133,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
-              <input type="password" name="new_password" required minlength="6" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Minimum 6 characters" />
+              <input type="password" name="new_password" required minlength="8" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Minimum 8 characters" />
             </div>
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
-              <input type="password" name="confirm_password" required minlength="6" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Confirm new password" />
+              <input type="password" name="confirm_password" required minlength="8" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Confirm new password" />
             </div>
             <div class="pt-4">
               <button type="submit" name="change_password" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold py-3.5 rounded-xl hover:shadow-lg hover:from-red-700 hover:to-red-800 transition transform hover:-translate-y-0.5">Update Password</button>

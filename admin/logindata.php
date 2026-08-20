@@ -113,58 +113,58 @@ if (isset($_GET['edit'])) {
     </style>
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-        html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
+        html:not(.dark) .bg-gray-50:not(.sidebar):not(nav):not(nav *) { background-color: #ffffff !important; }
         html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
         html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-        html.dark .w-64.bg-white { background-color: #1f2937 !important; }
-        html.dark header.bg-white, html.dark header.bg-white.border-b { background-color: #1f2937 !important; }
-        html.dark .bg-white { background-color: #1f2937 !important; }
-        html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-        html.dark .text-gray-700 { color: #d1d5db !important; }
-        html.dark .text-gray-600 { color: #9ca3af !important; }
-        html.dark .text-gray-500 { color: #9ca3af !important; }
+        
+        
+        html.dark .bg-white:not(.sidebar):not(nav) { background-color: #1f2937 !important; }
+        html.dark .text-gray-900:not(.sidebar *):not(nav *), html.dark .text-gray-800:not(.sidebar *):not(nav *) { color: #f3f4f6 !important; }
+        html.dark .text-gray-700:not(.sidebar *):not(nav *) { color: #d1d5db !important; }
+        html.dark .text-gray-600:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
+        html.dark .text-gray-500:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
         html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
         html.dark label { color: #d1d5db !important; }
-        html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+        html.dark .bg-gray-50:not(.sidebar *):not(nav *), html.dark .bg-gray-100:not(.sidebar *):not(nav *) { background-color: #374151 !important; }
         html.dark thead.bg-gray-50 { background-color: #111827 !important; }
-        html.dark .border-gray-200, html.dark .border-2.border-gray-200, html.dark .border { border-color: #4b5563 !important; }
-        html.dark .border-t { border-color: #374151 !important; }
-        html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
+        html.dark .border-gray-200:not(.sidebar):not(nav), html.dark .border-2.border-gray-200:not(.sidebar):not(nav), html.dark .border:not(.sidebar):not(nav) { border-color: #4b5563 !important; }
+        html.dark .border-t:not(.sidebar *) { border-color: #374151 !important; }
+        html.dark .bg-red-50:not(.sidebar *) { background-color: rgba(220,38,38,0.15) !important; }
         html.dark tbody tr { border-color: #374151 !important; }
         html.dark tbody tr:hover { background-color: #374151 !important; }
         html.dark .stat-card:hover { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
     </style>
 </head>
 
-<body class="bg-gray-100 dark:bg-gray-900">
+<body class="bg-gray-100">
 
 <div class="flex min-h-screen">
 
     <!-- Sidebar -->
-    <div class="w-64 bg-white shadow-lg hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto">
+    <div class="sidebar w-64 bg-white shadow-lg hover:ring-1 hover:ring-pink-500/20 hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto transition-colors duration-300">
         <div class="p-6 border-b border-gray-200">
             <div class="flex items-center space-x-3">
                 <span class="text-3xl">🩸</span>
                 <div>
                     <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                    <p class="text-xs text-gray-500">CRUD Panel</p>
+                    <p class="text-xs text-gray-600">CRUD Panel</p>
                 </div>
             </div>
         </div>
         <nav class="flex-1 px-4 py-6 space-y-2">
-            <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+            <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
                 <span>📊</span> <span data-i18n="overview">Overview</span>
             </a>
-            <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-semibold">
+            <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30 rounded-lg transition">
                 <span>👥</span> <span>Users</span>
             </a>
-            <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+            <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
                 <span>🩸</span> <span>Donors</span>
             </a>
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
                 <span>⚡</span> <span>Donation History</span>
             </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
                 <span>📋</span> <span>Blood Requests</span>
             </a>
             
@@ -263,7 +263,7 @@ if (isset($_GET['edit'])) {
                     <table class="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-3">ID</th>
+                                <th class="p-3 hidden">ID</th>
                                 <th class="p-3">Username</th>
                                 <th class="p-3">Email</th>
                                 <th class="p-3">Status</th>
@@ -278,7 +278,7 @@ if (isset($_GET['edit'])) {
                                     $statusColor = ($u['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
                                     ?>
                                     <tr class="user-row border-t border-slate-200 hover:bg-gray-50">
-                                        <td class="p-3 font-medium">#<?= $u['id'] ?></td>
+                                        <td class="p-3 font-medium hidden">#<?= $u['id'] ?></td>
                                         <td class="p-3 font-medium"><?= htmlspecialchars($u['username']) ?></td>
                                         <td class="p-3"><?= htmlspecialchars($u['email'] ?? '-') ?></td>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $statusColor ?>"><?= htmlspecialchars($u['status']) ?></span></td>

@@ -149,15 +149,14 @@ if ($donorData) {
   $userData['address'] = $donorData['address'] ?? '';
 }
 
-// Fetch donation history by donor_id or users_id
-$stmt = $conn->prepare("SELECT da.completed_at as donation_date, da.status, bg.blood_gp_name, br.hospital, br.units
-                        FROM donor_assignments da
-                        JOIN blood_request br ON br.id = da.request_id
-                        LEFT JOIN blood_groups bg ON bg.id = br.blood_groups_id
-                        WHERE da.status = 'Completed' AND " . ($donorId > 0 ? "da.donor_id = ?" : "br.users_id = ?") . "
-                        ORDER BY da.completed_at DESC");
-$param = $donorId > 0 ? $donorId : $userId;
-$stmt->bind_param("i", $param);
+// Fetch donation history from donation_history table
+$stmt = $conn->prepare("SELECT dh.donation_date, dh.status, bg.blood_gp_name, br.hospital, br.units
+                        FROM donation_history dh
+                        LEFT JOIN blood_request br ON dh.request_id = br.id
+                        LEFT JOIN blood_groups bg ON dh.blood_groups_id = bg.id
+                        WHERE dh.donor_id = ?
+                        ORDER BY dh.donation_date DESC");
+$stmt->bind_param("i", $donorId);
 $stmt->execute();
 $donations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();

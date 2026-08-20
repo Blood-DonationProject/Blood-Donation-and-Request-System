@@ -119,7 +119,6 @@ if (isset($_POST['assign_donor'])) {
                                     $notifStmt->execute();
                                     $donorNotifId = $conn->insert_id;
                                     $notifStmt->close();
-
                                 }
 
                                 // Send notification to Requester
@@ -132,7 +131,6 @@ if (isset($_POST['assign_donor'])) {
                                     $reqNotifStmt->execute();
                                     $reqNotifId = $conn->insert_id;
                                     $reqNotifStmt->close();
-
                                 }
 
                                 respond_assignment('success', 'Donor assigned successfully!', $is_ajax);
@@ -289,7 +287,7 @@ if (isset($_GET['complete_assignment'])) {
                 $success = "Assignment marked as completed.";
                 // Update blood request status
                 $conn->query("UPDATE blood_request SET status = 'Completed' WHERE id = $req_id");
-                
+
                 // Update donor available_status
                 $donor_id = $row['donor_id'];
                 $conn->query("UPDATE donor SET available_status = 'Available' WHERE id = $donor_id");
@@ -450,14 +448,7 @@ if ($stats_query) {
 
                 <!-- Donor Assignment Section -->
                 <div class="mb-8">
-                    <div class="flex items-center justify-between mb-5">
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900">
-                                <i class="fas fa-user-check text-blue-500 mr-2"></i>Assign Donor to Request
-                            </h3>
-                            <p class="text-sm text-gray-400 mt-1">Match available donors with pending blood requests</p>
-                        </div>
-                    </div>
+
 
                     <?php if (count($assignable_requests) > 0): ?>
                         <div class="grid grid-cols-1 gap-6">
@@ -566,8 +557,8 @@ if ($stats_query) {
                                             <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
                                                 <td class="px-5 py-3">
                                                     <div class="flex items-center space-x-2">
-                                                        <span class="font-bold text-gray-900">#<?= $asr['id'] ?></span>
-                                                        <span class="text-gray-400">-</span>
+                                                        <span class="font-bold text-gray-900 hidden">#<?= $asr['id'] ?></span>
+                                                        <span class="text-gray-400 hidden">-</span>
                                                         <span class="text-gray-600"><?= htmlspecialchars($asr['requester_name'] ?? 'Unknown') ?></span>
                                                     </div>
                                                 </td>

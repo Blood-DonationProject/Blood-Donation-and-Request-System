@@ -604,7 +604,7 @@ if ($isLoggedIn) {
             <table class="w-full text-sm border-collapse">
               <thead>
                 <tr class="border-b border-gray-100">
-                  <th class="text-left text-gray-500 font-semibold pb-3 pr-4">ID</th>
+                  <th class="text-left text-gray-500 font-semibold pb-3 pr-4 hidden">ID</th>
                   <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Name</th>
                   <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Blood Type</th>
                   <th class="text-left text-gray-500 font-semibold pb-3 pr-4">Age</th>
@@ -633,7 +633,7 @@ if ($isLoggedIn) {
                   }
                   ?>
                   <tr class="hover:bg-gray-50">
-                    <td class="py-3 pr-4 font-medium text-gray-700">#<?= $d['id'] ?></td>
+                    <td class="py-3 pr-4 font-medium text-gray-700 hidden">#<?= $d['id'] ?></td>
                     <td class="py-3 pr-4 text-gray-800 font-medium"><?= htmlspecialchars($d['username'] ?? '') ?></td>
                     <td class="py-3 pr-4">
                       <span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs">

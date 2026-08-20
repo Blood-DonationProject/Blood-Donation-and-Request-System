@@ -63,23 +63,23 @@ $stats = [
     </style>
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-        html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
+        html:not(.dark) .bg-gray-50:not(.sidebar):not(nav):not(nav *) { background-color: #ffffff !important; }
         html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
         html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-        html.dark .w-64.bg-white { background-color: #1f2937 !important; }
-        html.dark header.bg-white, html.dark header.bg-white.border-b { background-color: #1f2937 !important; }
-        html.dark .bg-white { background-color: #1f2937 !important; }
-        html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-        html.dark .text-gray-700 { color: #d1d5db !important; }
-        html.dark .text-gray-600 { color: #9ca3af !important; }
-        html.dark .text-gray-500 { color: #9ca3af !important; }
+        
+        
+        html.dark .bg-white:not(.sidebar):not(nav) { background-color: #1f2937 !important; }
+        html.dark .text-gray-900:not(.sidebar *):not(nav *), html.dark .text-gray-800:not(.sidebar *):not(nav *) { color: #f3f4f6 !important; }
+        html.dark .text-gray-700:not(.sidebar *):not(nav *) { color: #d1d5db !important; }
+        html.dark .text-gray-600:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
+        html.dark .text-gray-500:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
         html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
         html.dark label { color: #d1d5db !important; }
-        html.dark .bg-gray-50, html.dark .bg-gray-100 { background-color: #374151 !important; }
+        html.dark .bg-gray-50:not(.sidebar *):not(nav *), html.dark .bg-gray-100:not(.sidebar *):not(nav *) { background-color: #374151 !important; }
         html.dark thead.bg-gray-50 { background-color: #111827 !important; }
-        html.dark .border-gray-200, html.dark .border-2.border-gray-200, html.dark .border { border-color: #4b5563 !important; }
-        html.dark .border-t { border-color: #374151 !important; }
-        html.dark .bg-red-50 { background-color: rgba(220,38,38,0.15) !important; }
+        html.dark .border-gray-200:not(.sidebar):not(nav), html.dark .border-2.border-gray-200:not(.sidebar):not(nav), html.dark .border:not(.sidebar):not(nav) { border-color: #4b5563 !important; }
+        html.dark .border-t:not(.sidebar *) { border-color: #374151 !important; }
+        html.dark .bg-red-50:not(.sidebar *) { background-color: rgba(220,38,38,0.15) !important; }
         html.dark tbody tr { border-color: #374151 !important; }
         html.dark tbody tr:hover { background-color: #374151 !important; }
         html.dark .stat-card:hover { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
@@ -145,7 +145,7 @@ $stats = [
                     <table class="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-3">ID</th>
+                                <th class="p-3 hidden">ID</th>
                                 <th class="p-3">Donor Name</th>
                                 <th class="p-3">Requester Name</th>                                
                                 <th class="p-3">Hospital</th>                                
@@ -161,7 +161,7 @@ $stats = [
                                     <tr class="history-row border-t border-slate-200 hover:bg-gray-50"
                                         data-blood-group="<?= htmlspecialchars($r['blood_gp_name'] ?? '') ?>"
                                         data-status="<?= htmlspecialchars($r['status'] ?? '') ?>">
-                                        <td class="p-3 font-medium">#<?= $r['id'] ?></td>
+                                        <td class="p-3 font-medium hidden">#<?= $r['id'] ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['donor_name'] ?? '-') ?></td>
                                         <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>                                        
                                         <td class="p-3"><?= htmlspecialchars($r['hospital'] ?? '-') ?></td>                                        

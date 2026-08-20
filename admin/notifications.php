@@ -41,20 +41,20 @@ $pageData = ['title' => 'Notifications', 'description' => 'View and manage all s
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
-        html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
+        html:not(.dark) .bg-gray-50:not(.sidebar):not(nav):not(nav *) { background-color: #ffffff !important; }
         html:not(.dark) .bg-gray-100 { background-color: #f9fafb !important; }
         html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-        html.dark .w-64.bg-white { background-color: #1f2937 !important; }
-        html.dark nav.bg-slate-200, html.dark nav.bg-white { background-color: #1f2937 !important; border-color: #374151 !important; }
-        html.dark .bg-white { background-color: #1f2937 !important; }
-        html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
-        html.dark .text-gray-700 { color: #d1d5db !important; }
-        html.dark .text-gray-600 { color: #9ca3af !important; }
-        html.dark .text-gray-500 { color: #9ca3af !important; }
+        
+        html.dark nav.bg-slate-200, 
+        html.dark .bg-white:not(.sidebar):not(nav) { background-color: #1f2937 !important; }
+        html.dark .text-gray-900:not(.sidebar *):not(nav *), html.dark .text-gray-800:not(.sidebar *):not(nav *) { color: #f3f4f6 !important; }
+        html.dark .text-gray-700:not(.sidebar *):not(nav *) { color: #d1d5db !important; }
+        html.dark .text-gray-600:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
+        html.dark .text-gray-500:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
         html.dark .border-gray-100, html.dark .border-gray-200 { border-color: #374151 !important; }
         html.dark .bg-gray-50 { background-color: #374151 !important; }
         html.dark .hover\:bg-gray-50:hover { background-color: #374151 !important; }
-        html.dark .bg-red-50 { background-color: rgba(220,38,38,0.1) !important; }
+        html.dark .bg-red-50:not(.sidebar *) { background-color: rgba(220,38,38,0.1) !important; }
         html.dark .hover\:bg-red-100:hover { background-color: rgba(220,38,38,0.2) !important; }
         .pulse-dot { animation: pulse-dot 2s infinite; }
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

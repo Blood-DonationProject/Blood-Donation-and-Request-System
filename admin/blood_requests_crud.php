@@ -641,7 +641,7 @@ $stats = [
             background-image: none !important;
         }
 
-        html:not(.dark) .bg-gray-50 {
+        html:not(.dark) .bg-gray-50:not(.sidebar):not(nav):not(nav *) {
             background-color: #ffffff !important;
         }
 
@@ -655,16 +655,11 @@ $stats = [
             color: #e5e7eb;
         }
 
-        html.dark .w-64.bg-white {
-            background-color: #1f2937 !important;
-        }
+        
 
-        html.dark header.bg-white,
-        html.dark header.bg-white.border-b {
-            background-color: #1f2937 !important;
-        }
+        
 
-        html.dark .bg-white {
+        html.dark .bg-white:not(.sidebar):not(nav) {
             background-color: #1f2937 !important;
         }
 
@@ -673,15 +668,15 @@ $stats = [
             color: #f3f4f6 !important;
         }
 
-        html.dark .text-gray-700 {
+        html.dark .text-gray-700:not(.sidebar *):not(nav *) {
             color: #d1d5db !important;
         }
 
-        html.dark .text-gray-600 {
+        html.dark .text-gray-600:not(.sidebar *):not(nav *) {
             color: #9ca3af !important;
         }
 
-        html.dark .text-gray-500 {
+        html.dark .text-gray-500:not(.sidebar *):not(nav *) {
             color: #9ca3af !important;
         }
 
@@ -712,11 +707,11 @@ $stats = [
             border-color: #4b5563 !important;
         }
 
-        html.dark .border-t {
+        html.dark .border-t:not(.sidebar *) {
             border-color: #374151 !important;
         }
 
-        html.dark .bg-red-50 {
+        html.dark .bg-red-50:not(.sidebar *) {
             background-color: rgba(220, 38, 38, 0.15) !important;
         }
 
@@ -1013,7 +1008,7 @@ $stats = [
                         <table class="w-full text-left text-sm border-collapse">
                             <thead>
                                 <tr class="bg-gray-50 text-slate-600">
-                                    <th class="p-3">ID</th>
+                                    <th class="p-3 hidden">ID</th>
                                     <th class="p-3">Requester</th>
                                     <th class="p-3">Blood Group</th>
                                     <th class="p-3">Units</th>
@@ -1046,7 +1041,7 @@ $stats = [
                                         <tr class="request-row border-t border-slate-200 hover:bg-gray-50"
                                             data-blood-group="<?= htmlspecialchars($r['blood_gp_name'] ?? '') ?>"
                                             data-status="<?= htmlspecialchars($r['status'] ?? '') ?>">
-                                            <td class="p-3 font-medium">#<?= $r['id'] ?></td>
+                                            <td class="p-3 font-medium hidden">#<?= $r['id'] ?></td>
                                             <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
                                             <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
                                             <td class="p-3">1 Unit</td>

@@ -128,7 +128,7 @@ $current_time = date('h:i A');
             background-image: none !important;
         }
 
-        html:not(.dark) .bg-gray-50 {
+        html:not(.dark) .bg-gray-50:not(.sidebar):not(nav):not(nav *) {
             background-color: #ffffff !important;
         }
 
@@ -142,16 +142,11 @@ $current_time = date('h:i A');
             color: #e5e7eb;
         }
 
-        html.dark .w-64.bg-white {
-            background-color: #1f2937 !important;
-        }
+        
 
-        html.dark nav.bg-white,
-        html.dark nav.bg-white.shadow-md {
-            background-color: #1f2937 !important;
-        }
+        
 
-        html.dark .bg-white {
+        html.dark .bg-white:not(.sidebar):not(nav) {
             background-color: #1f2937 !important;
         }
 
@@ -160,15 +155,15 @@ $current_time = date('h:i A');
             color: #f3f4f6 !important;
         }
 
-        html.dark .text-gray-700 {
+        html.dark .text-gray-700:not(.sidebar *):not(nav *) {
             color: #d1d5db !important;
         }
 
-        html.dark .text-gray-600 {
+        html.dark .text-gray-600:not(.sidebar *):not(nav *) {
             color: #9ca3af !important;
         }
 
-        html.dark .text-gray-500 {
+        html.dark .text-gray-500:not(.sidebar *):not(nav *) {
             color: #9ca3af !important;
         }
 
@@ -199,7 +194,7 @@ $current_time = date('h:i A');
             border-color: #4b5563 !important;
         }
 
-        html.dark .border-t {
+        html.dark .border-t:not(.sidebar *) {
             border-color: #374151 !important;
         }
 
