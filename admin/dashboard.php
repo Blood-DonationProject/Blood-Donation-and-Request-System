@@ -22,11 +22,109 @@ try {
 } catch (Exception $e) {
 }
 
+$recent_blood_requests = [];
+try {
+    $br_query = "
+        SELECT 
+            br.id, 
+            COALESCE(br.requester_name, u.username) AS requester_name, 
+            bg.blood_gp_name, 
+            br.units, 
+            br.hospital, 
+            br.required_date, 
+            br.urgency, 
+            br.status,
+            br.created_at
+        FROM blood_request br
+        LEFT JOIN users u ON br.users_id = u.id
+        LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
+        ORDER BY br.created_at DESC, br.id DESC
+        LIMIT 5
+    ";
+    $br_res = $conn->query($br_query);
+    if ($br_res) {
+        while ($row = $br_res->fetch_assoc()) {
+            $recent_blood_requests[] = $row;
+        }
+    }
+} catch (Exception $e) {
+}
 
+$recent_donors = [];
+try {
+    $donor_query = "
+        SELECT 
+            d.id,
+            u.username AS donor_name,
+            d.gender,
+            d.age,
+            d.blood_groups,
+            d.phone,
+            d.address,
+            d.available_status,
+            d.created_at
+        FROM donor d
+        LEFT JOIN users u ON d.user_id = u.id
+        ORDER BY d.created_at DESC, d.id DESC
+        LIMIT 5
+    ";
+    $donor_res = $conn->query($donor_query);
+    if ($donor_res) {
+        while ($row = $donor_res->fetch_assoc()) {
+            $recent_donors[] = $row;
+        }
+    }
+} catch (Exception $e) {
+}
 
+$recent_users = [];
+try {
+    $user_query = "
+        SELECT 
+            id,
+            username,
+            email,
+            role,
+            status,
+            created_at
+        FROM users
+        ORDER BY created_at DESC, id DESC
+        LIMIT 5
+    ";
+    $user_res = $conn->query($user_query);
+    if ($user_res) {
+        while ($row = $user_res->fetch_assoc()) {
+            $recent_users[] = $row;
+        }
+    }
+} catch (Exception $e) {
+}
 
+if (!function_exists('getRelativeTime')) {
+    function getRelativeTime($timestamp)
+    {
+        if (!$timestamp) return '-';
+        $time_ago = strtotime($timestamp);
+        $current_time = time();
+        $time_difference = $current_time - $time_ago;
+        $seconds = $time_difference;
+        $minutes = round($seconds / 60);
+        $hours = round($seconds / 3600);
+        $days = round($seconds / 86400);
 
-
+        if ($seconds <= 60) {
+            return "Just now";
+        } else if ($minutes <= 60) {
+            return $minutes == 1 ? "1 minute ago" : "$minutes minutes ago";
+        } else if ($hours <= 24) {
+            return $hours == 1 ? "1 hour ago" : "$hours hours ago";
+        } else if ($days == 1) {
+            return "Yesterday";
+        } else {
+            return date('d M Y', $time_ago);
+        }
+    }
+}
 
 $admin_name = htmlspecialchars($_SESSION['username'] ?? 'Admin');
 $current_date = date('l, F j, Y');
@@ -142,9 +240,9 @@ $current_time = date('h:i A');
             color: #e5e7eb;
         }
 
-        
 
-        
+
+
 
         html.dark .bg-white:not(.sidebar):not(nav) {
             background-color: #1f2937 !important;
@@ -260,7 +358,7 @@ $current_time = date('h:i A');
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
 
                     <!-- Total Users -->
-                    <div class="stat-card bg-pink rounded-2xl p-6 border border-blue-300 shadow-sm animate-slide-in">
+                    <div class="stat-card bg-pink-100 rounded-2xl p-6 border border-pink-300 shadow-sm animate-slide-in">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-users text-red-500 text-xl"></i>
@@ -272,7 +370,7 @@ $current_time = date('h:i A');
                     </div>
 
                     <!-- Active Donors -->
-                    <div class="stat-card bg-white rounded-2xl p-6 border border-pink-300 shadow-sm animate-slide-in" style="animation-delay: 0.1s;">
+                    <div class="stat-card bg-green-100 rounded-2xl p-6 border border-green-300 shadow-sm animate-slide-in" style="animation-delay: 0.1s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-hand-holding-heart text-red-600 text-xl"></i>
@@ -284,7 +382,7 @@ $current_time = date('h:i A');
                     </div>
 
                     <!-- Pending Blood Requests -->
-                    <div class="stat-card bg-white rounded-2xl p-6 border border-red-300 shadow-sm animate-slide-in" style="animation-delay: 0.2s;">
+                    <div class="stat-card bg-yellow-100 rounded-2xl p-6 border border-yellow-300 shadow-sm animate-slide-in" style="animation-delay: 0.2s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-clock text-yellow-500 text-xl"></i>
@@ -296,7 +394,7 @@ $current_time = date('h:i A');
                     </div>
 
                     <!-- Requests Awaiting Assignment -->
-                    <div class="stat-card bg-white rounded-2xl p-6 border border-yellow-300 shadow-sm animate-slide-in" style="animation-delay: 0.3s;">
+                    <div class="stat-card bg-blue-100 rounded-2xl p-6 border border-blue-300 shadow-sm animate-slide-in" style="animation-delay: 0.3s;">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                                 <i class="fas fa-user-plus text-blue-500 text-xl"></i>
@@ -308,12 +406,12 @@ $current_time = date('h:i A');
                     </div>
 
                     <!-- Completed Requests -->
-                    <div class="stat-card bg-white rounded-2xl p-6 border border-green-300 shadow-sm animate-slide-in" style="animation-delay: 0.4s;">
+                    <div class="stat-card bg-violet-100 rounded-2xl p-6 border border-violet-300 shadow-sm animate-slide-in" style="animation-delay: 0.4s;">
                         <div class="flex items-center justify-between mb-4">
-                            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                <i class="fas fa-check-circle text-green-500 text-xl"></i>
+                            <div class="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-check-circle text-violet-500 text-xl"></i>
                             </div>
-                            <span class="text-xs font-semibold text-green-600 bg-green-100 px-2.5 py-1 rounded-full">Done</span>
+                            <span class="text-xs font-semibold text-violet-600 bg-violet-100 px-2.5 py-1 rounded-full">Done</span>
                         </div>
                         <h3 class="text-3xl font-bold text-gray-900"><?= $stats['completed_requests'] ?></h3>
                         <p class="text-sm text-gray-500 mt-1">Completed Requests</p>
@@ -321,10 +419,306 @@ $current_time = date('h:i A');
 
                 </div>
 
+                <!-- Recent Blood Requests -->
+                <div class="mt-8 bg-white dark:bg-white rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm animate-slide-in" style="animation-delay: 0.5s;">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-gray-900 flex items-center gap-2">
+                            <i class="fas fa-tint text-red-500"></i> Recent Blood Requests
+                        </h3>
+                    </div>
 
+                    <div class="overflow-x-auto">
+                        <?php if (empty($recent_blood_requests)): ?>
+                            <div class="text-center py-8 text-gray-900 dark:text-gray-900 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                                No recent blood requests
+                            </div>
+                        <?php else: ?>
+                            <table class="w-full text-left border-collapse min-w-max">
+                                <thead>
+                                    <tr class="border-b border-gray-200 dark:border-gray-700">
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Requester</th>
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Blood Group</th>
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Units</th>
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Hospital</th>
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Required Date</th>
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Urgency</th>
+                                        <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($recent_blood_requests as $req): ?>
+                                        <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-00/25 transition-colors">
+                                            <td class="py-3 px-4 text-sm text-gray-800 dark:text-gray-700"><?php echo htmlspecialchars($req['requester_name'] ?? 'Unknown'); ?></td>
+                                            <td class="py-3 px-4">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-300 text-red-600 dark:bg-red-500/30 dark:text-red-600">
+                                                    <?php echo htmlspecialchars($req['blood_gp_name'] ?? '-'); ?>
+                                                </span>
+                                            </td>
+                                            <td class="py-3 px-4 text-sm text-gray-600 dark:text-gray-900"><?php echo htmlspecialchars($req['units']); ?></td>
+                                            <td class="py-3 px-4 text-sm text-gray-600 dark:text-gray-900 truncate max-w-[150px]" title="<?php echo htmlspecialchars($req['hospital']); ?>"><?php echo htmlspecialchars($req['hospital']); ?></td>
+                                            <td class="py-3 px-4 text-sm text-gray-600 dark:text-gray-900 whitespace-nowrap"><?php echo date('d M Y', strtotime($req['required_date'])); ?></td>
+                                            <td class="py-3 px-4">
+                                                <?php
+                                                $urgencyClass = 'bg-blue-200 text-blue-600 dark:bg-blue-500/20 dark:text-blue-700';
+                                                if ($req['urgency'] === 'Urgent') $urgencyClass = 'bg-red-200 text-red-600 dark:bg-red-500/20 dark:text-red-600';
+                                                elseif ($req['urgency'] === 'High') $urgencyClass = 'bg-orange-200 text-orange-600 dark:bg-orange-500/20 dark:text-orange-600';
+                                                ?>
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $urgencyClass; ?>">
+                                                    <?php echo htmlspecialchars($req['urgency']); ?>
+                                                </span>
+                                            </td>
+                                            <td class="py-3 px-4">
+                                                <?php
+                                                $statusClass = 'bg-gray-100 text-gray-800 dark:bg-gray-200 dark:text-gray-700';
+                                                if ($req['status'] === 'Pending') $statusClass = 'bg-yellow-300 text-yellow-800 dark:bg-yellow-500/30 dark:text-yellow-600';
+                                                elseif ($req['status'] === 'Assigned') $statusClass = 'bg-blue-300 text-blue-800 dark:bg-blue-500/30 dark:text-blue-600';
+                                                elseif ($req['status'] === 'Accepted') $statusClass = 'bg-indigo-300 text-indigo-800 dark:bg-indigo-500/30 dark:text-indigo-600';
+                                                elseif ($req['status'] === 'Completed' || $req['status'] === 'Received') $statusClass = 'bg-green-300 text-green-600 dark:bg-green-500/30 dark:text-green-600';
+                                                elseif ($req['status'] === 'Rejected' || $req['status'] === 'Cancelled') $statusClass = 'bg-red-300 text-red-600 dark:bg-red-500/30 dark:text-red-600';
+                                                ?>
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap <?php echo $statusClass; ?>">
+                                                    <?php echo htmlspecialchars($req['status']); ?>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                    </div>
 
+                    <div class="mt-6 flex justify-end">
+                        <a href="assignments.php" class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-2 transition-colors">
+                            View All Blood Requests <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Recent Donors -->
+                <div class="mt-8 bg-white dark:bg-white rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm animate-slide-in" style="animation-delay: 0.6s;">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-500/30 text-red-600 dark:text-red-600 flex items-center justify-center text-lg shadow-xs">
+                                <i class="fas fa-hand-holding-heart"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-900 dark:text-gray-800 flex items-center gap-2">
+                                    Recent Donors
+                                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-pink-50 text-pink-700 dark:bg-pink-500/30 dark:text-pink-500 border border-pink-200 dark:border-pink-800/80">
+                                        <?= count($recent_donors) ?> Recent
+                                    </span>
+                                </h3>
+                                <p class="text-xs text-gray-700 dark:text-gray-700 mt-0.5">Recently registered blood donation volunteers</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl">
+                        <?php if (empty($recent_donors)): ?>
+                            <div class="text-center py-12 px-4 bg-gray-300 dark:bg-gray-500/30">
+
+                                <h4 class="text-base font-semibold text-gray-900 dark:text-white">No recent donors</h4>
+                                <p class="text-xs text-gray-500 dark:text-gray-300 mt-1 max-w-sm mx-auto">No blood donors have been registered yet in the system.</p>
+                            </div>
+                        <?php else: ?>
+                            <table class="w-full text-left border-collapse min-w-max">
+                                <thead>
+                                    <tr class="bg-white dark:bg-white text-gray-700 dark:text-gray-800 text-xs font-semibold uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                                        <th class="py-3.5 px-4">Donor Profile</th>
+                                        <th class="py-3.5 px-4">Blood Group</th>
+                                        <th class="py-3.5 px-4">Contact Info</th>
+                                        <th class="py-3.5 px-4">Address / Township</th>
+                                        <th class="py-3.5 px-4">Status</th>
+                                        <th class="py-3.5 px-4">Registered</th>
+                                        <th class="py-3.5 px-4 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50 text-sm">
+                                    <?php foreach ($recent_donors as $donor): ?>
+                                        <tr class="hover:bg-gray-500/30 dark:hover:bg-gray-500/30 transition-colors">
+                                            <!-- Donor Profile -->
+                                            <td class="py-3.5 px-4">
+                                                <div class="flex items-center gap-3">
+                                                    <?php
+                                                    $gender = $donor['gender'] ?? 'Other';
+
+                                                    if ($gender === 'Male') $avatarBg = 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-800';
+                                                    elseif ($gender === 'Female') $avatarBg = 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-800';
+                                                    ?>
+                                                </div>
+                                                <div>
+                                                    <span class="font-bold text-gray-800 dark:text-gray-800 block leading-tight">
+                                                        <?= htmlspecialchars($donor['donor_name'] ?? 'Unknown Donor') ?>
+                                                    </span>
+                                                    <span class="text-xs text-gray-600 dark:text-gray-600 mt-0.5 inline-block">
+                                                        <?= htmlspecialchars($donor['gender'] ?? '-') ?><?= !empty($donor['age']) ? ' • ' . (int)$donor['age'] . ' yrs' : '' ?>
+                                                    </span>
+                                                </div>
+                    </div>
+                    </td>
+
+                    <!-- Blood Group -->
+                    <td class="py-3.5 px-4">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-600 border border-red-200 dark:border-red-500/30 shadow-2xs">
+
+                            <?= htmlspecialchars($donor['blood_groups'] ?? '-') ?>
+                        </span>
+                    </td>
+
+                    <!-- Phone -->
+                    <td class="py-3.5 px-4">
+                        <?php if (!empty($donor['phone'])): ?>
+                            <a href="tel:<?= htmlspecialchars($donor['phone']) ?>" class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-800 dark:text-gray-800 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+
+                                <?= htmlspecialchars($donor['phone']) ?>
+                            </a>
+                        <?php else: ?>
+                            <span class="text-xs text-gray-800 dark:text-gray-800">-</span>
+                        <?php endif; ?>
+                    </td>
+
+                    <!-- Address -->
+                    <td class="py-3.5 px-4">
+                        <div class="flex items-center gap-1.5 text-xs text-gray-800 dark:text-gray-800 max-w-[200px]" title="<?= htmlspecialchars($donor['address'] ?? '') ?>">
+
+                            <span class="truncate"><?= htmlspecialchars($donor['address'] ?? '-') ?></span>
+                        </div>
+                    </td>
+
+                    <!-- Availability Status -->
+                    <td class="py-3.5 px-4">
+                        <?php if (($donor['available_status'] ?? 'Available') === 'Available'): ?>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-200 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-800 border border-emerald-200 dark:border-emerald-800/80 whitespace-nowrap">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Available
+                            </span>
+                        <?php else: ?>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-800 dark:bg-gray-500/20 dark:text-gray-800 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                                <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                Unavailable
+                            </span>
+                        <?php endif; ?>
+                    </td>
+
+                    <!-- Registered Date -->
+                    <td class="py-3.5 px-4 text-xs text-gray-800 dark:text-gray-800 whitespace-nowrap" title="<?= !empty($donor['created_at']) ? date('d M Y, h:i A', strtotime($donor['created_at'])) : '' ?>">
+                        <span class="inline-flex items-center gap-1.5">
+                            <?= getRelativeTime($donor['created_at'] ?? null) ?>
+                        </span>
+                    </td>
+
+                    <!-- Action -->
+                    <td class="py-3.5 px-4 text-right">
+                        <a href="donor_crud.php?edit=<?= $donor['id'] ?>" class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg bg-gray-300 hover:bg-pink-150 text-red-500 hover:text-pink-700 dark:bg-gray-500/30 dark:hover:bg-pink-500/20 dark:text-blue-500 dark:hover:text-pink-700 transition-colors">
+                            <i class="fas fa-pen text-[10px]"></i> Edit
+                        </a>
+                    </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+                </table>
+            <?php endif; ?>
+                </div>
+
+                <div class="mt-5 flex items-center justify-between">
+                    <span class="text-xs text-gray-600 dark:text-gray-600">Showing 5 latest registered donors</span>
+                    <a href="donor_crud.php" class="text-sm font-semibold text-pink-600 hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300 flex items-center gap-2 transition-colors group">
+                        <span>View All Donors</span>
+                        <i class="fas fa-arrow-right text-xs transform group-hover:translate-x-1 transition-transform"></i>
+                    </a>
+                </div>
             </div>
+
+            <!-- Recent Users -->
+            <div class="mt-8 bg-white dark:bg-white rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm animate-slide-in" style="animation-delay: 0.7s;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-gray-900 flex items-center gap-2">
+                        <i class="fas fa-users text-blue-500"></i> Recent Users
+                    </h3>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <?php if (empty($recent_users)): ?>
+                        <div class="text-center py-8 text-gray-700 dark:text-gray-700 bg-gray-50 dark:bg-gray-500/20 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                            No recent users
+                        </div>
+                    <?php else: ?>
+                        <table class="w-full text-left border-collapse min-w-max">
+                            <thead>
+                                <tr class="border-b border-gray-200 dark:border-gray-700">
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">User</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Email</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Role</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Registered</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($recent_users as $u): ?>
+                                    <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/25 transition-colors">
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center text-xs font-bold text-red-700 dark:text-red-400">
+                                                    <?php echo strtoupper(substr(htmlspecialchars($u['username'] ?? '-'), 0, 1)); ?>
+                                                </div>
+                                                <span class="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                                    <?php echo htmlspecialchars($u['username'] ?? 'Unknown'); ?>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                                            <?php if (!empty($u['email'])): ?>
+                                                <a href="mailto:<?php echo htmlspecialchars($u['email']); ?>" class="hover:underline text-blue-600 dark:text-blue-400">
+                                                    <?php echo htmlspecialchars($u['email']); ?>
+                                                </a>
+                                            <?php else: ?>
+                                                -
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <?php
+                                            $role = $u['role'] ?? 'User';
+                                            $roleClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+                                            if ($role === 'Admin') $roleClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
+                                            elseif ($role === 'User') $roleClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+                                            elseif ($role === 'Donor') $roleClass = 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400';
+                                            elseif ($role === 'Requester') $roleClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
+                                            ?>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap <?php echo $roleClass; ?>">
+                                                <?php echo htmlspecialchars($role); ?>
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <?php
+                                            $status = $u['status'] ?? 'Active';
+                                            $statusClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+                                            if ($status === 'Active') $statusClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+                                            elseif ($status === 'Inactive') $statusClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+                                            ?>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap <?php echo $statusClass; ?>">
+                                                <?php echo htmlspecialchars($status); ?>
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                            <?php echo getRelativeTime($u['created_at']); ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <a href="users_crud.php" class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-2 transition-colors">
+                        View All Users <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+
         </div>
+    </div>
     </div>
 
     <script>

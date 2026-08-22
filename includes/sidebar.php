@@ -1,6 +1,6 @@
 <!-- Sidebar -->
 <?php $currentPage = basename($_SERVER['PHP_SELF']); ?>
-<div class="sidebar w-64 bg-white shadow-lg hover:ring-1 hover:ring-pink-500/20 hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto transition-colors duration-300">
+<div class="sidebar w-64 bg-blue-100 shadow-lg hover:ring-1 hover:ring-pink-500/20 hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto transition-colors duration-300">
     <div class="p-6 border-b border-gray-200">
         <div class="flex items-center space-x-3">
             <span class="text-2xl bg-pink-500/20 rounded-full w-12 h-12 flex items-center justify-center">🩸</span>
