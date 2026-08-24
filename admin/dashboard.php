@@ -15,10 +15,24 @@ $stats = [
 try {
     $stats['total_users']          = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
     $stats['total_donors']         = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
-    $stats['pending']              = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Accepted', 'Rejected')")->fetch_assoc()['c'] ?? 0;
-    $stats['pending_requests']     = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
-    $stats['awaiting_assignment']  = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Approved', 'Rejected') AND assigned_donor_id IS NULL")->fetch_assoc()['c'] ?? 0;
-    $stats['completed_requests']   = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
+    $stats['pending']              = (int)($conn->query("
+        SELECT COUNT(*) AS c 
+        FROM blood_request r
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
+        LEFT JOIN users u_donor ON d.user_id = u_donor.id
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+          AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
+    ")->fetch_assoc()['c'] ?? 0);
+    $stats['pending_requests']     = (int)($conn->query("
+        SELECT COUNT(*) AS c 
+        FROM blood_request r
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
+        LEFT JOIN users u_donor ON d.user_id = u_donor.id
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+          AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
+    ")->fetch_assoc()['c'] ?? 0);
+    $stats['awaiting_assignment']  = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Approved') AND assigned_donor_id IS NULL")->fetch_assoc()['c'] ?? 0);
+    $stats['completed_requests']   = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0);
 } catch (Exception $e) {
 }
 

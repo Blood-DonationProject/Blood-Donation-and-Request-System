@@ -39,7 +39,7 @@ if ($isLoggedIn) {
   // EDIT — pre-fill form
   if (isset($_GET['edit'])) {
     $editId = (int)$_GET['edit'];
-    $stmt = $conn->prepare("SELECT br.*, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = ? AND br.users_id = ?");
+    $stmt = $conn->prepare("SELECT br.*, br.Urgency AS urgency, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = ? AND br.users_id = ?");
     $stmt->bind_param("ii", $editId, $userId);
     $stmt->execute();
     $editData = $stmt->get_result()->fetch_assoc();
@@ -62,7 +62,10 @@ if ($isLoggedIn) {
     if (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0) {
       // UPDATE ONLY URGENCY
       $updateId = (int)$_POST['update_id'];
-      $urgency = $_POST['urgency'] ?? 'Normal';
+      $urgency = trim($_POST['urgency'] ?? 'Normal');
+      if (!in_array($urgency, ['Normal', 'Urgent'])) {
+        $urgency = 'Normal';
+      }
       
       $chkStmt = $conn->prepare("SELECT status FROM blood_request WHERE id=? AND users_id=?");
       $chkStmt->bind_param("ii", $updateId, $userId);
@@ -71,18 +74,19 @@ if ($isLoggedIn) {
       $chkStmt->close();
       
       if ($chkRes && in_array($chkRes['status'], ['Pending', 'Approved'])) {
-        $stmt = $conn->prepare("UPDATE blood_request SET urgency=? WHERE id=? AND users_id=?");
+        $stmt = $conn->prepare("UPDATE blood_request SET Urgency=? WHERE id=? AND users_id=?");
         $stmt->bind_param("sii", $urgency, $updateId, $userId);
         if ($stmt->execute()) {
           $message = 'Blood request urgency updated successfully!';
           $messageType = 'success';
         } else {
-          $message = 'Failed to update request. Please try again.';
+          $message = 'Failed to update request: ' . $conn->error;
           $messageType = 'error';
         }
         $stmt->close();
       } else {
-        $message = 'This request cannot be edited at this stage.';
+        $currStatus = $chkRes ? htmlspecialchars($chkRes['status']) : 'Not Found';
+        $message = 'This request cannot be edited at this stage (Status: ' . $currStatus . ').';
         $messageType = 'error';
       }
     } elseif (isset($_POST['blood_groups_id'])) {
@@ -109,13 +113,13 @@ if ($isLoggedIn) {
           $message = 'You already have an active blood request. Please wait until it is completed.';
           $messageType = 'error';
         } else {
-          $insStmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+          $insStmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, Urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
           $insStmt->bind_param("isiissss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status, $urgency);
           if ($insStmt->execute()) {
             $message = 'Blood request submitted successfully!';
             $messageType = 'success';
           } else {
-            $message = 'Failed to save request. Please try again.';
+            $message = 'Failed to save request: ' . $conn->error;
             $messageType = 'error';
           }
           $insStmt->close();
@@ -125,7 +129,10 @@ if ($isLoggedIn) {
     }
 
     if ($messageType === 'success') {
-      header('Location: requestblood.php?msg=' . (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0 ? 'updated' : 'created'));
+      $redirectUrl = (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0)
+        ? 'requestblood.php?edit=' . (int)$_POST['update_id'] . '&msg=updated'
+        : 'requestblood.php?msg=created';
+      header('Location: ' . $redirectUrl);
       exit;
     }
     $editMode = false;
@@ -133,7 +140,7 @@ if ($isLoggedIn) {
 
   // Fetch user's blood requests
   $myRequests = [];
-  $stmt = $conn->prepare("SELECT br.*, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.users_id = ? ORDER BY br.id DESC");
+  $stmt = $conn->prepare("SELECT br.*, br.Urgency AS urgency, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.users_id = ? ORDER BY br.id DESC");
   $stmt->bind_param("i", $userId);
   $stmt->execute();
   $myResult = $stmt->get_result();
@@ -149,7 +156,7 @@ if ($isLoggedIn) {
       $message = 'Blood request submitted successfully!';
       $messageType = 'success';
     } elseif ($msg === 'updated') {
-      $message = 'Blood request updated successfully!';
+      $message = 'Blood request urgency updated successfully!';
       $messageType = 'success';
     } elseif ($msg === 'deleted') {
       $message = 'Blood request deleted successfully.';
@@ -374,7 +381,7 @@ if ($isLoggedIn) {
               <label class="block text-sm font-semibold text-gray-700 mb-1">Urgency</label>
               <select name="urgency" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition bg-white">
                 <?php foreach (['Normal', 'Urgent'] as $st): ?>
-                  <option value="<?= $st ?>" <?= ($editData['urgency'] ?? 'Normal') === $st ? 'selected' : '' ?>><?= $st ?></option>
+                  <option value="<?= $st ?>" <?= (($editData['urgency'] ?? $editData['Urgency'] ?? 'Normal') === $st) ? 'selected' : '' ?>><?= $st ?></option>
                 <?php endforeach; ?>
               </select>
             </div>

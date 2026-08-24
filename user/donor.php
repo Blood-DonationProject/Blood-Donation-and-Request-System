@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
 require_once __DIR__ . '/../config/db.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
@@ -7,39 +9,71 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 // Check if logged-in user already has a donor record
 $isAlreadyDonor = false;
 $donorId = 0;
+$donorIds = [];
 if ($isLoggedIn) {
   $userId = $_SESSION['user_id'] ?? 0;
   if ($userId > 0) {
-    $stmt = $conn->prepare("SELECT id FROM donor WHERE user_id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT id FROM donor WHERE user_id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($result && $result->num_rows > 0) {
-      $row = $result->fetch_assoc();
       $isAlreadyDonor = true;
-      $donorId = $row['id'];
+      while ($row = $result->fetch_assoc()) {
+        $donorIds[] = (int)$row['id'];
+      }
+      $donorId = $donorIds[0] ?? 0;
     }
     $stmt->close();
   }
 }
 
 // Handle Accept/Decline Assignment
-if (isset($_GET['action']) && isset($_GET['req_id'])) {
+if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
   $r_id = (int)$_GET['req_id'];
-  $d_id = $donorId ?? 0;
+  $userId = $_SESSION['user_id'] ?? 0;
+
+  // Find the specific donor record for this user assigned to this request
+  $d_id = 0;
+  if ($userId > 0) {
+    $findDonor = $conn->prepare("SELECT d.id FROM donor d WHERE d.user_id = ? AND (d.id = (SELECT assigned_donor_id FROM blood_request WHERE id = ?) OR d.id IN (SELECT donor_id FROM donor_assignments WHERE request_id = ?)) LIMIT 1");
+    $findDonor->bind_param("iii", $userId, $r_id, $r_id);
+    $findDonor->execute();
+    $donorMatch = $findDonor->get_result()->fetch_assoc();
+    if ($donorMatch) {
+      $d_id = (int)$donorMatch['id'];
+    } elseif (!empty($donorId)) {
+      $d_id = $donorId;
+    }
+    $findDonor->close();
+  }
 
   // Fetch all admins for notification
   $admins = [0]; // Admin is hardcoded as user_id 0 in this system
   if ($_GET['action'] === 'accept' && $d_id > 0) {
     // Update blood_request
-    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Accepted' WHERE id = ? AND assigned_donor_id = ?");
+    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Accepted' WHERE id = ? AND (assigned_donor_id = ? OR assigned_donor_id IS NULL)");
     $stmt_a->bind_param("ii", $r_id, $d_id);
     $stmt_a->execute();
+    $stmt_a->close();
 
-    // Update donor_assignments
-    $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Accepted', responded_at = NOW() WHERE request_id = ? AND donor_id = ?");
-    $stmt_assign->bind_param("ii", $r_id, $d_id);
-    $stmt_assign->execute();
+    // Check if donor_assignments record exists, if so update, else insert
+    $chk_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
+    $chk_assign->bind_param("ii", $r_id, $d_id);
+    $chk_assign->execute();
+    $res_assign = $chk_assign->get_result();
+    if ($res_assign && $res_assign->num_rows > 0) {
+      $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Accepted', responded_at = NOW() WHERE request_id = ? AND donor_id = ?");
+      $stmt_assign->bind_param("ii", $r_id, $d_id);
+      $stmt_assign->execute();
+      $stmt_assign->close();
+    } else {
+      $stmt_assign = $conn->prepare("INSERT INTO donor_assignments (request_id, donor_id, assigned_by, status, responded_at) VALUES (?, ?, 1, 'Accepted', NOW())");
+      $stmt_assign->bind_param("ii", $r_id, $d_id);
+      $stmt_assign->execute();
+      $stmt_assign->close();
+    }
+    $chk_assign->close();
 
     // Notify Admin
     $assignment_id = null;
@@ -59,19 +93,22 @@ if (isset($_GET['action']) && isset($_GET['req_id'])) {
     }
   } elseif ($_GET['action'] === 'reject' && $d_id > 0) {
     // Update blood_request: unassign donor and set to Pending
-    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Pending', assigned_donor_id = NULL WHERE id = ? AND assigned_donor_id = ?");
+    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Pending', assigned_donor_id = NULL WHERE id = ? AND (assigned_donor_id = ? OR assigned_donor_id IS NULL)");
     $stmt_a->bind_param("ii", $r_id, $d_id);
     $stmt_a->execute();
+    $stmt_a->close();
 
     // Update donor_assignments
     $stmt_assign = $conn->prepare("UPDATE donor_assignments SET status = 'Rejected', responded_at = NOW() WHERE request_id = ? AND donor_id = ?");
     $stmt_assign->bind_param("ii", $r_id, $d_id);
     $stmt_assign->execute();
+    $stmt_assign->close();
 
     // Make donor available again
     $stmt_donor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
     $stmt_donor->bind_param("i", $d_id);
     $stmt_donor->execute();
+    $stmt_donor->close();
 
     // Notify Admin
     $assignment_id = null;
@@ -118,19 +155,30 @@ if (isset($_GET['action']) && $_GET['action'] === 'register_donor') {
 
 // Assigned Requests
 $assignedRequests = [];
-if ($donorId > 0) {
+if ($isLoggedIn && !empty($userId)) {
   $stmt_assigned = $conn->prepare("SELECT r.id, r.units, r.hospital, r.required_date, r.status as req_status, r.urgency,
-                                                bg.blood_gp_name, ru.username as requester_name, ru.email as requester_email, rd.phone as requester_phone,
-                                                da.status as assignment_status, da.created_at as assigned_date
+                                                bg.blood_gp_name, 
+                                                COALESCE(r.requester_name, ru.username, 'Requester') as requester_name, 
+                                                COALESCE(ru.email, r.requester_name, 'N/A') as requester_email, 
+                                                COALESCE(rd.phone, 'N/A') as requester_phone,
+                                                COALESCE(NULLIF(da.status, ''), NULLIF(r.status, ''), 'Assigned') as assignment_status, 
+                                                COALESCE(da.created_at, r.created_at, NOW()) as assigned_date,
+                                                r.assigned_donor_id
                                          FROM blood_request r
-                                         JOIN (SELECT request_id, MAX(id) as max_id FROM donor_assignments WHERE donor_id = ? GROUP BY request_id) da_max ON da_max.request_id = r.id
-                                         JOIN donor_assignments da ON da.id = da_max.max_id
+                                         JOIN donor d ON r.assigned_donor_id = d.id
+                                         LEFT JOIN (
+                                             SELECT request_id, donor_id, MAX(id) as max_id 
+                                             FROM donor_assignments 
+                                             GROUP BY request_id, donor_id
+                                         ) da_max ON da_max.request_id = r.id AND da_max.donor_id = d.id
+                                         LEFT JOIN donor_assignments da ON da.id = da_max.max_id
                                          LEFT JOIN blood_groups bg ON bg.id = r.blood_groups_id
                                          LEFT JOIN users ru ON r.users_id = ru.id
                                          LEFT JOIN donor rd ON ru.id = rd.user_id
-                                         WHERE r.assigned_donor_id = ?
+                                         WHERE d.user_id = ?
+                                           AND r.status NOT IN ('Cancelled')
                                          ORDER BY r.required_date DESC");
-  $stmt_assigned->bind_param("ii", $donorId, $donorId);
+  $stmt_assigned->bind_param("i", $userId);
   $stmt_assigned->execute();
   $res_assigned = $stmt_assigned->get_result();
   if ($res_assigned) {
@@ -604,7 +652,10 @@ if ($donorId > 0) {
 
                     <!-- Right: Actions -->
                     <div class="flex flex-col justify-center items-center md:items-end gap-3 md:w-40 flex-shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-gray-100 md:pl-6">
-                      <?php if ($ar['assignment_status'] === 'Assigned'): ?>
+                      <?php 
+                      $currentAssignStatus = !empty($ar['assignment_status']) ? $ar['assignment_status'] : $ar['req_status'];
+                      if (in_array($currentAssignStatus, ['Assigned', 'Pending'])): 
+                      ?>
                         <p class="text-xs text-gray-500 font-semibold mb-1 text-center md:text-right">Awaiting your response</p>
                         <a href="?action=accept&req_id=<?= $ar['id'] ?>" class="w-full bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 shadow-sm hover:shadow-md transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to ACCEPT this assignment?')">
                           <i class="fas fa-check"></i> Accept
@@ -615,7 +666,7 @@ if ($donorId > 0) {
                       <?php else: ?>
                         <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 w-full h-full min-h-[100px]">
                           <i class="fas fa-clipboard-check text-green-500 text-2xl mb-2"></i>
-                          <span class="text-sm font-bold text-gray-700 text-center">Action Taken</span>
+                          <span class="text-sm font-bold text-gray-700 text-center"><?= htmlspecialchars($currentAssignStatus ?: 'Action Taken') ?></span>
                         </div>
                       <?php endif; ?>
                     </div>

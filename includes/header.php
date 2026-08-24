@@ -304,11 +304,29 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
         }
     }
 
+    function toggleUserDropdown() {
+        const dropdown = document.getElementById('userDropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('hidden');
+        }
+        // close notif dropdown if open
+        const notifDropdown = document.getElementById('notifDropdown');
+        if (notifDropdown && !notifDropdown.classList.contains('hidden')) {
+            notifDropdown.classList.add('hidden');
+        }
+    }
+
     document.addEventListener('click', function(e) {
         const notifMenu = document.getElementById('notifMenu');
         const notifDropdown = document.getElementById('notifDropdown');
         if (notifMenu && notifDropdown && !notifMenu.contains(e.target)) {
             notifDropdown.classList.add('hidden');
+        }
+
+        const userMenu = document.getElementById('userMenu');
+        const userDropdown = document.getElementById('userDropdown');
+        if (userMenu && userDropdown && !userMenu.contains(e.target)) {
+            userDropdown.classList.add('hidden');
         }
     });
 </script>

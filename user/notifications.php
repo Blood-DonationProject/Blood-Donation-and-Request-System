@@ -350,24 +350,28 @@ $stmt->close();
         document.querySelectorAll('.theme-icon-moon').forEach(e => e.style.display = t === 'dark' ? 'inline' : 'none');
     }
     function toggleNotifDropdown() {
-        document.getElementById('notifDropdown').classList.toggle('hidden');
+        var nd = document.getElementById('notifDropdown');
+        if (nd) nd.classList.toggle('hidden');
+        var ud = document.getElementById('userDropdown');
+        if (ud && !ud.classList.contains('hidden')) ud.classList.add('hidden');
     }
     function toggleUserDropdown() {
-        document.getElementById('userDropdown').classList.toggle('hidden');
+        var ud = document.getElementById('userDropdown');
+        if (ud) ud.classList.toggle('hidden');
+        var nd = document.getElementById('notifDropdown');
+        if (nd && !nd.classList.contains('hidden')) nd.classList.add('hidden');
     }
     document.addEventListener('click', function(e) {
-        var notifPanel = e.target.closest('#notifDropdown');
-        var notifBtn = e.target.closest('button[onclick="toggleNotifDropdown()"]');
-        if (!notifPanel && !notifBtn) {
-            var nd = document.getElementById('notifDropdown');
-            if (nd) nd.classList.add('hidden');
+        var notifMenu = document.getElementById('notifMenu');
+        var notifDropdown = document.getElementById('notifDropdown');
+        if (notifMenu && notifDropdown && !notifMenu.contains(e.target)) {
+            notifDropdown.classList.add('hidden');
         }
 
-        var userPanel = e.target.closest('#userDropdown');
-        var userBtn = e.target.closest('button[onclick="toggleUserDropdown()"]');
-        if (!userPanel && !userBtn) {
-            var ud = document.getElementById('userDropdown');
-            if (ud) ud.classList.add('hidden');
+        var userMenu = document.getElementById('userMenu');
+        var userDropdown = document.getElementById('userDropdown');
+        if (userMenu && userDropdown && !userMenu.contains(e.target)) {
+            userDropdown.classList.add('hidden');
         }
     });
   </script>

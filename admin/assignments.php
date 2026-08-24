@@ -170,12 +170,12 @@ if (isset($_GET['unassign'])) {
     $donorRow = $getDonor->get_result()->fetch_assoc();
     $getDonor->close();
 
-    // Only allow Unassign if the assignment status is 'Assigned' (not Accepted, Rejected, etc.)
-    if ($donorRow && $donorRow['status'] === 'Assigned') {
+    // Allow Unassign if the assignment status is active ('Assigned', 'Accepted', 'Pending')
+    if ($donorRow && in_array($donorRow['status'], ['Assigned', 'Accepted', 'Pending'])) {
         $donor_id = $donorRow['donor_id'];
         $req_id = $donorRow['request_id'];
 
-        $stmt = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE id = ? AND status = 'Assigned'");
+        $stmt = $conn->prepare("UPDATE donor_assignments SET status = 'Cancelled' WHERE id = ?");
         $stmt->bind_param("i", $assignment_id);
         $stmt->execute();
         $stmt->close();
@@ -204,7 +204,8 @@ try {
         SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
                r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id, r.urgency,
                0 as assigned_units,
-               (SELECT GROUP_CONCAT(donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Rejected') AS rejected_donors
+               (SELECT GROUP_CONCAT(DISTINCT donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Rejected') AS rejected_donors,
+               (SELECT GROUP_CONCAT(DISTINCT donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Cancelled') AS unassigned_donors
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL
@@ -251,11 +252,17 @@ try {
                da.status AS assignment_status, da.id AS assignment_id, 
                da.created_at AS assigned_date, da.responded_at, da.completed_at
         FROM donor_assignments da
+        JOIN (
+            SELECT MAX(id) AS max_id
+            FROM donor_assignments
+            WHERE status IN ('Assigned', 'Accepted', 'Received', 'Pending')
+            GROUP BY request_id
+        ) latest_da ON da.id = latest_da.max_id
         JOIN blood_request r ON da.request_id = r.id
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         JOIN donor d ON da.donor_id = d.id
         JOIN users u ON d.user_id = u.id
-        WHERE da.status IN ('Assigned', 'Accepted', 'Pending')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
         ORDER BY da.created_at DESC
     ");
     if ($result && $result->num_rows > 0) {
@@ -317,7 +324,16 @@ if (isset($_GET['complete_assignment'])) {
 
 // Stats
 $stats = ['active' => 0, 'accepted' => 0, 'rejected' => 0, 'completed' => 0];
-$stats_query = $conn->query("SELECT status, COUNT(*) as count FROM donor_assignments GROUP BY status");
+$stats_query = $conn->query("
+    SELECT da.status, COUNT(*) as count 
+    FROM donor_assignments da
+    JOIN (
+        SELECT MAX(id) AS max_id
+        FROM donor_assignments
+        GROUP BY request_id
+    ) latest_da ON da.id = latest_da.max_id
+    GROUP BY da.status
+");
 if ($stats_query) {
     while ($row = $stats_query->fetch_assoc()) {
         $st = $row['status'];
@@ -471,7 +487,8 @@ if ($stats_query) {
                                             data-units="<?= (int)$ar['units'] ?>"
                                             data-assigned-units="<?= (int)$ar['assigned_units'] ?>"
                                             data-hospital="<?= htmlspecialchars($ar['hospital']) ?>"
-                                            data-rejected-donors="<?= htmlspecialchars($ar['rejected_donors'] ?? '') ?>">
+                                            data-rejected-donors="<?= htmlspecialchars($ar['rejected_donors'] ?? '') ?>"
+                                            data-unassigned-donors="<?= htmlspecialchars($ar['unassigned_donors'] ?? '') ?>">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex items-center space-x-3">
                                                     <div class="relative w-11 h-11 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm">
@@ -814,6 +831,7 @@ if ($stats_query) {
         var modalAssignedUnits = 0;
         var isReassignMode = false;
         var modalRejectedDonors = [];
+        var modalUnassignedDonors = [];
         var allDonors = <?= json_encode($available_donors) ?>;
 
         function escapeHtml(unsafe) {
@@ -826,8 +844,6 @@ if ($stats_query) {
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
-
-
 
         function openAssignModal(requestId, reassign = false, bGroup = null, bUnits = null, hospital = null) {
             isReassignMode = reassign;
@@ -843,6 +859,7 @@ if ($stats_query) {
                         assigned_units: parseInt(item.getAttribute('data-assigned-units')) || 0,
                         hospital: item.getAttribute('data-hospital'),
                         rejected_donors: item.getAttribute('data-rejected-donors') || '',
+                        unassigned_donors: item.getAttribute('data-unassigned-donors') || '',
                         requester_name: item.querySelector('p.font-bold') ? item.querySelector('p.font-bold').innerText : 'Unknown'
                     };
                 }
@@ -855,7 +872,8 @@ if ($stats_query) {
                     units: parseInt(bUnits) || 1,
                     assigned_units: 0,
                     hospital: hospital || '',
-                    rejected_donors: ''
+                    rejected_donors: '',
+                    unassigned_donors: ''
                 };
             }
             modalBloodGroup = reqInfo.blood_group;
@@ -867,6 +885,7 @@ if ($stats_query) {
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId;
 
             modalRejectedDonors = reqInfo.rejected_donors ? reqInfo.rejected_donors.split(',').map(Number) : [];
+            modalUnassignedDonors = reqInfo.unassigned_donors ? reqInfo.unassigned_donors.split(',').map(Number) : [];
 
             renderModalDonors(reqInfo.blood_group);
 
@@ -976,7 +995,6 @@ if ($stats_query) {
                     if (data.status === 'success') {
                         modalAssignedUnits++;
 
-
                         // Remove donor from available donors list
                         allDonors = allDonors.filter(d => d.id !== donorId);
 
@@ -1014,21 +1032,41 @@ if ($stats_query) {
                 return;
             }
 
-            var scored = [];
+            var freshDonors = [];
+            var unassignedDonorsList = [];
+
             allDonors.forEach(function(d) {
-                if (modalRejectedDonors.includes(parseInt(d.id))) return;
+                var donorIdNum = parseInt(d.id);
+                if (modalRejectedDonors.includes(donorIdNum)) return;
                 if (d.blood_groups !== bloodGroup) return;
                 if (modalRequesterUserId && d.user_id == modalRequesterUserId) return;
                 var match = calculateMatchScore(d, bloodGroup);
-                scored.push({
-                    donor: d,
-                    match: match
-                });
+
+                if (modalUnassignedDonors.includes(donorIdNum)) {
+                    unassignedDonorsList.push({
+                        donor: d,
+                        match: match,
+                        isPreviouslyUnassigned: true
+                    });
+                } else {
+                    freshDonors.push({
+                        donor: d,
+                        match: match,
+                        isPreviouslyUnassigned: false
+                    });
+                }
             });
 
-            scored.sort(function(a, b) {
+            freshDonors.sort(function(a, b) {
                 return b.match.score - a.match.score;
             });
+
+            unassignedDonorsList.sort(function(a, b) {
+                return b.match.score - a.match.score;
+            });
+
+            // Prioritize fresh suitable donors over previously unassigned donors
+            var scored = freshDonors.concat(unassignedDonorsList);
 
             if (scored.length === 0) {
                 bestDonorDetails.innerHTML = '';
@@ -1041,18 +1079,21 @@ if ($stats_query) {
             noDonors.classList.add('hidden');
             bestDonorDetails.classList.remove('hidden');
 
-            var donorsToShow = Math.max(remaining, 1);
-            var displayList = scored.slice(0, donorsToShow);
-
             var html = '';
-            displayList.forEach(function(item, index) {
+            scored.forEach(function(item, index) {
                 var d = item.donor;
                 var m = item.match;
                 var elText = m.canDonate ? 'Eligible' : 'Ineligible (' + (90 - m.daysSince) + 'd)';
                 var elColor = m.canDonate ? 'text-green-600' : 'text-red-500';
-                var isRecommended = (index === 0);
+                
+                // Only mark as Recommended if it's the top fresh donor (never if previously unassigned)
+                var isRecommended = (index === 0 && !item.isPreviouslyUnassigned);
 
-                html += '<div class="p-4 rounded-xl border-2 ' + (isRecommended ? 'border-green-500 bg-green-50/20' : 'border-gray-200 bg-white') + ' transition-all hover:border-blue-300">';
+                var borderClass = isRecommended 
+                    ? 'border-green-500 bg-green-50/20' 
+                    : (item.isPreviouslyUnassigned ? 'border-amber-200 bg-amber-50/10' : 'border-gray-200 bg-white');
+
+                html += '<div class="p-4 rounded-xl border-2 ' + borderClass + ' transition-all hover:border-blue-300 mb-3">';
                 html += '  <div class="flex items-start justify-between mb-3">';
                 html += '    <div class="flex items-center space-x-3">';
                 html += '      <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">' + escapeHtml(d.username).substring(0, 2).toUpperCase() + '</div>';
@@ -1064,6 +1105,8 @@ if ($stats_query) {
                 html += '    <div class="text-right">';
                 if (isRecommended) {
                     html += '      <span class="text-[10px] font-bold text-green-700 bg-green-200 px-2 py-1 rounded-full uppercase tracking-wider"><i class="fas fa-star mr-1"></i>Recommended</span>';
+                } else if (item.isPreviouslyUnassigned) {
+                    html += '      <span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full uppercase tracking-wider"><i class="fas fa-undo mr-1"></i>Previously Unassigned</span>';
                 }
                 html += '    </div>';
                 html += '  </div>';
@@ -1075,7 +1118,7 @@ if ($stats_query) {
                 html += '    <p class="flex items-center"><i class="fas fa-heartbeat w-4 text-gray-400"></i><span class="' + elColor + ' ml-1">' + elText + '</span></p>';
                 html += '  </div>';
 
-                html += '  <button onclick="assignDonorAjax(' + d.id + ', this)" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2">';
+                html += '  <button onclick="assignDonorAjax(' + d.id + ', this)" class="w-full py-2 ' + (item.isPreviouslyUnassigned ? 'bg-gray-600 hover:bg-gray-700' : 'bg-blue-600 hover:bg-blue-700') + ' text-white text-sm font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-2">';
                 html += '    <i class="fas fa-user-plus"></i> Assign Donor';
                 html += '  </button>';
                 html += '</div>';

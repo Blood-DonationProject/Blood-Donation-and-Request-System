@@ -36,7 +36,14 @@ if ($result && $result->num_rows > 0) {
 $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM donation_history")->fetch_assoc()['c'] ?? 0,
     'total_units' => $conn->query("SELECT SUM(units) AS c FROM donation_history")->fetch_assoc()['c'] ?? 0,
-    'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
+    'pending' => $conn->query("
+        SELECT COUNT(*) AS c 
+        FROM blood_request r
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
+        LEFT JOIN users u_donor ON d.user_id = u_donor.id
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+          AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
+    ")->fetch_assoc()['c'] ?? 0,
 ];
 ?>
 <!DOCTYPE html>

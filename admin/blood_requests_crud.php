@@ -261,8 +261,8 @@ if (isset($_POST['assign_donor'])) {
 // Unassign donor action
 if (isset($_GET['unassign'])) {
     $id = (int)$_GET['unassign'];
-    // Check if there is an active assignment that is exactly 'Assigned'
-    $checkAssign = $conn->prepare("SELECT id, donor_id FROM donor_assignments WHERE request_id = ? AND status = 'Assigned'");
+    // Check if there is an active assignment that is 'Assigned', 'Accepted', or 'Pending'
+    $checkAssign = $conn->prepare("SELECT id, donor_id FROM donor_assignments WHERE request_id = ? AND status IN ('Assigned', 'Accepted', 'Pending') ORDER BY id DESC LIMIT 1");
     $checkAssign->bind_param("i", $id);
     $checkAssign->execute();
     $assignRow = $checkAssign->get_result()->fetch_assoc();
@@ -327,10 +327,17 @@ $stats = [
     'completed' => 0
 ];
 try {
-    $stats['total']     = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
-    $stats['pending']   = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0;
-    $stats['approved']  = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Approved', 'Assigned')")->fetch_assoc()['c'] ?? 0;
-    $stats['completed'] = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0;
+    $stats['total']     = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0);
+    $stats['pending']   = (int)($conn->query("
+        SELECT COUNT(*) AS c 
+        FROM blood_request r
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
+        LEFT JOIN users u_donor ON d.user_id = u_donor.id
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+          AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
+    ")->fetch_assoc()['c'] ?? 0);
+    $stats['approved']  = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Approved', 'Assigned')")->fetch_assoc()['c'] ?? 0);
+    $stats['completed'] = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0);
 } catch (Exception $e) {
 }
 
@@ -407,7 +414,9 @@ $assignable_requests = [];
 try {
     $result = $conn->query("
         SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, bg.id AS blood_groups_id,
-               r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id
+               r.units, r.hospital, r.required_date, r.status, r.assigned_donor_id,
+               (SELECT GROUP_CONCAT(DISTINCT donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Rejected') AS rejected_donors,
+               (SELECT GROUP_CONCAT(DISTINCT donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Cancelled') AS unassigned_donors
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL
@@ -436,14 +445,17 @@ try {
 } catch (Exception $e) {
 }
 
-// Pending blood requests for action cards
+// Pending / in-progress blood requests for action cards
 $pending_requests = [];
 try {
     $result = $conn->query("
         SELECT r.id, r.users_id, r.requester_name, bg.blood_gp_name AS blood_group, r.units, r.hospital, r.required_date, r.status
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        WHERE r.status = 'Pending'
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
+        LEFT JOIN users u_donor ON d.user_id = u_donor.id
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+          AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
         ORDER BY r.required_date ASC
         LIMIT 10
     ");
@@ -495,10 +507,17 @@ try {
 }
 
 $stats = [
-    'total' => $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0,
-    'pending' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Pending'")->fetch_assoc()['c'] ?? 0,
-    'approved' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0,
-    'completed' => $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0,
+    'total' => (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0),
+    'pending' => (int)($conn->query("
+        SELECT COUNT(*) AS c 
+        FROM blood_request r
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
+        LEFT JOIN users u_donor ON d.user_id = u_donor.id
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+          AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
+    ")->fetch_assoc()['c'] ?? 0),
+    'approved' => (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Approved'")->fetch_assoc()['c'] ?? 0),
+    'completed' => (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0),
 ];
 ?>
 <!DOCTYPE html>
@@ -1379,6 +1398,8 @@ $stats = [
 
         // Find assignable request info from PHP data
         var assignableRequests = <?= json_encode($assignable_requests) ?>;
+        var modalUnassignedDonors = [];
+        var modalRejectedDonors = [];
 
         function openAssignModal(requestId, isReassign = false) {
             isReassignMode = isReassign;
@@ -1408,6 +1429,9 @@ $stats = [
 
             modalBloodGroup = reqInfo.blood_group;
             modalRequesterUserId = reqInfo.users_id;
+            modalUnassignedDonors = reqInfo.unassigned_donors ? reqInfo.unassigned_donors.split(',').map(Number) : [];
+            modalRejectedDonors = reqInfo.rejected_donors ? reqInfo.rejected_donors.split(',').map(Number) : [];
+
             document.getElementById('modalRequestInfo').textContent = 'Request #' + requestId + ' — ' + reqInfo.requester_name;
             document.getElementById('modalBloodType').textContent = reqInfo.blood_group;
             document.getElementById('modalDonorSearch').value = '';
@@ -1430,30 +1454,48 @@ $stats = [
             var bestMatchBox = document.getElementById('modalBestMatch');
 
             // Only show donors with the exact same blood type
-            var scored = [];
+            var freshDonors = [];
+            var unassignedDonorsList = [];
+
             allDonors.forEach(function(d) {
+                var donorIdNum = parseInt(d.id);
+                if (modalRejectedDonors.includes(donorIdNum)) return;
                 if (d.blood_groups !== bloodGroup) return;
                 if (modalRequesterUserId && d.user_id == modalRequesterUserId) return;
                 var match = calculateMatchScore(d, bloodGroup);
-                if (!searchQuery) {
-                    scored.push({
-                        donor: d,
-                        match: match
-                    });
-                } else {
+
+                var matchesSearch = true;
+                if (searchQuery) {
                     var q = searchQuery.toLowerCase();
-                    if (d.username.toLowerCase().indexOf(q) !== -1 || d.phone.toLowerCase().indexOf(q) !== -1) {
-                        scored.push({
+                    matchesSearch = (d.username.toLowerCase().indexOf(q) !== -1 || d.phone.toLowerCase().indexOf(q) !== -1);
+                }
+
+                if (matchesSearch) {
+                    if (modalUnassignedDonors.includes(donorIdNum)) {
+                        unassignedDonorsList.push({
                             donor: d,
-                            match: match
+                            match: match,
+                            isPreviouslyUnassigned: true
+                        });
+                    } else {
+                        freshDonors.push({
+                            donor: d,
+                            match: match,
+                            isPreviouslyUnassigned: false
                         });
                     }
                 }
             });
 
-            scored.sort(function(a, b) {
+            freshDonors.sort(function(a, b) {
                 return b.match.score - a.match.score;
             });
+
+            unassignedDonorsList.sort(function(a, b) {
+                return b.match.score - a.match.score;
+            });
+
+            var scored = freshDonors.concat(unassignedDonorsList);
 
             if (scored.length === 0) {
                 donorList.innerHTML = '';
@@ -1464,9 +1506,9 @@ $stats = [
 
             noDonors.classList.add('hidden');
 
-            // Show best match
+            // Show best match (only if a fresh suitable donor is available)
             var best = scored[0];
-            if (best.match.score > 0) {
+            if (best.match.score > 0 && !best.isPreviouslyUnassigned) {
                 bestMatchBox.classList.remove('hidden');
                 document.getElementById('modalBestMatchText').textContent =
                     best.donor.username + ' — ' + best.match.reasons.join(', ') + ' (Score: ' + best.match.score + '/100)';
@@ -1478,9 +1520,9 @@ $stats = [
             scored.forEach(function(item, idx) {
                 var d = item.donor;
                 var m = item.match;
-                var isBest = idx === 0 && m.score > 0;
+                var isBest = idx === 0 && m.score > 0 && !item.isPreviouslyUnassigned;
                 var borderColor = isBest ? 'best-match' : '';
-                var bestBadge = isBest ? '<span class="ml-2 text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full"><i class="fas fa-star mr-1"></i>Best</span>' : '';
+                var bestBadge = isBest ? '<span class="ml-2 text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full"><i class="fas fa-star mr-1"></i>Best</span>' : (item.isPreviouslyUnassigned ? '<span class="ml-2 text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full"><i class="fas fa-undo mr-1"></i>Previously Unassigned</span>' : '');
                 var barColor = m.score >= 70 ? 'bg-green-500' : m.score >= 40 ? 'bg-yellow-500' : 'bg-gray-300';
 
                 html += '<div class="assign-modal-donor ' + borderColor + '" data-donor-id="' + d.id + '" onclick="selectModalDonor(this, ' + d.id + ')">';
@@ -1512,8 +1554,8 @@ $stats = [
 
             donorList.innerHTML = html;
 
-            // Auto-select best match
-            if (scored.length > 0 && scored[0].match.score > 0) {
+            // Auto-select best match only if it's a fresh suitable candidate
+            if (scored.length > 0 && scored[0].match.score > 0 && !scored[0].isPreviouslyUnassigned) {
                 var bestItem = donorList.querySelector('.assign-modal-donor[data-donor-id="' + scored[0].donor.id + '"]');
                 if (bestItem) {
                     selectModalDonor(bestItem, scored[0].donor.id);
