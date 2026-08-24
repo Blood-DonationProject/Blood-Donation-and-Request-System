@@ -9,7 +9,27 @@ if (!$isLoggedIn) {
   exit;
 }
 
-$username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
+$userId = $_SESSION['user_id'] ?? 0;
+$username = $isLoggedIn ? htmlspecialchars($_SESSION['username'] ?? '') : '';
+$userEmail = '';
+
+// Retrieve user's email from users table
+if ($userId > 0) {
+  $userStmt = $conn->prepare("SELECT username, email FROM users WHERE id = ? LIMIT 1");
+  if ($userStmt) {
+    $userStmt->bind_param("i", $userId);
+    $userStmt->execute();
+    $userRes = $userStmt->get_result();
+    if ($userRes && $userRes->num_rows > 0) {
+      $userData = $userRes->fetch_assoc();
+      $userEmail = $userData['email'] ?? '';
+      if (empty($username) && !empty($userData['username'])) {
+        $username = htmlspecialchars($userData['username']);
+      }
+    }
+    $userStmt->close();
+  }
+}
 
 $message = '';
 $messageType = '';
@@ -20,7 +40,6 @@ $donorStatus = '';
 $daysRemaining = 0;
 
 if ($isLoggedIn) {
-  $userId = $_SESSION['user_id'] ?? 0;
 
   // Check if user already has a donor record
   $checkStmt = $conn->prepare("SELECT id, available_status, last_donation_date FROM donor WHERE user_id = ? LIMIT 1");
@@ -473,7 +492,7 @@ if ($isLoggedIn) {
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                <input type="email" value="<?= htmlspecialchars($editMode ? ($editData['email'] ?? '') : ($_SESSION['email'] ?? '')) ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
+                <input type="email" value="<?= htmlspecialchars($editMode ? ($editData['email'] ?? $userEmail) : $userEmail) ?>" readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
               </div>
             </div>
             <div class="grid sm:grid-cols-2 gap-5">

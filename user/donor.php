@@ -89,7 +89,7 @@ if (isset($_GET['action']) && isset($_GET['req_id'])) {
       $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
       $notif->execute();
     }
-    
+
     // Notify Requester
     $get_req = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM blood_request br JOIN users u ON br.users_id = u.id WHERE br.id = ?");
     $get_req->bind_param("i", $r_id);
@@ -98,12 +98,12 @@ if (isset($_GET['action']) && isset($_GET['req_id'])) {
     $get_req->close();
 
     if ($req_user) {
-        $reqMsg = "The assigned donor rejected your blood request. We are finding another donor.";
-        $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Rejected', ?)");
-        $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
-        $reqNotif->execute();
-        $notifId = $conn->insert_id;
-        $reqNotif->close();
+      $reqMsg = "The assigned donor rejected your blood request. We are finding another donor.";
+      $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Rejected', ?)");
+      $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
+      $reqNotif->execute();
+      $notifId = $conn->insert_id;
+      $reqNotif->close();
     }
   }
   header("Location: donor.php");
@@ -567,12 +567,12 @@ if (count($donors) > 0) {
             </div>
           <?php else: ?>
             <div class="flex flex-col sm:flex-row gap-4">
-              <a href="donor.php?action=register_donor" class="bg-white text-red-700 px-8 py-4 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl transition transform hover:scale-105 text-center">
-                <i class="fas fa-hand-holding-heart mr-2"></i> <span data-i18n="register_as_donor">Register as Donor</span>
-              </a>
-              <a href="#process" class="border-2 border-white/50 text-red-500 px-8 py-4 rounded-xl font-bold hover:bg-red-50/10 transition text-center">
-                <i class="fas fa-circle-info mr-2"></i> <span data-i18n="learn_more">Learn More</span>
-              </a>
+              <a href="donor.php?action=register_donor" class="bg-white text-red-700 px-8 py-4 rounded-xl font-bold hover:bg-pink-50 hover:shadow-xl border-2 border-red-500/30 transition transform hover:scale-105 text-center">
+                <i class="fas fa-hand-holding-heart mr-2"></i> <span data-i18n="register_as_donor">Register as Donor</span
+                  </a>
+                <a href="#process" class="text-red-500 px-8 py-4 rounded-xl font-bold  hover:bg-red-50/10 border-2 border-red-500/30 transition text-center">
+                  <i class="fas fa-circle-info mr-2"></i> <span data-i18n="learn_more">Learn More</span>
+                </a>
             </div>
           <?php endif; ?>
         </div>

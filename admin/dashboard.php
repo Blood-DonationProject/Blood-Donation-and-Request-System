@@ -79,18 +79,43 @@ try {
 
 $recent_users = [];
 try {
-    $user_query = "
-        SELECT 
-            id,
-            username,
-            email,
-            role,
-            status,
-            created_at
-        FROM users
-        ORDER BY created_at DESC, id DESC
-        LIMIT 5
-    ";
+    $roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+    $hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+
+    if ($hasRoleColumn) {
+        $user_query = "
+            SELECT 
+                id,
+                username,
+                email,
+                role,
+                status,
+                created_at
+            FROM users
+            ORDER BY created_at DESC, id DESC
+            LIMIT 5
+        ";
+    } else {
+        $user_query = "
+            SELECT 
+                u.id,
+                u.username,
+                u.email,
+                u.status,
+                u.created_at,
+                CASE 
+                    WHEN u.username = 'admin' THEN 'Admin'
+                    WHEN d.user_id IS NOT NULL THEN 'Donor'
+                    WHEN br.users_id IS NOT NULL THEN 'Requester'
+                    ELSE 'User'
+                END AS role
+            FROM users u
+            LEFT JOIN (SELECT DISTINCT user_id FROM donor) d ON d.user_id = u.id
+            LEFT JOIN (SELECT DISTINCT users_id FROM blood_request) br ON br.users_id = u.id
+            ORDER BY u.created_at DESC, u.id DESC
+            LIMIT 5
+        ";
+    }
     $user_res = $conn->query($user_query);
     if ($user_res) {
         while ($row = $user_res->fetch_assoc()) {
@@ -647,29 +672,29 @@ $current_time = date('h:i A');
                         <table class="w-full text-left border-collapse min-w-max">
                             <thead>
                                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">User</th>
-                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Email</th>
-                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Role</th>
-                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Status</th>
-                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Registered</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">User</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Email</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Role</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Status</th>
+                                    <th class="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-700">Registered</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($recent_users as $u): ?>
-                                    <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/25 transition-colors">
+                                    <tr class="border-b border-gray-100 dark:border-gray-500/30 hover:bg-gray-50 dark:hover:bg-gray-700/25 transition-colors">
                                         <td class="py-3 px-4">
                                             <div class="flex items-center gap-3">
-                                                <div class="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center text-xs font-bold text-red-700 dark:text-red-400">
+                                                <div class="w-8 h-8 bg-red-100 dark:bg-red-500/30 rounded-full flex items-center justify-center text-xs font-bold text-red-700 dark:text-red-700">
                                                     <?php echo strtoupper(substr(htmlspecialchars($u['username'] ?? '-'), 0, 1)); ?>
                                                 </div>
-                                                <span class="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                                <span class="text-sm font-medium text-gray-800 dark:text-gray-700">
                                                     <?php echo htmlspecialchars($u['username'] ?? 'Unknown'); ?>
                                                 </span>
                                             </div>
                                         </td>
-                                        <td class="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                                        <td class="py-3 px-4 text-sm text-gray-700 dark:text-gray-700">
                                             <?php if (!empty($u['email'])): ?>
-                                                <a href="mailto:<?php echo htmlspecialchars($u['email']); ?>" class="hover:underline text-blue-600 dark:text-blue-400">
+                                                <a href="mailto:<?php echo htmlspecialchars($u['email']); ?>" class="hover:underline text-blue-700 dark:text-blue-600">
                                                     <?php echo htmlspecialchars($u['email']); ?>
                                                 </a>
                                             <?php else: ?>
@@ -680,10 +705,10 @@ $current_time = date('h:i A');
                                             <?php
                                             $role = $u['role'] ?? 'User';
                                             $roleClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-                                            if ($role === 'Admin') $roleClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
-                                            elseif ($role === 'User') $roleClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-                                            elseif ($role === 'Donor') $roleClass = 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400';
-                                            elseif ($role === 'Requester') $roleClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
+                                            if ($role === 'Admin') $roleClass = 'bg-purple-100 text-purple-800 dark:bg-purple-500/30 dark:text-purple-600';
+                                            elseif ($role === 'User') $roleClass = 'bg-blue-100 text-blue-800 dark:bg-blue-500/30 dark:text-blue-600';
+                                            elseif ($role === 'Donor') $roleClass = 'bg-pink-100 text-pink-800 dark:bg-pink-500/30 dark:text-pink-600';
+                                            elseif ($role === 'Requester') $roleClass = 'bg-orange-100 text-orange-800 dark:bg-orange-500/30 dark:text-orange-600';
                                             ?>
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap <?php echo $roleClass; ?>">
                                                 <?php echo htmlspecialchars($role); ?>
@@ -692,9 +717,9 @@ $current_time = date('h:i A');
                                         <td class="py-3 px-4">
                                             <?php
                                             $status = $u['status'] ?? 'Active';
-                                            $statusClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-                                            if ($status === 'Active') $statusClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-                                            elseif ($status === 'Inactive') $statusClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+                                            $statusClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-600';
+                                            if ($status === 'Active') $statusClass = 'bg-green-100 text-green-800 dark:bg-green-500/30 dark:text-green-600';
+                                            elseif ($status === 'Inactive') $statusClass = 'bg-red-100 text-red-800 dark:bg-red-500/30 dark:text-red-600';
                                             ?>
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap <?php echo $statusClass; ?>">
                                                 <?php echo htmlspecialchars($status); ?>
@@ -711,7 +736,7 @@ $current_time = date('h:i A');
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    <a href="users_crud.php" class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-2 transition-colors">
+                    <a href="users_crud.php" class="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-600 dark:hover:text-blue-700 flex items-center gap-2 transition-colors">
                         View All Users <i class="fas fa-arrow-right"></i>
                     </a>
                 </div>
