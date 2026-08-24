@@ -338,9 +338,21 @@ $requests = [];
 $edit_row = null;
 
 $result = $conn->query("
-    SELECT br.*, bg.blood_gp_name
+    SELECT br.*, bg.blood_gp_name,
+           u.username as requester_username,
+           d_u.username as donor_username,
+           d.available_status as donor_status,
+           da.status as assignment_status
     FROM blood_request br
     LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
+    LEFT JOIN users u ON br.users_id = u.id
+    LEFT JOIN donor d ON COALESCE(br.assigned_donor_id, br.donor_id) = d.id
+    LEFT JOIN users d_u ON d.user_id = d_u.id
+    LEFT JOIN (
+        SELECT request_id, donor_id, status
+        FROM donor_assignments
+        WHERE id IN (SELECT MAX(id) FROM donor_assignments GROUP BY request_id)
+    ) da ON da.request_id = br.id
     ORDER BY br.required_date DESC
 ");
 if ($result && $result->num_rows > 0) {
@@ -364,15 +376,18 @@ if (isset($_GET['view'])) {
         SELECT br.*, bg.blood_gp_name, 
                u.username as requester_username, 
                d_u.username as donor_username,
+               d.available_status as donor_status,
+               d.blood_groups as donor_blood_group,
+               d.phone as donor_phone,
                da.created_at as assigned_date,
                da.responded_at as responded_date,
                da.status as assignment_status
         FROM blood_request br
         LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
         LEFT JOIN users u ON br.users_id = u.id
-        LEFT JOIN donor d ON br.assigned_donor_id = d.id
+        LEFT JOIN donor d ON COALESCE(br.assigned_donor_id, br.donor_id) = d.id
         LEFT JOIN users d_u ON d.user_id = d_u.id
-        LEFT JOIN donor_assignments da ON da.request_id = br.id AND da.donor_id = br.assigned_donor_id
+        LEFT JOIN donor_assignments da ON da.request_id = br.id AND da.donor_id = COALESCE(br.assigned_donor_id, br.donor_id)
         WHERE br.id = ?
         ORDER BY da.id DESC LIMIT 1
     ");
@@ -445,12 +460,15 @@ try {
     $result = $conn->query("
         SELECT r.id, r.requester_name, bg.blood_gp_name AS blood_group, r.units,
                r.hospital, r.required_date, r.status,
-               u.username AS donor_name, d.blood_groups AS donor_blood_group, d.phone AS donor_phone
+               u.username AS donor_name, d.blood_groups AS donor_blood_group, d.phone AS donor_phone,
+               d.available_status AS donor_status,
+               da.status AS assignment_status
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        LEFT JOIN donor d ON r.assigned_donor_id = d.id
+        LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
         LEFT JOIN users u ON d.user_id = u.id
-        WHERE r.assigned_donor_id IS NOT NULL AND r.status IN ('Assigned', 'Approved', 'Completed')
+        LEFT JOIN donor_assignments da ON da.request_id = r.id AND da.donor_id = COALESCE(r.assigned_donor_id, r.donor_id)
+        WHERE (r.assigned_donor_id IS NOT NULL OR r.donor_id IS NOT NULL)
         ORDER BY r.required_date DESC
     ");
     if ($result && $result->num_rows > 0) {
@@ -768,15 +786,27 @@ $stats = [
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Requester Name</p>
-                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['requester_name'] ?: $view_row['requester_username']) ?></p>
+                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['requester_name'] ?: ($view_row['requester_username'] ?: 'Unknown')) ?></p>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Donor Name</p>
-                                <p class="text-gray-900 font-medium"><?= $view_row['assigned_donor_id'] ? htmlspecialchars($view_row['donor_username']) : '<span class="text-gray-400 italic">Not Assigned</span>' ?></p>
+                                <?php if (!empty($view_row['assigned_donor_id']) || !empty($view_row['donor_id'])): ?>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['donor_username'] ?: 'Donor #' . ($view_row['assigned_donor_id'] ?: $view_row['donor_id'])) ?></p>
+                                        <?php
+                                        $donorStatus = $view_row['donor_status'] ?? '';
+                                        $donorBadgeColor = ($donorStatus === 'Available') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                                        if ($donorStatus): ?>
+                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold <?= $donorBadgeColor ?>"><?= htmlspecialchars($donorStatus) ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <p class="text-gray-400 italic">Not Assigned</p>
+                                <?php endif; ?>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Blood Group</p>
-                                <p class="text-red-600 font-bold bg-red-50 inline-block px-3 py-1 rounded-lg"><?= htmlspecialchars($view_row['blood_gp_name']) ?></p>
+                                <p class="text-red-600 font-bold bg-red-50 inline-block px-3 py-1 rounded-lg"><?= htmlspecialchars($view_row['blood_gp_name'] ?? '-') ?></p>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Units</p>
@@ -784,11 +814,11 @@ $stats = [
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Hospital</p>
-                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['hospital']) ?></p>
+                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['hospital'] ?? '-') ?></p>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Required Date</p>
-                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['required_date']) ?></p>
+                                <p class="text-gray-900 font-medium"><?= htmlspecialchars($view_row['required_date'] ?? '-') ?></p>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Urgency</p>
@@ -798,14 +828,20 @@ $stats = [
                             <div>
                                 <p class="text-sm text-gray-500 font-semibold mb-1">Assignment Status</p>
                                 <?php
-                                $st = $view_row['status'];
-                                $stClasses = 'bg-yellow-100 text-yellow-700';
+                                $st = $view_row['status'] ?: ($view_row['assignment_status'] ?? '');
+                                if (empty($st)) {
+                                    $st = (!empty($view_row['assigned_donor_id']) || !empty($view_row['donor_id'])) ? 'Assigned' : 'Pending';
+                                }
+                                $stClasses = 'bg-gray-100 text-gray-700';
                                 if ($st == 'Approved') $stClasses = 'bg-blue-100 text-blue-700';
-                                if ($st == 'Assigned') $stClasses = 'bg-indigo-100 text-indigo-700';
-                                if ($st == 'Accepted') $stClasses = 'bg-purple-100 text-purple-700';
-                                if ($st == 'Received') $stClasses = 'bg-teal-100 text-teal-700';
-                                if ($st == 'Completed') $stClasses = 'bg-green-100 text-green-700';
-                                if ($st == 'Rejected') $stClasses = 'bg-red-100 text-red-700';
+                                elseif ($st == 'Assigned') $stClasses = 'bg-indigo-100 text-indigo-700';
+                                elseif ($st == 'Accepted') $stClasses = 'bg-purple-100 text-purple-700';
+                                elseif ($st == 'Received') $stClasses = 'bg-teal-100 text-teal-700';
+                                elseif ($st == 'Completed') $stClasses = 'bg-green-100 text-green-700';
+                                elseif ($st == 'Available') $stClasses = 'bg-green-100 text-green-700';
+                                elseif ($st == 'Unavailable') $stClasses = 'bg-red-100 text-red-700';
+                                elseif ($st == 'Rejected' || $st == 'Cancelled') $stClasses = 'bg-red-100 text-red-700';
+                                elseif ($st == 'Pending') $stClasses = 'bg-yellow-100 text-yellow-700';
                                 ?>
                                 <p class="inline-block px-3 py-1 rounded-full text-xs font-bold <?= $stClasses ?>"><?= htmlspecialchars($st) ?></p>
                             </div>
@@ -813,7 +849,10 @@ $stats = [
 
                         <!-- Timeline -->
                         <?php
-                        $st = $view_row['status'];
+                        $st = $view_row['status'] ?: ($view_row['assignment_status'] ?? '');
+                        if (empty($st) && (!empty($view_row['assigned_donor_id']) || !empty($view_row['donor_id']))) {
+                            $st = 'Assigned';
+                        }
                         $ast = $view_row['assignment_status'] ?? '';
 
                         $steps = [
@@ -882,7 +921,7 @@ $stats = [
 
                         <!-- Actions -->
                         <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end">
-                            <?php if ($st === 'Rejected'): ?>
+                            <?php if ($st === 'Rejected' || $st === 'Cancelled'): ?>
                                 <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, true)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Another Donor</button>
                             <?php elseif ($st === 'Assigned'): ?>
                                 <span class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200"><i class="fas fa-hourglass-half mr-2"></i> Wait for donor response</span>
@@ -892,7 +931,7 @@ $stats = [
                                 <button type="button" onclick="openCompleteModal(<?= (int)$view_row['id'] ?>)" class="bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-check-circle"></i> Mark as Completed</button>
                             <?php elseif ($st === 'Completed'): ?>
                                 <button disabled class="bg-gray-200 text-gray-500 px-5 py-2.5 rounded-xl font-bold cursor-not-allowed flex items-center gap-2"><i class="fas fa-check-double"></i> Completed</button>
-                            <?php elseif (in_array($st, ['Pending', 'Approved']) && empty($view_row['assigned_donor_id'])): ?>
+                            <?php elseif (in_array($st, ['Pending', 'Approved']) && empty($view_row['assigned_donor_id']) && empty($view_row['donor_id'])): ?>
                                 <button type="button" onclick="openAssignModal(<?= (int)$view_row['id'] ?>, false)" class="bg-red-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> Assign Donor</button>
                             <?php endif; ?>
                         </div>
@@ -1023,32 +1062,43 @@ $stats = [
                                 <?php if (count($requests) > 0): ?>
                                     <?php foreach ($requests as $r): ?>
                                         <?php
+                                        $reqStatus = $r['status'] ?: ($r['assignment_status'] ?? '');
+                                        if (empty($reqStatus)) {
+                                            $reqStatus = (!empty($r['assigned_donor_id']) || !empty($r['donor_id'])) ? 'Assigned' : 'Pending';
+                                        }
+
                                         $statusColors = [
                                             'Pending'   => 'bg-yellow-100 text-yellow-700',
                                             'Approved'  => 'bg-blue-100 text-blue-700',
+                                            'Assigned'  => 'bg-indigo-100 text-indigo-700',
+                                            'Accepted'  => 'bg-purple-100 text-purple-700',
+                                            'Received'  => 'bg-teal-100 text-teal-700',
                                             'Completed' => 'bg-green-100 text-green-700',
+                                            'Available' => 'bg-green-100 text-green-700',
+                                            'Unavailable' => 'bg-red-100 text-red-700',
                                             'Rejected'  => 'bg-red-100 text-red-700',
+                                            'Cancelled' => 'bg-red-100 text-red-700',
                                         ];
-                                        $sc = $statusColors[$r['status']] ?? 'bg-gray-100 text-gray-700';
+                                        $sc = $statusColors[$reqStatus] ?? 'bg-gray-100 text-gray-700';
 
                                         $urgencyColors = [
                                             'Normal' => 'bg-blue-100 text-blue-700',
-                                            'Urgent' => 'bg-red-100 text red-700',
+                                            'Urgent' => 'bg-red-100 text-red-700',
                                             'Emergency' => 'bg-red-100 text-red-700',
                                         ];
                                         $uc = $urgencyColors[$r['urgency'] ?? 'Normal'] ?? 'bg-gray-100 text-gray-700';
                                         ?>
                                         <tr class="request-row border-t border-slate-200 hover:bg-gray-50"
                                             data-blood-group="<?= htmlspecialchars($r['blood_gp_name'] ?? '') ?>"
-                                            data-status="<?= htmlspecialchars($r['status'] ?? '') ?>">
+                                            data-status="<?= htmlspecialchars($reqStatus) ?>">
                                             <td class="p-3 font-medium hidden">#<?= $r['id'] ?></td>
-                                            <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?? '-') ?></td>
+                                            <td class="p-3"><?= htmlspecialchars($r['requester_name'] ?: ($r['requester_username'] ?? '-')) ?></td>
                                             <td class="p-3"><span class="bg-gradient-to-br from-red-100 to-red-200 text-red-700 font-bold px-3 py-1 rounded-full text-xs"><?= htmlspecialchars($r['blood_gp_name'] ?? '-') ?></span></td>
                                             <td class="p-3">1 Unit</td>
                                             <td class="p-3"><?= htmlspecialchars($r['hospital']) ?></td>
                                             <td class="p-3"><?= htmlspecialchars($r['required_date']) ?></td>
                                             <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $uc ?>"><?= htmlspecialchars($r['urgency'] ?? 'Normal') ?></span></td>
-                                            <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $sc ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+                                            <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $sc ?>"><?= htmlspecialchars($reqStatus) ?></span></td>
                                             <td class="p-3">
                                                 <div class="flex gap-2">
                                                     <a href="blood_requests_crud.php?view=<?= $r['id'] ?>" class="text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
