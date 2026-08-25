@@ -13,11 +13,11 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO users (username, password, role)
+INSERT INTO users (username, email, password, role)
 VALUES
-('admin', '123456', 'Admin'),
-('aungaung', '123456', 'Donor'),
-('mgmg', '123456', 'Requester');
+('admin', 'bloodcommunicationsystem12@gmail.com', '123456', 'Admin'),
+('aungaung', 'aungaung@example.com', '123456', 'Donor'),
+('mgmg', 'mgmg@example.com', '123456', 'Requester');
 
 CREATE TABLE blood_groups (
     id INT AUTO_INCREMENT PRIMARY KEY,

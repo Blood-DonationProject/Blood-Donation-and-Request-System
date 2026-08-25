@@ -9,6 +9,33 @@ $success = '';
 $roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
 $hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
 
+// Handle add user
+if (isset($_POST['add'])) {
+    $username = trim($_POST['username']);
+    $email = trim($_POST['email']);
+    $password = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
+    $role = $_POST['role'] ?? 'User';
+    $status = $_POST['status'] ?? 'Active';
+
+    if ($username !== '' && !empty(trim($_POST['password']))) {
+        if ($hasRoleColumn) {
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssss", $username, $email, $password, $role, $status);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, status) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssss", $username, $email, $password, $status);
+        }
+        if ($stmt->execute()) {
+            $success = 'User created successfully.';
+        } else {
+            $error = 'Error: ' . $conn->error;
+        }
+        $stmt->close();
+    } else {
+        $error = 'Username and password are required.';
+    }
+}
+
 // Handle status toggle
 if (isset($_POST['toggle_status'])) {
     $id = (int)$_POST['id'];
@@ -39,8 +66,8 @@ if (isset($_POST['update'])) {
     $id = (int)$_POST['id'];
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
-    $role = $_POST['role'];
-    $status = $_POST['status'];
+    $role = $_POST['role'] ?? 'User';
+    $status = $_POST['status'] ?? 'Active';
 
     if ($username !== '') {
         if (!empty(trim($_POST['password']))) {
@@ -124,6 +151,7 @@ if ($hasRoleColumn) {
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
@@ -164,7 +192,7 @@ if ($hasRoleColumn) {
      <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
     <!-- Main Content -->
-    <main class="flex-1">
+    <main class="flex-1 min-w-0 flex flex-col">
         <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
         <div class="p-8">
@@ -176,6 +204,18 @@ if ($hasRoleColumn) {
                 <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
             <?php endif; ?>
 
+
+            <!-- Top Action / Header -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800">User Management</h3>
+                    <p class="text-sm text-gray-500">Manage and monitor all system user accounts.</p>
+                </div>
+                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-5 py-2.5 rounded-xl hover:shadow-lg transition flex items-center gap-2">
+                    <i class="fas fa-plus"></i>
+                    <span><?= $edit_row ? 'Edit User' : 'Add New User' ?></span>
+                </button>
+            </div>
 
             <!-- Search and Filter -->
             <div class="flex flex-col md:flex-row gap-4 mb-6">
@@ -198,16 +238,15 @@ if ($hasRoleColumn) {
                 </div>
             </div>
 
-
-
-            <?php if ($edit_row): ?>
-            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 <?= $edit_row ? '' : 'hidden' ?>">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800">Edit User</h3>
-                    <a href="users_crud.php" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</a>
+                    <h3 class="text-xl font-bold text-gray-800"><?= $edit_row ? 'Edit User' : 'New User' ?></h3>
+                    <button type="button" onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
                 </div>
                 <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
+                    <?php if ($edit_row): ?>
+                        <input type="hidden" name="id" value="<?= $edit_row['id'] ?>">
+                    <?php endif; ?>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Username *</label>
                         <input type="text" name="username" value="<?= htmlspecialchars($edit_row['username'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
@@ -217,8 +256,8 @@ if ($hasRoleColumn) {
                         <input type="email" name="email" value="<?= htmlspecialchars($edit_row['email'] ?? '') ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Password (leave blank to keep)</label>
-                        <input type="password" name="password" value="" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Password <?= $edit_row ? '(leave blank to keep)' : '*' ?></label>
+                        <input type="password" name="password" value="" <?= $edit_row ? '' : 'required' ?> class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
                     </div>
                     <?php if ($hasRoleColumn): ?>
                     <div>
@@ -239,14 +278,13 @@ if ($hasRoleColumn) {
                         </select>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" name="update" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
-                            Update
+                        <button type="submit" name="<?= $edit_row ? 'update' : 'add' ?>" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
+                            <?= $edit_row ? 'Update' : 'Create' ?>
                         </button>
                         <a href="users_crud.php" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</a>
                     </div>
                 </form>
             </div>
-            <?php endif; ?>
 
             <!-- Data Table -->
             <div class="bg-white rounded-2xl shadow-lg p-6">
@@ -279,9 +317,9 @@ if ($hasRoleColumn) {
                             <?php if (count($users) > 0): ?>
                                 <?php foreach ($users as $u): ?>
                                     <?php
-                                    $roleBadges = ['Admin'=>'bg-purple-100 text-purple-700','User'=>'bg-green-100 text-green-700'];
-                                    $statusColor = ($u['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-                                    $displayName = $u['name'] ?? $u['username'] ?? '-';
+                                     $roleBadges = ['Admin'=>'bg-purple-100 text-purple-700','User'=>'bg-green-100 text-green-700'];
+                                     $statusColor = ($u['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                                     $displayName = $u['name'] ?? $u['username'] ?? '-';
                                     ?>
                                     <tr class="user-row border-t border-slate-200 hover:bg-gray-50" data-role="<?= htmlspecialchars($u['role'] ?? 'User') ?>" data-status="<?= htmlspecialchars($u['status'] ?? 'Active') ?>">
                                         <td class="p-3 font-medium hidden">#<?= $u['id'] ?></td>
@@ -303,12 +341,23 @@ if ($hasRoleColumn) {
                                         <td class="p-3 text-gray-500 text-xs whitespace-nowrap"><?= !empty($u['last_activity']) ? date('M d, Y h:i A', strtotime($u['last_activity'])) : 'Never' ?></td>
                                         <td class="p-3 text-gray-500 text-xs whitespace-nowrap"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
                                         <td class="p-3">
-                                            <div class="flex gap-2 items-center">
+                                            <div class="flex gap-3 items-center">
+                                                <button type="button" onclick='viewUser(<?= json_encode($u) ?>)' class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs" title="View Details">
+                                                    <i class="fas fa-eye mr-1"></i>View
+                                                </button>
+                                                <a href="users_crud.php?edit=<?= $u['id'] ?>" class="text-blue-600 hover:text-blue-800 font-semibold text-xs" title="Edit">
+                                                    <i class="fas fa-edit mr-1"></i>Edit
+                                                </a>
                                                 <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to <?= ($u['status'] ?? 'Active') === 'Active' ? 'deactivate' : 'activate' ?> this user?')">
                                                     <input type="hidden" name="id" value="<?= $u['id'] ?>">
                                                     <input type="hidden" name="new_status" value="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Inactive' : 'Active' ?>">
-                                                    <button type="submit" name="toggle_status" class="<?= ($u['status'] ?? 'Active') === 'Active' ? 'text-orange-600 hover:text-orange-800' : 'text-green-600 hover:text-green-800' ?> font-semibold" title="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>"><?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?></button>
+                                                    <button type="submit" name="toggle_status" class="<?= ($u['status'] ?? 'Active') === 'Active' ? 'text-orange-600 hover:text-orange-800' : 'text-green-600 hover:text-green-800' ?> font-semibold text-xs" title="<?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>">
+                                                        <i class="fas <?= ($u['status'] ?? 'Active') === 'Active' ? 'fa-user-slash' : 'fa-user-check' ?> mr-1"></i><?= ($u['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>
+                                                    </button>
                                                 </form>
+                                                <button type="button" onclick="openDeleteModal('users_crud.php?delete=<?= $u['id'] ?>')" class="text-red-600 hover:text-red-800 font-semibold text-xs" title="Delete">
+                                                    <i class="fas fa-trash-alt mr-1"></i>Delete
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -378,7 +427,13 @@ document.addEventListener('click', function(e) {
     }
 });
 function toggleForm() {
-    document.getElementById('crudForm').scrollIntoView({ behavior: 'smooth' });
+    const form = document.getElementById('crudForm');
+    if (form) {
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
+            form.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
 }
 
 // View User Modal

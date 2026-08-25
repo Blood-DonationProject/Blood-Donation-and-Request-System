@@ -103,6 +103,7 @@ if (isset($_GET['edit'])) {
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="../assets/css/myanmar-font.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
@@ -136,47 +137,15 @@ if (isset($_GET['edit'])) {
     </style>
 </head>
 
-<body class="bg-gray-100">
+<body class="bg-gray-100 dark:bg-gray-900">
 
 <div class="flex min-h-screen">
 
     <!-- Sidebar -->
-    <div class="sidebar w-64 bg-white shadow-lg hover:ring-1 hover:ring-pink-500/20 hidden md:flex flex-col sticky top-0 self-start h-screen overflow-y-auto transition-colors duration-300">
-        <div class="p-6 border-b border-gray-200">
-            <div class="flex items-center space-x-3">
-                <span class="text-3xl">🩸</span>
-                <div>
-                    <h1 class="font-bold text-lg text-red-700">BloodLife</h1>
-                    <p class="text-xs text-gray-600">CRUD Panel</p>
-                </div>
-            </div>
-        </div>
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
-                <span>📊</span> <span data-i18n="overview">Overview</span>
-            </a>
-            <a href="logindata.php" class="flex items-center space-x-3 px-4 py-3 bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30 rounded-lg transition">
-                <span>👥</span> <span>Users</span>
-            </a>
-            <a href="donor_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
-                <span>🩸</span> <span>Donors</span>
-            </a>
-            <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
-                <span>⚡</span> <span>Donation History</span>
-            </a>
-            <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20 rounded-lg transition">
-                <span>📋</span> <span>Blood Requests</span>
-            </a>
-            
-            
-        </nav>
-        <div class="p-4 border-t border-gray-200">
-            <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="w-full bg-red-600 text-white flex justify-center py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="logout">Logout</a>
-        </div>
-    </div>
+    <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
     <!-- Main Content -->
-    <main class="flex-1">
+    <main class="flex-1 min-w-0 flex flex-col">
         <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
         <div class="p-8">

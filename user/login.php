@@ -62,12 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $loginSuccess = false;
     $targetPath = '';
 
-    // Hardcoded admin credentials
-    if ($email === 'bloodcommunicationsystem@gmail.com' && $password === 'password123') {
+    // Hardcoded admin credentials fallback
+    if ($email === 'bloodcommunicationsystem12@gmail.com' && $password === 'Password123') {
       $_SESSION['logged_in'] = true;
-      $_SESSION['user_id'] = 0;
+      $_SESSION['user_id'] = 22;
       $_SESSION['username'] = 'admin';
-      $_SESSION['user_email'] = 'bloodcommunicationsystem@gmail.com';
+      $_SESSION['user_email'] = 'bloodcommunicationsystem12@gmail.com';
       $_SESSION['user_role'] = 'Admin';
       $loginSuccess = true;
       $targetPath = '../admin/donation_history_crud.php';
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Verify credentials against the database
     if (!$loginSuccess) {
-      $stmt = $conn->prepare("SELECT id, username, password, status, last_activity, last_login FROM users WHERE email = ? LIMIT 1");
+      $stmt = $conn->prepare("SELECT id, username, email, password, role, status, last_activity, last_login FROM users WHERE email = ? LIMIT 1");
       if ($stmt) {
         $stmt->bind_param('s', $email);
         $stmt->execute();
@@ -118,13 +118,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $_SESSION['logged_in'] = true;
               $_SESSION['username'] = $row['username'];
               $_SESSION['user_id'] = $row['id'];
-              $_SESSION['user_role'] = 'User';
+              $_SESSION['user_email'] = $row['email'] ?? $email;
+              
+              $userRole = (isset($row['role']) && $row['role'] === 'Admin') || $row['email'] === 'bloodcommunicationsystem12@gmail.com' || $row['username'] === 'admin' ? 'Admin' : 'User';
+              $_SESSION['user_role'] = $userRole;
               $loginSuccess = true;
-              $targetPath = 'index.php';
 
-              if (isset($_SESSION['donor_registration_flow']) && $_SESSION['donor_registration_flow'] === true) {
-                  $targetPath = 'donateform.php';
-                  unset($_SESSION['donor_registration_flow']);
+              if ($userRole === 'Admin') {
+                $targetPath = '../admin/donation_history_crud.php';
+              } else {
+                $targetPath = 'index.php';
+                if (isset($_SESSION['donor_registration_flow']) && $_SESSION['donor_registration_flow'] === true) {
+                    $targetPath = 'donateform.php';
+                    unset($_SESSION['donor_registration_flow']);
+                }
               }
             }
           }

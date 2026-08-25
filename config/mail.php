@@ -42,7 +42,7 @@ $mailConfig = [
     'smtp_auth'     => filter_var(getenv('MAIL_AUTH') ?: true, FILTER_VALIDATE_BOOLEAN),
     'smtp_username' => getenv('MAIL_USERNAME') ?: '',
     'smtp_password' => getenv('MAIL_PASSWORD') ?: '',
-    'from_email'    => getenv('MAIL_FROM_ADDRESS') ?: (getenv('MAIL_USERNAME') ?: 'bloodcommunicationsystem@gmail.com'),
+    'from_email'    => getenv('MAIL_FROM_ADDRESS') ?: (getenv('MAIL_USERNAME') ?: 'bloodcommunicationsystem12@gmail.com'),
     'from_name'     => getenv('MAIL_FROM_NAME') ?: 'BloodLife Donation System',
     'debug'         => filter_var(getenv('MAIL_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN),
 ];
@@ -52,6 +52,15 @@ $localConfigPath = __DIR__ . '/mail.local.php';
 if (file_exists($localConfigPath)) {
     $localConfig = require $localConfigPath;
     if (is_array($localConfig)) {
+        if (isset($localConfig['from_email']) && ($localConfig['from_email'] === 'your-email@gmail.com' || empty($localConfig['from_email']))) {
+            unset($localConfig['from_email']);
+        }
+        if (isset($localConfig['smtp_username']) && $localConfig['smtp_username'] === 'your-email@gmail.com') {
+            unset($localConfig['smtp_username']);
+        }
+        if (isset($localConfig['smtp_password']) && $localConfig['smtp_password'] === 'your-16-char-app-password') {
+            unset($localConfig['smtp_password']);
+        }
         $mailConfig = array_merge($mailConfig, $localConfig);
     }
 }

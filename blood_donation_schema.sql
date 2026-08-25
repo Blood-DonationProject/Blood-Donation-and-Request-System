@@ -36,8 +36,8 @@ INSERT IGNORE INTO `blood_groups` (`blood_gp_name`) VALUES
 ('A+'), ('A-'), ('B+'), ('B-'), ('AB+'), ('AB-'), ('O+'), ('O-');
 
 -- Initial admin user for `users`
-INSERT IGNORE INTO `users` (`username`, `password`, `role`) VALUES
-('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin'); -- Password is 'password'
+INSERT IGNORE INTO `users` (`username`, `email`, `password`, `role`) VALUES
+('admin', 'bloodcommunicationsystem12@gmail.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin'); -- Password is 'password'
 
 -- --------------------------------------------------------
 -- 3. Table structure for `donor`

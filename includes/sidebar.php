@@ -15,10 +15,10 @@
         <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'dashboard.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>📊</span> <span>Dashboard</span>
         </a>
-        <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'donation_history_crud.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
+        <a href="donation_history_crud.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= in_array($currentPage, ['donation_history_crud.php', 'donation_histories.php']) ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>⚡</span> <span>Donation History</span>
         </a>
-        <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'users_crud.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
+        <a href="users_crud.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= in_array($currentPage, ['users_crud.php', 'logindata.php']) ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>👥</span> <span>Users</span>
         </a>
         <a href="assignments.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'assignments.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
