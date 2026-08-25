@@ -1,0 +1,35 @@
+<?php
+/**
+ * Local Mail Configuration for Gmail SMTP
+ * 
+ * Copy this file to `config/mail.local.php` and fill in your credentials.
+ * NOTE: `config/mail.local.php` is ignored by Git to keep your credentials secure.
+ * 
+ * To generate a Gmail App Password:
+ * 1. Go to your Google Account (https://myaccount.google.com/).
+ * 2. Navigate to "Security" -> "2-Step Verification" (ensure 2FA is turned ON).
+ * 3. Scroll down to "App passwords".
+ * 4. Create an App password for "Mail" / "Windows Computer" (or custom name: "Blood Donation System").
+ * 5. Copy the generated 16-character password (e.g., "abcd efgh ijkl mnop") and paste it below.
+ */
+
+return [
+    // Gmail SMTP Settings
+    'smtp_host'     => 'smtp.gmail.com',
+    'smtp_port'     => 587,
+    'smtp_secure'   => 'tls', // 'tls' for STARTTLS on port 587, or 'ssl' for SMTPS on port 465
+    'smtp_auth'     => true,
+
+    // Your Gmail address
+    'smtp_username' => 'your-email@gmail.com',
+
+    // Your 16-character Gmail App Password (NOT your regular Gmail account password)
+    'smtp_password' => 'your-16-char-app-password',
+
+    // Sender details
+    'from_email'    => 'your-email@gmail.com',
+    'from_name'     => 'BloodLife Donation System',
+
+    // Set to true for detailed SMTP debug output in development/logs
+    'debug'         => false,
+];

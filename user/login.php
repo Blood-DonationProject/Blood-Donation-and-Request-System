@@ -330,6 +330,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <p class="text-red-700 text-sm">Access Denied. You do not have administrator privileges.</p>
             </div>
           <?php endif; ?>
+          <?php if (isset($_GET['reset']) && $_GET['reset'] === '1'): ?>
+            <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+              <p class="text-green-700 text-sm font-medium">Your password has been reset successfully. Please sign in with your new password.</p>
+            </div>
+          <?php endif; ?>
           <?php if (isset($_GET['inactive']) && $_GET['inactive'] === '1'): ?>
             <div class="bg-red-50 border-l-2 border-red-500 p-4 rounded">
               <p class="text-red-700 text-sm">Your account is inactive. Login access has been disabled.</p>
@@ -348,7 +353,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
           </div>
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="password">Password</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-sm font-semibold text-gray-700" data-i18n="password">Password</label>
+              <a href="forgot_password.php" class="text-xs font-semibold text-red-600 hover:underline">Forgot password?</a>
+            </div>
             <div class="relative">
               <input type="password" name="password" id="passwordField" data-i18n-placeholder="enter_password" placeholder="Enter your password" required
                 value="<?= htmlspecialchars($prefillPassword) ?>"

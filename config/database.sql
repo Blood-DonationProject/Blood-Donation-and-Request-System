@@ -8,6 +8,8 @@ CREATE TABLE users (
     role ENUM('Admin','User') NOT NULL DEFAULT 'User',
     status ENUM('Active','Inactive') DEFAULT 'Active',
     myanmar_name VARCHAR(100) DEFAULT NULL,
+    reset_token VARCHAR(255) DEFAULT NULL,
+    reset_expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS `users` (
     `myanmar_name` VARCHAR(100) DEFAULT NULL,
     `last_activity` TIMESTAMP NULL DEFAULT NULL,
     `last_login` TIMESTAMP NULL DEFAULT NULL,
+    `reset_token` VARCHAR(255) DEFAULT NULL,
+    `reset_expires_at` DATETIME DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

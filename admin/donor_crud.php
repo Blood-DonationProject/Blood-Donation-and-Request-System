@@ -1,6 +1,7 @@
 <?php
 include 'auth_check.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/mailer.php';
 
 $error = $_SESSION['error'] ?? '';
 $success = $_SESSION['success'] ?? '';
@@ -109,6 +110,8 @@ if (isset($_POST['assign_donor'])) {
                                 $donorNotifId = $conn->insert_id;
                                 $notifStmt->close();
                                 
+                                // Send email notification to donor
+                                send_notification_email($donorUserRow['user_id'], $notifTitle, $notifMsg, 'Assignment', $request_id);
                             }
 
                             // Send notification to Requester
@@ -122,6 +125,8 @@ if (isset($_POST['assign_donor'])) {
                                 $reqNotifId = $conn->insert_id;
                                 $reqNotifStmt->close();
                                 
+                                // Send email notification to requester
+                                send_notification_email($req['users_id'], $reqNotifTitle, $reqNotifMsg, 'Assignment', $request_id);
                             }
 
                             $_SESSION['success'] = 'Donor assigned successfully!';

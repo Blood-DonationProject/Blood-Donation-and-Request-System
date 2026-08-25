@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/mailer.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 
@@ -141,6 +142,9 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
       $reqNotif->execute();
       $notifId = $conn->insert_id;
       $reqNotif->close();
+
+      // Send email notification to requester
+      send_notification_email($req_user['user_id'], 'Donor Rejected', $reqMsg, 'StatusUpdate', $r_id);
     }
   }
   header("Location: donor.php");
