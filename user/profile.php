@@ -27,22 +27,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
   $newAddress = trim($_POST['address'] ?? '');
 
   if ($newEmail === '') {
-    $message = 'Email is required.';
+    $message = 'Email address is required.';
+    $messageType = 'error';
+  } elseif ($newPhone === '') {
+    $message = 'Phone number is required.';
+    $messageType = 'error';
+  } elseif (!preg_match('/^[0-9]{1,15}$/', $newPhone)) {
+    $message = 'Phone number must contain numbers only (maximum 15 digits).';
+    $messageType = 'error';
+  } elseif ($newAddress === '') {
+    $message = 'Address / Township is required.';
     $messageType = 'error';
   } else {
-    $stmt = $conn->prepare("UPDATE users SET email = ? WHERE id = ?");
-    $stmt->bind_param("si", $newEmail, $userId);
+    $stmt = $conn->prepare("UPDATE users SET email = ?, phone = ?, address = ? WHERE id = ?");
+    $stmt->bind_param("sssi", $newEmail, $newPhone, $newAddress, $userId);
     $stmt->execute();
     $stmt->close();
     $_SESSION['user_email'] = $newEmail;
 
     // Update donor table if record exists
     $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
-    $stmt2->bind_param("ssi", $newPhone, $newAddress, $userId);
-    $stmt2->execute();
-    $stmt2->close();
+    if ($stmt2) {
+      $stmt2->bind_param("ssi", $newPhone, $newAddress, $userId);
+      $stmt2->execute();
+      $stmt2->close();
+    }
 
-    $message = 'Profile updated successfully.';
+    $message = 'Personal information updated successfully.';
     $messageType = 'success';
   }
 }
@@ -57,7 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
   $address = trim($_POST['address'] ?? '');
   $weight = (float)($_POST['weight'] ?? 0);
   $last_donation_date = $_POST['last_donation_date'] ?: null;
-  $available_status = $_POST['available_status'] ?? 'Available';
+  if ($last_donation_date) {
+    $lastDonated = new DateTime($last_donation_date);
+    $threeMonthsLater = (clone $lastDonated)->modify('+3 months');
+    $todayObj = new DateTime('today');
+    $available_status = ($todayObj >= $threeMonthsLater) ? 'Available' : 'Unavailable';
+  } else {
+    $available_status = 'Available';
+  }
 
   if ($gender === '' || $blood_groups === '' || $phone === '' || $address === '' || $weight <= 0) {
     $message = 'Please fill in all required donor fields.';
@@ -78,6 +96,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
     }
 
     if ($stmt->execute()) {
+      if (!$existing) {
+        $donorId = $conn->insert_id;
+        require_once __DIR__ . '/../includes/notification_helper.php';
+        $donorUsername = $_SESSION['username'] ?? 'User #' . $userId;
+        $notifMsg = "Donor \"{$donorUsername}\" (Blood Group: {$blood_groups}, Phone: {$phone}, Address: {$address}, Age: {$age}) has registered.";
+        notify_admins($conn, 'Donor_Registration', 'New donor registration', $notifMsg, null, null, $donorId, $userId);
+      }
       $message = $existing ? 'Donor information updated successfully.' : 'Donor registration successful.';
       $messageType = 'success';
     } else {
@@ -106,6 +131,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
     $status = 'Pending';
     $stmt->bind_param("isiisss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status);
     if ($stmt->execute()) {
+      $newReqId = $conn->insert_id;
+      require_once __DIR__ . '/../includes/notification_helper.php';
+      $bgName = '';
+      $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$blood_groups_id);
+      if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
+      $notifMsg = "Requester: {$username} | Blood Group: {$bgName} | Units: {$units} | Hospital: {$hospital} | Required Date: {$required_date} | Urgency: Normal";
+      notify_admins($conn, 'Blood_Request', 'New blood request', $notifMsg, $newReqId, null, null, $userId);
+
       $message = 'Blood request submitted successfully.';
       $messageType = 'success';
     } else {
@@ -117,9 +150,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
 }
 
 
-// Fetch user data
+// Fetch user data from users table (central source of truth)
 $userData = [];
-$stmt = $conn->prepare("SELECT id, username, email, created_at FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, username, email, phone, address, created_at FROM users WHERE id = ?");
 $stmt->bind_param("i", $userId);
 $stmt->execute();
 $userData = $stmt->get_result()->fetch_assoc();
@@ -145,8 +178,12 @@ $stmt->close();
 if ($donorData) {
   $donorId = (int)$donorData['id'];
   $bloodGroup = htmlspecialchars($donorData['blood_groups'] ?? '-');
-  $userData['phone'] = $donorData['phone'] ?? '';
-  $userData['address'] = $donorData['address'] ?? '';
+  if (empty($userData['phone']) && !empty($donorData['phone'])) {
+    $userData['phone'] = $donorData['phone'];
+  }
+  if (empty($userData['address']) && !empty($donorData['address'])) {
+    $userData['address'] = $donorData['address'];
+  }
 }
 
 // Fetch donation history from donation_history table
@@ -430,39 +467,51 @@ $stmt->close();
           <div class="p-6 sm:p-8">
 
             <!-- Personal Info Tab -->
-            <form method="POST" id="profileForm">
-              <div id="tab-info" class="tab-panel active space-y-5">
+            <div id="tab-info" class="tab-panel active">
+              <form method="POST" id="profileForm" class="space-y-6">
+                <input type="hidden" name="update_profile" value="1" />
+                
+                <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">👤</div>
+                    <div>
+                      <h3 class="font-bold text-gray-900 text-lg">Personal Information</h3>
+                      <p class="text-xs text-gray-500">Manage and update your phone number and address.</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="grid sm:grid-cols-2 gap-5">
                   <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="username">Username</label>
-                    <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                    <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_address">Email Address</label>
-                    <input type="email" name="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_address">Email Address <span class="text-red-500">*</span></label>
+                    <input type="email" name="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white text-gray-900 focus:outline-none focus:border-red-500 transition" />
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="phone_number">Phone Number</label>
-                    <input type="tel" name="phone" value="<?= htmlspecialchars($userData['phone'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="phone_number">Phone Number <span class="text-red-500">*</span></label>
+                    <input type="text" name="phone" placeholder="Enter phone number" maxlength="15" pattern="[0-9]*" inputmode="numeric" required value="<?= htmlspecialchars($userData['phone'] ?? '') ?>" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white text-gray-900 focus:outline-none focus:border-red-500 transition" />
+                    <p class="text-xs text-gray-400 mt-1">Numbers only, max 15 digits</p>
                   </div>
                   <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="member_since">Member Since</label>
-                    <input type="text" value="<?= !empty($userData['created_at']) ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                    <input type="text" value="<?= !empty($userData['created_at']) ? date('F j, Y', strtotime($userData['created_at'])) : '' ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
                   </div>
                   <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="address">Address</label>
-                    <input type="text" name="address" value="<?= htmlspecialchars($userData['address'] ?? '') ?>" disabled class="profile-input w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 text-gray-600 disabled:cursor-not-allowed" />
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="address">Address / Township <span class="text-red-500">*</span></label>
+                    <textarea name="address" placeholder="Your address" required rows="3" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white text-gray-900 focus:outline-none focus:border-red-500 transition"><?= htmlspecialchars($userData['address'] ?? '') ?></textarea>
                   </div>
                 </div>
-              </div>
-            </form>
-            <!-- Save Bar -->
-            <div id="saveBar" class="hidden px-6 sm:px-8 pb-6 pt-2 border-t border-gray-100 flex items-center justify-between">
-              <p class="text-sm text-gray-500">You have unsaved changes.</p>
-              <div class="flex gap-3">
-                <button type="button" onclick="toggleEdit()" class="border-2 border-gray-300 text-gray-600 px-5 py-2 rounded-xl font-semibold hover:border-red-400 hover:text-red-600 transition text-sm" data-i18n="cancel">Cancel</button>
-                <button type="button" onclick="saveProfile()" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-2 rounded-xl font-bold hover:shadow-lg transition text-sm" data-i18n="save_changes">Save Changes</button>
-              </div>
+
+                <div class="pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                  <button type="submit" class="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 text-sm flex items-center gap-2">
+                    <span>💾</span>
+                    <span data-i18n="save_changes">Update Personal Information</span>
+                  </button>
+                </div>
+              </form>
             </div>
 
             <!-- Donation History Tab -->

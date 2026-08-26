@@ -31,8 +31,20 @@
         <a href="blood_requests_crud.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'blood_requests_crud.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>📋</span> <span>Blood Requests</span>
         </a>
-        <a href="notifications.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'notifications.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
-            <span>🔔</span> <span>Notifications</span>
+        <?php 
+            $sidebarUnreadCount = 0;
+            if (isset($conn) && isset($_SESSION['user_id']) && ($_SESSION['user_role'] ?? '') === 'Admin') {
+                require_once __DIR__ . '/notification_helper.php';
+                $sidebarUnreadCount = get_admin_unread_count($conn, (int)$_SESSION['user_id']);
+            }
+        ?>
+        <a href="notifications.php" class="flex items-center justify-between px-4 py-3 rounded-lg transition <?= $currentPage === 'notifications.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
+            <div class="flex items-center space-x-3">
+                <span>🔔</span> <span>Notifications</span>
+            </div>
+            <?php if ($sidebarUnreadCount > 0): ?>
+                <span class="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm"><?= $sidebarUnreadCount > 99 ? '99+' : $sidebarUnreadCount ?></span>
+            <?php endif; ?>
         </a>
         <a href="email_logs.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'email_logs.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>📧</span> <span>Email Logs</span>

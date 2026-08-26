@@ -21,8 +21,9 @@ $last_donation_date = trim($_POST['last_donation_date'] ?? '') ?: null;
 // Auto-set status: Available if no last donation date or 3+ months since last donation
 if ($last_donation_date) {
     $lastDonated = new DateTime($last_donation_date);
-    $threeMonthsAgo = (new DateTime())->modify('-3 months');
-    $available_status = ($lastDonated <= $threeMonthsAgo) ? 'Available' : 'Unavailable';
+    $threeMonthsLater = (clone $lastDonated)->modify('+3 months');
+    $todayObj = new DateTime('today');
+    $available_status = ($todayObj >= $threeMonthsLater) ? 'Available' : 'Unavailable';
 } else {
     $available_status = 'Available';
 }
@@ -98,8 +99,8 @@ if (!$isLoggedIn) {
 
         try {
             if ($updateId > 0) {
-                $stmt = $conn->prepare("UPDATE donor SET phone=?, last_donation_date=?, available_status=? WHERE id=? AND user_id=?");
-                $stmt->bind_param("sssii", $phone, $last_donation_date, $available_status, $updateId, $userId);
+                $stmt = $conn->prepare("UPDATE donor SET phone=?, address=?, last_donation_date=?, available_status=? WHERE id=? AND user_id=?");
+                $stmt->bind_param("ssssii", $phone, $address, $last_donation_date, $available_status, $updateId, $userId);
             } else {
                 $stmt = $conn->prepare("INSERT INTO donor (user_id, gender, date_of_birth, age, blood_groups, phone, address, weight, last_donation_date, available_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param("ississsdss", $userId, $gender, $date_of_birth, $age, $blood_groups, $phone, $address, $weight, $last_donation_date, $available_status);
@@ -107,6 +108,22 @@ if (!$isLoggedIn) {
 
             if ($stmt->execute()) {
                 $donorId = $updateId > 0 ? $updateId : $conn->insert_id;
+
+                // Notify admin on new donor registration
+                if ($updateId <= 0) {
+                    require_once __DIR__ . '/../includes/notification_helper.php';
+                    $donorUsername = $_SESSION['username'] ?? 'User #' . $userId;
+                    $notifMsg = "Donor \"{$donorUsername}\" (Blood Group: {$blood_groups}, Phone: {$phone}, Address: {$address}, Age: {$age}) has registered.";
+                    notify_admins($conn, 'Donor_Registration', 'New donor registration', $notifMsg, null, null, $donorId, $userId);
+                }
+
+                // Sync phone and address to users profile as the central source of truth
+                $updUser = $conn->prepare("UPDATE users SET phone = ?, address = ? WHERE id = ?");
+                if ($updUser) {
+                    $updUser->bind_param("ssi", $phone, $address, $userId);
+                    $updUser->execute();
+                    $updUser->close();
+                }
 
                 $message = $updateId > 0 ? 'Donor record updated successfully!' : 'Donor registration submitted successfully! Your status is pending approval.';
                 $messageType = 'success';

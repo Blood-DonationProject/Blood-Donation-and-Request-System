@@ -13,9 +13,13 @@ $userId = $_SESSION['user_id'] ?? 0;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username'] ?? '') : '';
 $userEmail = '';
 
-// Retrieve user's email from users table
+// Retrieve user's email, phone, and address from users profile
+$userEmail = '';
+$userPhone = '';
+$userAddress = '';
+
 if ($userId > 0) {
-  $userStmt = $conn->prepare("SELECT username, email FROM users WHERE id = ? LIMIT 1");
+  $userStmt = $conn->prepare("SELECT username, email, phone, address FROM users WHERE id = ? LIMIT 1");
   if ($userStmt) {
     $userStmt->bind_param("i", $userId);
     $userStmt->execute();
@@ -23,11 +27,31 @@ if ($userId > 0) {
     if ($userRes && $userRes->num_rows > 0) {
       $userData = $userRes->fetch_assoc();
       $userEmail = $userData['email'] ?? '';
+      $userPhone = $userData['phone'] ?? '';
+      $userAddress = $userData['address'] ?? '';
       if (empty($username) && !empty($userData['username'])) {
         $username = htmlspecialchars($userData['username']);
       }
     }
     $userStmt->close();
+  }
+
+  // Also check donor table for phone / address fallback
+  $dStmt = $conn->prepare("SELECT phone, address FROM donor WHERE user_id = ? LIMIT 1");
+  if ($dStmt) {
+    $dStmt->bind_param("i", $userId);
+    $dStmt->execute();
+    $dRes = $dStmt->get_result();
+    if ($dRes && $dRes->num_rows > 0) {
+      $dData = $dRes->fetch_assoc();
+      if (empty($userPhone) && !empty($dData['phone'])) {
+        $userPhone = $dData['phone'];
+      }
+      if (empty($userAddress) && !empty($dData['address'])) {
+        $userAddress = $dData['address'];
+      }
+    }
+    $dStmt->close();
   }
 }
 
@@ -474,7 +498,7 @@ if ($isLoggedIn) {
         <?php endif; ?>
 
         <?php $formDisabled = ($donorExists && $donorStatus === 'Unavailable'); ?>
-        <form method="POST" action="donor_crud.php" class="space-y-6" <?= $formDisabled ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>
+        <form method="POST" action="donor_crud.php" id="donorForm" class="space-y-6" <?= $formDisabled ? 'style="pointer-events:none;opacity:0.5;"' : '' ?>>
           <?php if ($editMode && $editData): ?>
             <input type="hidden" name="update_id" value="<?= $editData['id'] ?>" />
           <?php endif; ?>
@@ -527,11 +551,11 @@ if ($isLoggedIn) {
               <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-xl">📞</div>
               <h2 class="text-xl font-bold text-gray-900">Contact Details</h2>
             </div>
-            <div class="grid sm:grid-cols-2 gap-5">
+            <div class="grid sm:grid-cols-2 gap-5 mb-5">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Contact Number <span class="text-red-500">*</span></label>
                 <input type="tel" name="contact" id="contactField" placeholder="Enter phone number" maxlength="15" pattern="[0-9]*" inputmode="numeric" required
-                  value="<?= htmlspecialchars($editData['phone'] ?? '') ?>"
+                  value="<?= htmlspecialchars($editData['phone'] ?? $userPhone ?? '') ?>"
                   <?= $formDisabled ? 'disabled' : '' ?>
                   class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
                 <p class="text-xs text-gray-400 mt-1">Numbers only, max 15 digits</p>
@@ -540,7 +564,7 @@ if ($isLoggedIn) {
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Address / Township <span class="text-red-500">*</span></label>
               <textarea name="address" placeholder="Your address" required
-                <?= $formDisabled || $editMode ? 'readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> rows="3"><?= htmlspecialchars($editData['address'] ?? '') ?></textarea>
+                <?= $formDisabled || $editMode ? 'readonly class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> rows="3"><?= htmlspecialchars($editData['address'] ?? $userAddress ?? '') ?></textarea>
             </div>
           </div>
 
@@ -705,39 +729,45 @@ if ($isLoggedIn) {
     }
     // Phone field: numbers only, max 15 digits
     const contactField = document.getElementById('contactField');
-    contactField.addEventListener('input', function() {
-      this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);
-    });
-    contactField.addEventListener('paste', function(e) {
-      e.preventDefault();
-      const pasted = (e.clipboardData || window.clipboardData).getData('text');
-      const cleaned = pasted.replace(/[^0-9]/g, '').slice(0, 15);
-      document.execCommand('insertText', false, cleaned);
-    });
+    if (contactField) {
+      contactField.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);
+      });
+      contactField.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text');
+        const cleaned = pasted.replace(/[^0-9]/g, '').slice(0, 15);
+        document.execCommand('insertText', false, cleaned);
+      });
+    }
 
     // Weight field: minimum 100 lb
     const weightField = document.getElementById('weightField');
-    weightField.addEventListener('input', function() {
-      const val = parseFloat(this.value);
-      if (this.value !== '' && val < 100) {
-        this.value = 100;
-      }
-    });
-    weightField.addEventListener('blur', function() {
-      if (this.value !== '' && parseFloat(this.value) < 100) {
-        this.value = 100;
-      }
-    });
+    if (weightField) {
+      weightField.addEventListener('input', function() {
+        const val = parseFloat(this.value);
+        if (this.value !== '' && val < 100) {
+          this.value = 100;
+        }
+      });
+      weightField.addEventListener('blur', function() {
+        if (this.value !== '' && parseFloat(this.value) < 100) {
+          this.value = 100;
+        }
+      });
+    }
 
     // Last Donation Date: no future dates
     const lastDonationDate = document.getElementById('lastDonationDate');
-    const today = new Date().toISOString().split('T')[0];
-    lastDonationDate.setAttribute('max', today);
-    lastDonationDate.addEventListener('change', function() {
-      if (this.value > today) {
-        this.value = today;
-      }
-    });
+    if (lastDonationDate) {
+      const today = new Date().toISOString().split('T')[0];
+      lastDonationDate.setAttribute('max', today);
+      lastDonationDate.addEventListener('change', function() {
+        if (this.value > today) {
+          this.value = today;
+        }
+      });
+    }
 
     // Auto-calculate age from Date of Birth
     const dobInput = document.getElementById('dateOfBirth');
@@ -754,25 +784,162 @@ if ($isLoggedIn) {
       return age;
     }
 
-    dobInput.addEventListener('change', function() {
-      if (this.value) {
-        const age = calculateAge(this.value);
+    if (dobInput) {
+      dobInput.addEventListener('change', function() {
+        if (this.value) {
+          const age = calculateAge(this.value);
+          if (age >= 0 && ageField) {
+            ageField.value = age;
+          }
+        } else if (ageField) {
+          ageField.value = '';
+        }
+      });
+
+      // Calculate age on page load if DOB is already set (edit mode)
+      if (dobInput.value && ageField) {
+        const age = calculateAge(dobInput.value);
         if (age >= 0) {
           ageField.value = age;
         }
-      } else {
-        ageField.value = '';
-      }
-    });
-
-    // Calculate age on page load if DOB is already set (edit mode)
-    if (dobInput.value) {
-      const age = calculateAge(dobInput.value);
-      if (age >= 0) {
-        ageField.value = age;
       }
     }
+
+    // Phone Number Mismatch Confirmation Logic
+    const savedProfilePhone = <?= json_encode((string)($userPhone ?? '')) ?>;
+    const donorForm = document.getElementById('donorForm');
+    const phoneMismatchModal = document.getElementById('phoneMismatchModal');
+    const modalCurrentPhone = document.getElementById('modalCurrentPhone');
+    const modalNewPhone = document.getElementById('modalNewPhone');
+    const confirmUpdatePhoneBtn = document.getElementById('confirmUpdatePhoneBtn');
+
+    let phoneMismatchConfirmed = false;
+
+    function closePhoneMismatchModal() {
+      if (phoneMismatchModal) {
+        phoneMismatchModal.style.setProperty('display', 'none', 'important');
+        phoneMismatchModal.classList.add('hidden');
+        phoneMismatchModal.classList.remove('flex');
+        document.body.style.overflow = '';
+      }
+    }
+
+    function showPhoneMismatchModal(currentPhone, newPhone) {
+      if (modalCurrentPhone) modalCurrentPhone.textContent = currentPhone;
+      if (modalNewPhone) modalNewPhone.textContent = newPhone;
+      if (phoneMismatchModal) {
+        phoneMismatchModal.style.setProperty('display', 'flex', 'important');
+        phoneMismatchModal.classList.remove('hidden');
+        phoneMismatchModal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function checkPhoneMismatch(e) {
+      if (phoneMismatchConfirmed) {
+        return true;
+      }
+      const phoneInput = document.getElementById('contactField') || (donorForm ? donorForm.querySelector('input[name="contact"], input[name="phone"]') : null);
+      const enteredVal = phoneInput ? phoneInput.value.trim() : '';
+      const cleanSaved = (savedProfilePhone || '').replace(/\D/g, '');
+      const cleanEntered = enteredVal.replace(/\D/g, '');
+
+      if (cleanSaved !== cleanEntered) {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') {
+            e.stopImmediatePropagation();
+          }
+        }
+        showPhoneMismatchModal(savedProfilePhone || '(Not set)', enteredVal);
+        return false;
+      }
+      return true;
+    }
+
+    if (donorForm) {
+      donorForm.addEventListener('submit', function(e) {
+        if (!checkPhoneMismatch(e)) {
+          e.preventDefault();
+        }
+      }, true);
+      donorForm.onsubmit = function(e) {
+        return checkPhoneMismatch(e);
+      };
+
+      const submitBtn = donorForm.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', function(e) {
+          if (donorForm.checkValidity && !donorForm.checkValidity()) {
+            return;
+          }
+          if (!checkPhoneMismatch(e)) {
+            e.preventDefault();
+          }
+        }, true);
+      }
+    }
+
+    if (confirmUpdatePhoneBtn) {
+      confirmUpdatePhoneBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        phoneMismatchConfirmed = true;
+        closePhoneMismatchModal();
+        if (donorForm) {
+          donorForm.submit();
+        }
+      });
+    }
   </script>
+
+  <!-- Phone Mismatch Confirmation Modal -->
+  <div id="phoneMismatchModal" class="fixed inset-0 bg-black/80 backdrop-blur-md items-center justify-center p-4 sm:p-6 transition-all duration-300" style="display: none; z-index: 999999;">
+    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border-2 border-amber-400 dark:border-amber-500 animate-fade-up relative transform transition-all">
+      <div class="p-6 sm:p-8 text-center space-y-5">
+        <!-- Warning Icon Badge -->
+        <div class="w-20 h-20 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center text-4xl mx-auto shadow-inner ring-8 ring-amber-50 dark:ring-amber-950/40">
+          ⚠️
+        </div>
+        
+        <!-- Header -->
+        <div>
+          <h2 class="font-extrabold text-2xl sm:text-3xl text-gray-900 dark:text-white tracking-tight mb-2">Phone Number Mismatch</h2>
+          <p class="text-base font-semibold text-gray-700 dark:text-gray-200">
+            The phone number you entered is different from your profile information.
+          </p>
+        </div>
+        
+        <!-- Comparison Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-2">
+          <div class="bg-gray-50 dark:bg-gray-700/60 rounded-2xl p-4 border border-gray-200 dark:border-gray-600 text-left">
+            <span class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Profile Phone</span>
+            <span id="modalCurrentPhone" class="font-extrabold text-gray-900 dark:text-gray-100 text-lg tracking-wide block"></span>
+          </div>
+          <div class="bg-red-50 dark:bg-red-950/40 rounded-2xl p-4 border-2 border-red-300 dark:border-red-700/60 text-left shadow-sm">
+            <span class="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider block mb-1">New Phone Number</span>
+            <span id="modalNewPhone" class="font-extrabold text-red-600 dark:text-red-400 text-lg tracking-wide block"></span>
+          </div>
+        </div>
+
+        <!-- Question -->
+        <p class="text-sm font-bold text-gray-800 dark:text-gray-200">
+          Do you want to update your profile phone number to the new number?
+        </p>
+      </div>
+      
+      <!-- Action Buttons -->
+      <div class="p-6 sm:p-8 pt-0 flex flex-col-reverse sm:flex-row gap-3">
+        <button type="button" onclick="closePhoneMismatchModal()" class="w-full sm:flex-1 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 py-3.5 px-6 rounded-xl font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition text-base text-center cursor-pointer">
+          Cancel
+        </button>
+        <button type="button" id="confirmUpdatePhoneBtn" class="w-full sm:flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3.5 px-6 rounded-xl font-bold transition text-center shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center gap-2 text-base cursor-pointer">
+          <span>Update Profile</span>
+          <span>✓</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function() {

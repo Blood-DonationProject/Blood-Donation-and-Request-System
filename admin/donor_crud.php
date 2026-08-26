@@ -20,8 +20,9 @@ if (isset($_POST['update'])) {
         // Auto-calculate Available / Unavailable based on 3-month rule
         if ($last_donation_date) {
             $lastDonated = new DateTime($last_donation_date);
-            $threeMonthsAgo = (new DateTime())->modify('-3 months');
-            $available_status = ($lastDonated <= $threeMonthsAgo) ? 'Available' : 'Unavailable';
+            $threeMonthsLater = (clone $lastDonated)->modify('+3 months');
+            $todayObj = new DateTime('today');
+            $available_status = ($todayObj >= $threeMonthsLater) ? 'Available' : 'Unavailable';
         } else {
             $available_status = 'Available';
         }
@@ -130,6 +131,11 @@ if (isset($_POST['assign_donor'])) {
                                 // Send email notification to requester
                                 send_notification_email($req['users_id'], $reqNotifTitle, $reqNotifMsg, 'Assignment', $request_id);
                             }
+
+                            // Notify Admin
+                            require_once __DIR__ . '/../includes/notification_helper.php';
+                            $adminConfirmMsg = "Donor assigned successfully to Request #{$request_id}.";
+                            notify_admins($conn, 'Assignment', 'Donor assigned successfully', $adminConfirmMsg, $request_id, $assignment_id, $donor_id);
 
                             $_SESSION['success'] = 'Donor assigned successfully!';
                         } else {

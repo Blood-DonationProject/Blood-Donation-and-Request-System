@@ -237,6 +237,11 @@ if (isset($_POST['assign_donor'])) {
                                 $notifStmt->close();
                             }
 
+                            // Notify Admin
+                            require_once __DIR__ . '/../includes/notification_helper.php';
+                            $adminConfirmMsg = "Donor assigned successfully to Request #{$request_id}.";
+                            notify_admins($conn, 'Assignment', 'Donor assigned successfully', $adminConfirmMsg, $request_id, $assignment_id, $donor_id);
+
                             $_SESSION['success'] = 'Donor assigned successfully!';
                         } else {
                             $_SESSION['error'] = 'Error assigning donor: ' . $conn->error;

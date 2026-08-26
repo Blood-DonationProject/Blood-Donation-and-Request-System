@@ -29,7 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
       $updAssign->bind_param("i", $req_id);
       $updAssign->execute();
 
-      // Insert into donation history
+      // Insert into donation history and fetch donor details
+      $donorName = 'Assigned Donor';
+      $donorUserId = null;
       if (!empty($row['assigned_donor_id'])) {
         $dhStmt = $conn->prepare("INSERT INTO donation_history (donor_id, users_id, request_id, blood_groups_id, units, donation_date, status) VALUES (?, ?, ?, ?, 1, NOW(), 'Completed')");
         $dhStmt->bind_param("iiii", $row['assigned_donor_id'], $_SESSION['user_id'], $req_id, $row['blood_groups_id']);
@@ -41,14 +43,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
         $updDonor->bind_param("i", $row['assigned_donor_id']);
         $updDonor->execute();
         $updDonor->close();
+
+        // Get donor user info
+        $dInfo = $conn->query("SELECT d.user_id, u.username FROM donor d JOIN users u ON d.user_id = u.id WHERE d.id = " . (int)$row['assigned_donor_id'])->fetch_assoc();
+        if ($dInfo) {
+          $donorName = $dInfo['username'];
+          $donorUserId = (int)$dInfo['user_id'];
+        }
       }
 
-      $notifTitle = 'Request Completed';
-      $notifMsg = 'Requester has confirmed that the blood was received. This request is now completed. (Request #' . $req_id . ')';
-      $admin_id = 0; // Admin is hardcoded as user_id 0
-      $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'System', ?, ?)");
-      $notif->bind_param("iiss", $admin_id, $req_id, $notifTitle, $notifMsg);
-      $notif->execute();
+      // Fetch blood group name
+      $bgName = '';
+      $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$row['blood_groups_id']);
+      if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
+
+      // Notify Admins
+      require_once __DIR__ . '/../includes/notification_helper.php';
+      $adminNotifMsg = "Requester \"{$username}\" confirmed blood received from donor \"{$donorName}\" (Blood Group: {$bgName}, Units: 1) for Request #{$req_id}. Request marked as Completed.";
+      notify_admins($conn, 'Blood_Received', 'Blood received confirmation', $adminNotifMsg, $req_id, null, $row['assigned_donor_id'], $_SESSION['user_id']);
+
+      // Notify Donor if user_id is found
+      if (!empty($donorUserId)) {
+        $donorNotifMsg = "The requester has confirmed receiving your blood donation for Request #{$req_id}. Thank you for saving a life!";
+        create_notification($conn, $donorUserId, 'Blood_Received', 'Blood Donation Completed', $donorNotifMsg, $req_id, null, $row['assigned_donor_id'], $_SESSION['user_id']);
+      }
+
       $success_msg = "Blood received successfully. Request is now completed.";
     } else {
       $error_msg = "Invalid request or it is not in an active assignment status.";

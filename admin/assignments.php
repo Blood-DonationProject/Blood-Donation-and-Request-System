@@ -142,6 +142,12 @@ if (isset($_POST['assign_donor'])) {
                                     send_notification_email($req['users_id'], $reqNotifTitle, $reqNotifMsg, 'Assignment', $request_id);
                                 }
 
+                                // Create confirmation notification for Admin
+                                require_once __DIR__ . '/../includes/notification_helper.php';
+                                $donorName = $donorUserRow['username'] ?? 'Donor #' . $donor_id;
+                                $adminConfirmMsg = "Donor \"{$donorName}\" was successfully assigned to Request #{$request_id} ({$req['hospital']}).";
+                                notify_admins($conn, 'Assignment', 'Donor assigned successfully', $adminConfirmMsg, $request_id, $assignment_id, $donor_id);
+
                                 respond_assignment('success', 'Donor assigned successfully!', $is_ajax);
                             } else {
                                 respond_assignment('error', 'Error assigning donor: ' . $conn->error, $is_ajax);

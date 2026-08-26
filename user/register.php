@@ -85,6 +85,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt->bind_param('sss', $candidate, $email, $hashedPassword);
 
       if ($stmt->execute()) {
+        $new_user_id = $conn->insert_id;
+        require_once __DIR__ . '/../includes/notification_helper.php';
+        $notifMsg = 'New user "' . $candidate . '" (' . $email . ') registered on ' . date('M j, Y · g:i A') . '.';
+        notify_admins($conn, 'User_Registration', 'New user registered', $notifMsg, null, null, null, $new_user_id);
+
         $loginRedirect = 'login.php?registered=1&email=' . urlencode($email) . '&password=' . urlencode($password);
         if (!empty($redirectTo)) {
           $loginRedirect .= '&redirect_to=' . urlencode($redirectTo);

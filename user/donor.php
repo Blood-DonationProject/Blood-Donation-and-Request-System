@@ -49,11 +49,10 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     $findDonor->close();
   }
 
-  // Fetch all admins for notification
-  $admins = [0]; // Admin is hardcoded as user_id 0 in this system
+  require_once __DIR__ . '/../includes/notification_helper.php';
 
   // Verify request is not expired before accepting/rejecting
-  $chkReq = $conn->prepare("SELECT id, status, required_date FROM blood_request WHERE id = ?");
+  $chkReq = $conn->prepare("SELECT id, status, hospital, required_date FROM blood_request WHERE id = ?");
   $chkReq->bind_param("i", $r_id);
   $chkReq->execute();
   $reqData = $chkReq->get_result()->fetch_assoc();
@@ -86,21 +85,34 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     }
     $chk_assign->close();
 
-    // Notify Admin
+    // Fetch assignment_id
     $assignment_id = null;
     $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
     $get_assign->bind_param("ii", $r_id, $d_id);
     $get_assign->execute();
-    if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
+    if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = (int)$row_assign['id'];
     $get_assign->close();
 
-    $msg = "Donor " . htmlspecialchars($username) . " has accepted the assignment for Request #" . $r_id . ".";
-    $notifType = 'StatusUpdate';
-    $notifTitle = 'Assignment Accepted';
-    $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-    foreach ($admins as $admin_id) {
-      $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
-      $notif->execute();
+    // Notify Admins
+    $hosp = $reqData['hospital'] ?? '';
+    $msg = "Donor \"" . htmlspecialchars($username) . "\" has accepted the blood request #" . $r_id . ($hosp ? " (" . $hosp . ")" : "") . ".";
+    notify_admins($conn, 'Assignment_Accepted', 'Donor accepted the blood request', $msg, $r_id, $assignment_id, $d_id);
+
+    // Notify Requester
+    $get_req = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM blood_request br JOIN users u ON br.users_id = u.id WHERE br.id = ?");
+    $get_req->bind_param("i", $r_id);
+    $get_req->execute();
+    $req_user = $get_req->get_result()->fetch_assoc();
+    $get_req->close();
+
+    if ($req_user) {
+      $reqMsg = "The assigned donor " . htmlspecialchars($username) . " has accepted your blood request #" . $r_id . ".";
+      $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Accepted', ?)");
+      $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
+      $reqNotif->execute();
+      $reqNotif->close();
+
+      send_notification_email($req_user['user_id'], 'Donor Accepted', $reqMsg, 'StatusUpdate', $r_id);
     }
   } elseif ($_GET['action'] === 'reject' && $d_id > 0) {
     // Update blood_request: unassign donor and set to Pending
@@ -121,22 +133,18 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     $stmt_donor->execute();
     $stmt_donor->close();
 
-    // Notify Admin
+    // Fetch assignment_id
     $assignment_id = null;
     $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
     $get_assign->bind_param("ii", $r_id, $d_id);
     $get_assign->execute();
-    if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = $row_assign['id'];
+    if ($row_assign = $get_assign->get_result()->fetch_assoc()) $assignment_id = (int)$row_assign['id'];
     $get_assign->close();
 
-    $msg = "Donor " . htmlspecialchars($username) . " has rejected the assignment for Request #" . $r_id . ".";
-    $notifType = 'StatusUpdate';
-    $notifTitle = 'Assignment Rejected';
-    $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-    foreach ($admins as $admin_id) {
-      $notif->bind_param("iiisss", $admin_id, $r_id, $assignment_id, $notifType, $notifTitle, $msg);
-      $notif->execute();
-    }
+    // Notify Admins
+    $hosp = $reqData['hospital'] ?? '';
+    $msg = "Donor \"" . htmlspecialchars($username) . "\" has rejected the blood request #" . $r_id . ($hosp ? " (" . $hosp . ")" : "") . ". Please assign another donor.";
+    notify_admins($conn, 'Assignment_Rejected', 'Donor rejected the blood request', $msg, $r_id, $assignment_id, $d_id);
 
     // Notify Requester
     $get_req = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM blood_request br JOIN users u ON br.users_id = u.id WHERE br.id = ?");
@@ -150,7 +158,6 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
       $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Rejected', ?)");
       $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
       $reqNotif->execute();
-      $notifId = $conn->insert_id;
       $reqNotif->close();
 
       // Send email notification to requester
