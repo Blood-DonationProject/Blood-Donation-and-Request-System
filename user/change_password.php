@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../assets/css/myanmar-font.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -128,16 +129,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         <form method="POST" action="">
           <div class="space-y-5">
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Current Password</label>
-              <input type="password" name="current_password" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Enter current password" />
+              <label for="current_password" class="block text-sm font-semibold text-gray-700 mb-2">Current Password</label>
+              <div class="relative">
+                <input type="password" id="current_password" name="current_password" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm text-gray-800" placeholder="Enter current password" />
+                <button type="button" onclick="togglePassword('current_password', 'eyeIcon1')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none transition cursor-pointer p-1" title="Show/Hide Password" aria-label="Toggle Current Password visibility">
+                  <i id="eyeIcon1" class="fa-solid fa-eye-slash text-base"></i>
+                </button>
+              </div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
-              <input type="password" name="new_password" required minlength="8" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Minimum 8 characters" />
+              <label for="new_password" class="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+              <div class="relative">
+                <input type="password" id="new_password" name="new_password" required minlength="8" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm text-gray-800" placeholder="Minimum 8 characters" />
+                <button type="button" onclick="togglePassword('new_password', 'eyeIcon2')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none transition cursor-pointer p-1" title="Show/Hide Password" aria-label="Toggle New Password visibility">
+                  <i id="eyeIcon2" class="fa-solid fa-eye-slash text-base"></i>
+                </button>
+              </div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
-              <input type="password" name="confirm_password" required minlength="8" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm" placeholder="Confirm new password" />
+              <label for="confirm_password" class="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
+              <div class="relative">
+                <input type="password" id="confirm_password" name="confirm_password" required minlength="8" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 bg-gray-50 focus:bg-white focus:outline-none focus:border-red-500 transition shadow-sm text-gray-800" placeholder="Confirm new password" />
+                <button type="button" onclick="togglePassword('confirm_password', 'eyeIcon3')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none transition cursor-pointer p-1" title="Show/Hide Password" aria-label="Toggle Confirm Password visibility">
+                  <i id="eyeIcon3" class="fa-solid fa-eye-slash text-base"></i>
+                </button>
+              </div>
             </div>
             <div class="pt-4">
               <button type="submit" name="change_password" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold py-3.5 rounded-xl hover:shadow-lg hover:from-red-700 hover:to-red-800 transition transform hover:-translate-y-0.5">Update Password</button>
@@ -151,6 +167,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
   <?php include __DIR__ . '/../includes/footer.php'; ?>
 
   <script>
+    function togglePassword(inputId, iconId) {
+      var input = document.getElementById(inputId);
+      var icon = document.getElementById(iconId);
+      if (!input || !icon) return;
+
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      }
+    }
+
     (function() {
       var KEY = 'bloodlife-theme';
       function getTheme() { return localStorage.getItem(KEY) || 'light'; }

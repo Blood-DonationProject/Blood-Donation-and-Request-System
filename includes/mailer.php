@@ -161,7 +161,7 @@ function send_email($toEmail, $toName, $subject, $htmlBody, $altBody = '', array
             'email_type'      => $options['email_type'] ?? 'General',
             'status'          => 'Failed',
             'error_message'   => $cleanError,
-            'sent_at'         => null,
+            'sent_at'         => date('Y-m-d H:i:s'),
         ]);
 
         return [
@@ -313,7 +313,7 @@ HTML;
              . "BloodLife Team";
 
     return send_email($toEmail, $recipientName, $subject, $htmlBody, $altBody, [
-        'email_type' => 'PasswordReset'
+        'email_type' => 'Password Reset'
     ]);
 }
 
@@ -404,8 +404,17 @@ HTML;
              . "Please log in to your BloodLife account for details.\n\n"
              . "BloodLife Team";
 
+    $emailType = 'Notification';
+    if ($type === 'Assignment' || stripos($title, 'assignment') !== false) {
+        $emailType = 'Donor Assignment';
+    } elseif ($type === 'StatusUpdate' || stripos($title, 'request') !== false) {
+        $emailType = 'Blood Request';
+    } elseif (!empty($type) && $type !== 'Notification') {
+        $emailType = $type;
+    }
+
     return send_email($user['email'], $user['username'], $subject, $htmlBody, $altBody, [
         'user_id'    => $userId,
-        'email_type' => $type
+        'email_type' => $emailType
     ]);
 }

@@ -106,7 +106,7 @@ $urgentToday = 0;
 
 try {
   $totalRequests = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
-  $urgentToday = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending','Approved')")->fetch_assoc()['c'] ?? 0;
+  $urgentToday = $conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending','Approved') AND required_date >= CURDATE()")->fetch_assoc()['c'] ?? 0;
 } catch (Exception $e) {
   // silent
 }
@@ -358,10 +358,11 @@ if ($isLoggedIn && $userId > 0) {
                         $statusColors = [
                           'Pending'   => 'bg-yellow-100 text-yellow-700',
                           'Approved'  => 'bg-blue-100 text-blue-700',
-                          'Assigned'  => 'bg-blue-100 text-blue-700',
-                          'Accepted'  => 'bg-blue-100 text-blue-700',
+                          'Assigned'  => 'bg-indigo-100 text-indigo-700',
+                          'Accepted'  => 'bg-purple-100 text-purple-700',
                           'Completed' => 'bg-green-100 text-green-700',
                           'Rejected'  => 'bg-red-100 text-red-700',
+                          'Expired'   => 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
                         ];
                         $color = $statusColors[$status] ?? 'bg-gray-100 text-gray-700';
                         ?>

@@ -42,7 +42,9 @@ if (isset($_POST['assign_donor'])) {
         $result = $check->get_result();
         if ($result && $result->num_rows > 0) {
             $req = $result->fetch_assoc();
-            if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
+            if ($req['status'] === 'Expired' || strtotime($req['required_date']) < strtotime('today')) {
+                respond_assignment('error', 'Cannot assign donor: this blood request has expired.', $is_ajax);
+            } else if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
                 // Verify donor exists and is available
                 $donor_check = $conn->prepare("SELECT id, available_status, blood_groups, user_id FROM donor WHERE id = ?");
                 $donor_check->bind_param("i", $donor_id);
@@ -204,7 +206,7 @@ if (isset($_GET['unassign'])) {
     exit;
 }
 
-// Fetch assignable requests (Pending or Approved without donor)
+// Fetch assignable requests (Pending or Approved without donor and not expired)
 $assignable_requests = [];
 try {
     $result = $conn->query("
@@ -215,7 +217,7 @@ try {
                (SELECT GROUP_CONCAT(DISTINCT donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Cancelled') AS unassigned_donors
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL
+        WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL AND r.required_date >= CURDATE()
         ORDER BY CASE WHEN r.urgency = 'Urgent' THEN 1 ELSE 2 END ASC, r.required_date ASC, r.id ASC
     ");
     if ($result && $result->num_rows > 0) {
@@ -249,7 +251,7 @@ try {
 }
 
 
-// Fetch already assigned requests for display
+// Fetch already assigned requests for display (non-expired)
 $assigned_requests = [];
 try {
     $result = $conn->query("
@@ -269,7 +271,7 @@ try {
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         JOIN donor d ON da.donor_id = d.id
         JOIN users u ON d.user_id = u.id
-        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
         ORDER BY da.created_at DESC
     ");
     if ($result && $result->num_rows > 0) {
@@ -611,6 +613,7 @@ if ($stats_query) {
                                                     elseif ($statusDisplay === 'Received') $badgeColor = 'bg-yellow-100 text-yellow-700';
                                                     elseif ($statusDisplay === 'Completed') $badgeColor = 'bg-green-100 text-green-700';
                                                     elseif ($statusDisplay === 'Assigned') $badgeColor = 'bg-blue-100 text-blue-700';
+                                                    elseif ($statusDisplay === 'Expired') $badgeColor = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
                                                     ?>
                                                     <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold <?= $badgeColor ?>"><?= htmlspecialchars($statusDisplay) ?></span>
                                                 </td>

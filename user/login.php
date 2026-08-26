@@ -85,25 +85,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $storedPassword = $row['password'];
 
           if (password_verify($password, $storedPassword)) {
+            $userRole = (isset($row['role']) && $row['role'] === 'Admin') || $row['email'] === 'bloodcommunicationsystem12@gmail.com' || $row['username'] === 'admin' ? 'Admin' : 'User';
             $userStatus = $row['status'] ?? 'Active';
             
-            // Check 3-year inactivity using last_activity
-            if ($userStatus === 'Active' && !empty($row['last_activity'])) {
-                $lastActivityDate = new DateTime($row['last_activity']);
-                $threeYearsAgo = new DateTime('-3 years');
-                if ($lastActivityDate <= $threeYearsAgo) {
-                    $userStatus = 'Inactive';
-                    // Update status in DB
-                    $updateStmt = $conn->prepare("UPDATE users SET status = 'Inactive' WHERE id = ?");
-                    if ($updateStmt) {
-                        $updateStmt->bind_param("i", $row['id']);
-                        $updateStmt->execute();
-                        $updateStmt->close();
+            // Check 3-year inactivity ONLY for normal users (role = 'User')
+            // Admin accounts must NEVER be automatically changed to Inactive
+            if ($userRole === 'User') {
+                $activityTimestamp = !empty($row['last_activity']) ? $row['last_activity'] : (!empty($row['last_login']) ? $row['last_login'] : null);
+                if ($userStatus === 'Active' && !empty($activityTimestamp)) {
+                    $lastActivityDate = new DateTime($activityTimestamp);
+                    $threeYearsAgo = new DateTime('-3 years');
+                    if ($lastActivityDate <= $threeYearsAgo) {
+                        $userStatus = 'Inactive';
+                        // Update status in DB strictly for normal user
+                        $updateStmt = $conn->prepare("UPDATE users SET status = 'Inactive' WHERE id = ? AND role = 'User'");
+                        if ($updateStmt) {
+                            $updateStmt->bind_param("i", $row['id']);
+                            $updateStmt->execute();
+                            $updateStmt->close();
+                        }
                     }
                 }
             }
 
-            if ($userStatus !== 'Active') {
+            // Inactive normal users are blocked from logging in
+            if ($userRole === 'User' && $userStatus !== 'Active') {
               $errorMessage = 'Your account is inactive. Login access has been disabled.';
             } else {
               // Update last_login and last_activity
@@ -119,8 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $_SESSION['username'] = $row['username'];
               $_SESSION['user_id'] = $row['id'];
               $_SESSION['user_email'] = $row['email'] ?? $email;
-              
-              $userRole = (isset($row['role']) && $row['role'] === 'Admin') || $row['email'] === 'bloodcommunicationsystem12@gmail.com' || $row['username'] === 'admin' ? 'Admin' : 'User';
               $_SESSION['user_role'] = $userRole;
               $loginSuccess = true;
 

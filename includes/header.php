@@ -7,41 +7,47 @@ $username = 'User';
 $notifications = [];
 if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
     require_once __DIR__ . '/../config/db.php';
-    $stmt = $conn->prepare("SELECT username, status, last_activity FROM users WHERE id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT username, role, status, last_activity, last_login FROM users WHERE id = ? LIMIT 1");
     if ($stmt) {
         $stmt->bind_param('i', $_SESSION['user_id']);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($row = $result->fetch_assoc()) {
+            $userRole = (isset($row['role']) && $row['role'] === 'Admin') || ($_SESSION['user_role'] ?? '') === 'Admin' ? 'Admin' : 'User';
             $isInactive = false;
 
-            // Check status
-            if (isset($row['status']) && $row['status'] === 'Inactive') {
-                $isInactive = true;
-            }
-
-            // Check 3-year inactivity using last_activity
-            if (!$isInactive && !empty($row['last_activity'])) {
-                $lastActivityDate = new DateTime($row['last_activity']);
-                $threeYearsAgo = new DateTime('-3 years');
-                if ($lastActivityDate <= $threeYearsAgo) {
+            // Only normal User accounts are subject to automatic inactivity
+            // Admin accounts are NEVER automatically deactivated
+            if ($userRole === 'User') {
+                // Check status
+                if (isset($row['status']) && $row['status'] === 'Inactive') {
                     $isInactive = true;
-                    // Update status in DB
-                    $updateStmt = $conn->prepare("UPDATE users SET status = 'Inactive' WHERE id = ?");
-                    if ($updateStmt) {
-                        $updateStmt->bind_param("i", $_SESSION['user_id']);
-                        $updateStmt->execute();
-                        $updateStmt->close();
+                }
+
+                // Check 3-year inactivity using actual activity/login date
+                $activityTimestamp = !empty($row['last_activity']) ? $row['last_activity'] : (!empty($row['last_login']) ? $row['last_login'] : null);
+                if (!$isInactive && !empty($activityTimestamp)) {
+                    $lastActivityDate = new DateTime($activityTimestamp);
+                    $threeYearsAgo = new DateTime('-3 years');
+                    if ($lastActivityDate <= $threeYearsAgo) {
+                        $isInactive = true;
+                        // Update status in DB strictly for normal user
+                        $updateStmt = $conn->prepare("UPDATE users SET status = 'Inactive' WHERE id = ? AND role = 'User'");
+                        if ($updateStmt) {
+                            $updateStmt->bind_param("i", $_SESSION['user_id']);
+                            $updateStmt->execute();
+                            $updateStmt->close();
+                        }
                     }
                 }
-            }
 
-            if ($isInactive) {
-                session_unset();
-                session_destroy();
-                $basePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\');
-                header("Location: " . $basePath . "/user/login.php?inactive=1");
-                exit;
+                if ($isInactive) {
+                    session_unset();
+                    session_destroy();
+                    $basePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/\\');
+                    header("Location: " . $basePath . "/user/login.php?inactive=1");
+                    exit;
+                }
             }
             $username = $row['username'];
 

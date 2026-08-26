@@ -5,6 +5,10 @@ require_once __DIR__ . '/../config/db.php';
 $error = '';
 $success = '';
 
+// Check if role column exists
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+$hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+
 // Add user
 if (isset($_POST['add'])) {
     $username = trim($_POST['username']);
@@ -13,8 +17,13 @@ if (isset($_POST['add'])) {
     $status = $_POST['status'];
 
     if ($username !== '' && $_POST['password'] !== '') {
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password, status) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssss", $username, $email, $password, $status);
+        if ($hasRoleColumn) {
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, status) VALUES (?, ?, ?, 'User', ?)");
+            $stmt->bind_param("ssss", $username, $email, $password, $status);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO users (username, email, password, status) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssss", $username, $email, $password, $status);
+        }
         if ($stmt->execute()) {
             $success = 'User created successfully.';
         } else {
@@ -36,13 +45,23 @@ if (isset($_POST['update'])) {
     if ($username !== '') {
         if (!empty(trim($_POST['password']))) {
             $password = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("UPDATE users SET username=?, email=?, password=?, status=? WHERE id=?");
-            $stmt->bind_param("ssssi", $username, $email, $password, $status, $id);
+            if ($hasRoleColumn) {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, password=?, status=? WHERE id=? AND role='User'");
+                $stmt->bind_param("ssssi", $username, $email, $password, $status, $id);
+            } else {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, password=?, status=? WHERE id=? AND username != 'admin'");
+                $stmt->bind_param("ssssi", $username, $email, $password, $status, $id);
+            }
         } else {
-            $stmt = $conn->prepare("UPDATE users SET username=?, email=?, status=? WHERE id=?");
-            $stmt->bind_param("sssi", $username, $email, $status, $id);
+            if ($hasRoleColumn) {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, status=? WHERE id=? AND role='User'");
+                $stmt->bind_param("sssi", $username, $email, $status, $id);
+            } else {
+                $stmt = $conn->prepare("UPDATE users SET username=?, email=?, status=? WHERE id=? AND username != 'admin'");
+                $stmt->bind_param("sssi", $username, $email, $status, $id);
+            }
         }
-        if ($stmt->execute()) {
+        if ($stmt->execute() && $stmt->affected_rows >= 0) {
             $success = 'User updated successfully.';
         } else {
             $error = 'Error: ' . $conn->error;
@@ -56,24 +75,32 @@ if (isset($_POST['update'])) {
 // Delete user
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $stmt->close();
+    if ($hasRoleColumn) {
+        $stmt = $conn->prepare("DELETE FROM users WHERE id = ? AND role = 'User'");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        $stmt = $conn->prepare("DELETE FROM users WHERE id = ? AND username != 'admin'");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
+    }
     header('Location: logindata.php');
     exit;
 }
 
 // Fetch users
 $users = [];
-$result = $conn->query("SELECT * FROM users ORDER BY id DESC");
+$userFilter = $hasRoleColumn ? "WHERE role = 'User'" : "WHERE username != 'admin'";
+$result = $conn->query("SELECT * FROM users {$userFilter} ORDER BY id DESC");
 if ($result && $result->num_rows > 0) {
     $users = $result->fetch_all(MYSQLI_ASSOC);
 }
 
 // Stats
 $stats = [
-    'total' => $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0,
+    'total' => $conn->query("SELECT COUNT(*) AS c FROM users {$userFilter}")->fetch_assoc()['c'] ?? 0,
 ];
 
 // Edit row

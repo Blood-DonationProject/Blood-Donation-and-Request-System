@@ -7,7 +7,10 @@ $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 $totalDonors   = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
 $totalRequests = $conn->query("SELECT COUNT(*) AS c FROM blood_request")->fetch_assoc()['c'] ?? 0;
 
-$totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+$hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+$userFilter = $hasRoleColumn ? "WHERE role = 'User'" : "WHERE username != 'admin'";
+$totalUsers    = $conn->query("SELECT COUNT(*) AS c FROM users {$userFilter}")->fetch_assoc()['c'] ?? 0;
 ?>
 
 

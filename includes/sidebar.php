@@ -34,6 +34,9 @@
         <a href="notifications.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'notifications.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
             <span>🔔</span> <span>Notifications</span>
         </a>
+        <a href="email_logs.php" class="flex items-center space-x-3 px-4 py-3 rounded-lg transition <?= $currentPage === 'email_logs.php' ? 'bg-red-50 text-red-700 font-semibold ring-1 ring-pink-500/30' : 'text-gray-700 hover:bg-red-50 hover:text-red-700 hover:ring-1 hover:ring-pink-500/20' ?>">
+            <span>📧</span> <span>Email Logs</span>
+        </a>
 
 
     </nav>

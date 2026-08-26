@@ -51,13 +51,15 @@ if (isset($_POST['assign_donor'])) {
 
     if ($request_id > 0 && $donor_id > 0) {
         // Verify the request exists and is in a valid state
-        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id WHERE br.id = ?");
+        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.required_date, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id WHERE br.id = ?");
         $check->bind_param("i", $request_id);
         $check->execute();
         $result = $check->get_result();
         if ($result && $result->num_rows > 0) {
             $req = $result->fetch_assoc();
-            if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
+            if ($req['status'] === 'Expired' || strtotime($req['required_date']) < strtotime('today')) {
+                $_SESSION['error'] = 'Cannot assign donor: this blood request has expired.';
+            } else if (in_array($req['status'], ['Pending', 'Approved', 'Assigned', 'Accepted', 'Rejected'])) {
                 // Verify donor exists and is available
                 $donor_check = $conn->prepare("SELECT id, user_id, available_status FROM donor WHERE id = ?");
                 $donor_check->bind_param("i", $donor_id);
@@ -178,7 +180,10 @@ if (isset($_GET['edit'])) {
     }
 }
 
-$users_list = $conn->query("SELECT id, username FROM users ORDER BY username");
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+$hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+$userFilter = $hasRoleColumn ? "WHERE role = 'User'" : "WHERE username != 'admin'";
+$users_list = $conn->query("SELECT id, username FROM users {$userFilter} ORDER BY username");
 $stats = [
     'total' => $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0,
     'available' => $conn->query("SELECT COUNT(*) AS c FROM donor WHERE available_status='Available'")->fetch_assoc()['c'] ?? 0,
@@ -188,12 +193,12 @@ $stats = [
         FROM blood_request r
         LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
         LEFT JOIN users u_donor ON d.user_id = u_donor.id
-        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
           AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
     ")->fetch_assoc()['c'] ?? 0,
 ];
 
-// Fetch pending blood requests for assign modal
+// Fetch pending blood requests for assign modal (non-expired)
 $pendingRequests = $conn->query("
     SELECT br.id, br.users_id, br.requester_name, br.units, br.hospital, br.required_date, br.status,
            bg.blood_gp_name
@@ -201,7 +206,8 @@ $pendingRequests = $conn->query("
     JOIN blood_groups bg ON br.blood_groups_id = bg.id
     LEFT JOIN donor d ON COALESCE(br.assigned_donor_id, br.donor_id) = d.id
     LEFT JOIN users u_donor ON d.user_id = u_donor.id
-    WHERE br.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+    WHERE br.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
+      AND br.required_date >= CURDATE()
       AND (COALESCE(br.assigned_donor_id, br.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
     ORDER BY br.required_date ASC
 ");

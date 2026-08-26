@@ -30,20 +30,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $message = 'Please accept the Terms and Policy before registering.';
     $messageType = 'error';
   } else {
-    $checkEmail = $conn->prepare('SELECT id, status, last_activity FROM users WHERE email = ? LIMIT 1');
+    $checkEmail = $conn->prepare('SELECT id, role, status, last_activity, last_login FROM users WHERE email = ? LIMIT 1');
     $checkEmail->bind_param('s', $email);
     $checkEmail->execute();
     $result = $checkEmail->get_result();
 
     if ($result && $result->num_rows > 0) {
       $row = $result->fetch_assoc();
+      $existingRole = (isset($row['role']) && $row['role'] === 'Admin') ? 'Admin' : 'User';
       $isInactive = (isset($row['status']) && $row['status'] === 'Inactive');
       
-      if (!$isInactive && !empty($row['last_activity'])) {
-          $lastActivityDate = new DateTime($row['last_activity']);
-          $threeYearsAgo = new DateTime('-3 years');
-          if ($lastActivityDate <= $threeYearsAgo) {
-              $isInactive = true;
+      // Admin accounts are never affected by inactivity
+      if ($existingRole === 'User') {
+          $activityTimestamp = !empty($row['last_activity']) ? $row['last_activity'] : (!empty($row['last_login']) ? $row['last_login'] : null);
+          if (!$isInactive && !empty($activityTimestamp)) {
+              $lastActivityDate = new DateTime($activityTimestamp);
+              $threeYearsAgo = new DateTime('-3 years');
+              if ($lastActivityDate <= $threeYearsAgo) {
+                  $isInactive = true;
+              }
           }
       }
 

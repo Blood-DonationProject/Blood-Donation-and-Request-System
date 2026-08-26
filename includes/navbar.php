@@ -8,11 +8,13 @@
         'blood_requests_crud.php' => ['title' => 'Blood Requests', 'description' => 'Manage blood request submissions from users.'],
         'assignments.php' => ['title' => 'Assignments', 'description' => 'Track and manage donor assignments.'],
         'notifications.php' => ['title' => 'Notifications', 'description' => 'View and manage all system notifications.'],
+        'email_logs.php' => ['title' => 'Email Logs', 'description' => 'Monitor system email delivery statuses and error logs.'],
     ];
     $pageData = $pageTitles[$currentPage] ?? ['title' => 'Dashboard', 'description' => ''];
 
     // Fetch admin notifications
     $admin_notifs = [];
+    $notifCount = 0;
     if (isset($_SESSION['user_id'])) {
         if (isset($_GET['read_notifs'])) {
             $stmt_read = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");

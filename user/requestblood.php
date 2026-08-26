@@ -45,10 +45,11 @@ if ($isLoggedIn) {
     $editData = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if ($editData) {
-      if (in_array($editData['status'], ['Pending', 'Approved'])) {
+      if (in_array($editData['status'], ['Pending', 'Approved']) && strtotime($editData['required_date']) >= strtotime('today')) {
         $editMode = true;
       } else {
-        $message = 'This request cannot be edited anymore (Status: ' . htmlspecialchars($editData['status']) . ').';
+        $statusMsg = ($editData['status'] === 'Expired' || strtotime($editData['required_date']) < strtotime('today')) ? 'Expired' : htmlspecialchars($editData['status']);
+        $message = 'This request cannot be edited anymore (Status: ' . $statusMsg . ').';
         $messageType = 'error';
       }
     } else {
@@ -449,8 +450,11 @@ if ($isLoggedIn) {
                   $statusColor = match ($r['status'] ?? '') {
                     'Pending' => 'bg-yellow-100 text-yellow-700',
                     'Approved' => 'bg-blue-100 text-blue-700',
+                    'Assigned' => 'bg-indigo-100 text-indigo-700',
+                    'Accepted' => 'bg-purple-100 text-purple-700',
                     'Completed' => 'bg-green-100 text-green-700',
                     'Rejected' => 'bg-red-100 text-red-600',
+                    'Expired' => 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
                     default => 'bg-gray-100 text-gray-600',
                   };
                   $urgencyColor = match ($r['urgency'] ?? '') {

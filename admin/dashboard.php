@@ -13,14 +13,18 @@ $stats = [
 ];
 
 try {
-    $stats['total_users']          = $conn->query("SELECT COUNT(*) AS c FROM users")->fetch_assoc()['c'] ?? 0;
+    $roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+    $hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+    $userFilter = $hasRoleColumn ? "WHERE role = 'User'" : "WHERE username != 'admin'";
+
+    $stats['total_users']          = $conn->query("SELECT COUNT(*) AS c FROM users {$userFilter}")->fetch_assoc()['c'] ?? 0;
     $stats['total_donors']         = $conn->query("SELECT COUNT(*) AS c FROM donor")->fetch_assoc()['c'] ?? 0;
     $stats['pending']              = (int)($conn->query("
         SELECT COUNT(*) AS c 
         FROM blood_request r
         LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
         LEFT JOIN users u_donor ON d.user_id = u_donor.id
-        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
           AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
     ")->fetch_assoc()['c'] ?? 0);
     $stats['pending_requests']     = (int)($conn->query("
@@ -28,10 +32,10 @@ try {
         FROM blood_request r
         LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
         LEFT JOIN users u_donor ON d.user_id = u_donor.id
-        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
           AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
     ")->fetch_assoc()['c'] ?? 0);
-    $stats['awaiting_assignment']  = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Approved') AND assigned_donor_id IS NULL")->fetch_assoc()['c'] ?? 0);
+    $stats['awaiting_assignment']  = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Pending', 'Approved') AND assigned_donor_id IS NULL AND required_date >= CURDATE()")->fetch_assoc()['c'] ?? 0);
     $stats['completed_requests']   = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status='Completed'")->fetch_assoc()['c'] ?? 0);
 } catch (Exception $e) {
 }
@@ -93,9 +97,6 @@ try {
 
 $recent_users = [];
 try {
-    $roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
-    $hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
-
     if ($hasRoleColumn) {
         $user_query = "
             SELECT 
@@ -106,6 +107,7 @@ try {
                 status,
                 created_at
             FROM users
+            WHERE role = 'User'
             ORDER BY created_at DESC, id DESC
             LIMIT 5
         ";
@@ -118,7 +120,6 @@ try {
                 u.status,
                 u.created_at,
                 CASE 
-                    WHEN u.username = 'admin' THEN 'Admin'
                     WHEN d.user_id IS NOT NULL THEN 'Donor'
                     WHEN br.users_id IS NOT NULL THEN 'Requester'
                     ELSE 'User'
@@ -126,6 +127,7 @@ try {
             FROM users u
             LEFT JOIN (SELECT DISTINCT user_id FROM donor) d ON d.user_id = u.id
             LEFT JOIN (SELECT DISTINCT users_id FROM blood_request) br ON br.users_id = u.id
+            WHERE u.username != 'admin'
             ORDER BY u.created_at DESC, u.id DESC
             LIMIT 5
         ";
@@ -514,6 +516,7 @@ $current_time = date('h:i A');
                                                 elseif ($req['status'] === 'Accepted') $statusClass = 'bg-indigo-300 text-indigo-800 dark:bg-indigo-500/30 dark:text-indigo-600';
                                                 elseif ($req['status'] === 'Completed' || $req['status'] === 'Received') $statusClass = 'bg-green-300 text-green-600 dark:bg-green-500/30 dark:text-green-600';
                                                 elseif ($req['status'] === 'Rejected' || $req['status'] === 'Cancelled') $statusClass = 'bg-red-300 text-red-600 dark:bg-red-500/30 dark:text-red-600';
+                                                elseif ($req['status'] === 'Expired') $statusClass = 'bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200';
                                                 ?>
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap <?php echo $statusClass; ?>">
                                                     <?php echo htmlspecialchars($req['status']); ?>

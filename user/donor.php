@@ -51,9 +51,19 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
 
   // Fetch all admins for notification
   $admins = [0]; // Admin is hardcoded as user_id 0 in this system
-  if ($_GET['action'] === 'accept' && $d_id > 0) {
+
+  // Verify request is not expired before accepting/rejecting
+  $chkReq = $conn->prepare("SELECT id, status, required_date FROM blood_request WHERE id = ?");
+  $chkReq->bind_param("i", $r_id);
+  $chkReq->execute();
+  $reqData = $chkReq->get_result()->fetch_assoc();
+  $chkReq->close();
+
+  if ($reqData && ($reqData['status'] === 'Expired' || strtotime($reqData['required_date']) < strtotime('today'))) {
+    // Request has expired - cannot perform action
+  } else if ($_GET['action'] === 'accept' && $d_id > 0) {
     // Update blood_request
-    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Accepted' WHERE id = ? AND (assigned_donor_id = ? OR assigned_donor_id IS NULL)");
+    $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Accepted' WHERE id = ? AND (assigned_donor_id = ? OR assigned_donor_id IS NULL) AND status NOT IN ('Expired', 'Completed', 'Rejected', 'Cancelled')");
     $stmt_a->bind_param("ii", $r_id, $d_id);
     $stmt_a->execute();
     $stmt_a->close();
@@ -614,9 +624,14 @@ if ($isLoggedIn && !empty($userId)) {
                       <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center font-bold text-blue-700 text-3xl shadow-inner mx-auto sm:mx-0">
                         <?= htmlspecialchars($ar['blood_gp_name'] ?? 'N/A') ?>
                       </div>
+                      <?php
+                      $isExpired = (($ar['req_status'] ?? '') === 'Expired' || ($ar['assignment_status'] ?? '') === 'Expired' || strtotime($ar['required_date']) < strtotime('today'));
+                      $displayStatus = $isExpired ? 'Expired' : htmlspecialchars($ar['assignment_status']);
+                      $badgeBg = $isExpired ? 'bg-gray-100 text-gray-700 border-gray-300' : 'bg-blue-50 text-blue-700 border-blue-200';
+                      ?>
                       <div class="flex flex-col w-full gap-2 text-center sm:text-left">
-                        <span class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-                          🔵 Status: <?= htmlspecialchars($ar['assignment_status']) ?>
+                        <span class="<?= $badgeBg ?> border text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                          <?= $isExpired ? '⌛' : '🔵' ?> Status: <?= $displayStatus ?>
                         </span>
                         <?php if ($ar['urgency'] === 'Urgent'): ?>
                           <span class="bg-red-50 text-red-600 border border-red-200 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
@@ -658,7 +673,7 @@ if ($isLoggedIn && !empty($userId)) {
                     <div class="flex flex-col justify-center items-center md:items-end gap-3 md:w-40 flex-shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-gray-100 md:pl-6">
                       <?php 
                       $currentAssignStatus = !empty($ar['assignment_status']) ? $ar['assignment_status'] : $ar['req_status'];
-                      if (in_array($currentAssignStatus, ['Assigned', 'Pending'])): 
+                      if (!$isExpired && in_array($currentAssignStatus, ['Assigned', 'Pending'])): 
                       ?>
                         <p class="text-xs text-gray-500 font-semibold mb-1 text-center md:text-right">Awaiting your response</p>
                         <a href="?action=accept&req_id=<?= $ar['id'] ?>" class="w-full bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 shadow-sm hover:shadow-md transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to ACCEPT this assignment?')">
@@ -667,6 +682,11 @@ if ($isLoggedIn && !empty($userId)) {
                         <a href="?action=reject&req_id=<?= $ar['id'] ?>" class="w-full bg-white text-red-600 border-2 border-red-200 px-5 py-2 rounded-xl font-bold hover:bg-red-50 transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to REJECT this assignment?')">
                           <i class="fas fa-times"></i> Reject
                         </a>
+                      <?php elseif ($isExpired || $currentAssignStatus === 'Expired'): ?>
+                        <div class="flex flex-col items-center justify-center bg-gray-100 p-4 rounded-xl border border-gray-200 w-full h-full min-h-[100px]">
+                          <i class="fas fa-clock text-gray-400 text-2xl mb-2"></i>
+                          <span class="text-sm font-bold text-gray-600 text-center">Expired</span>
+                        </div>
                       <?php else: ?>
                         <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-200 w-full h-full min-h-[100px]">
                           <i class="fas fa-clipboard-check text-green-500 text-2xl mb-2"></i>

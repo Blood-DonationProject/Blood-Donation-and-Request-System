@@ -12,7 +12,10 @@ if (isset($_SESSION['error'])) {
     $error = $_SESSION['error'];
     unset($_SESSION['error']);
 }
-$users_list = $conn->query("SELECT id, username FROM users ORDER BY username");
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+$hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+$userFilter = $hasRoleColumn ? "WHERE role = 'User'" : "WHERE username != 'admin'";
+$users_list = $conn->query("SELECT id, username FROM users {$userFilter} ORDER BY username");
 $blood_groups_list = $conn->query("SELECT id, blood_gp_name FROM blood_groups ORDER BY blood_gp_name");
 
 if (isset($_POST['add'])) {
@@ -180,13 +183,15 @@ if (isset($_POST['assign_donor'])) {
 
     if ($request_id > 0 && $donor_id > 0) {
         // Verify the request exists and is in a valid state
-        $check = $conn->prepare("SELECT id, users_id, status, assigned_donor_id FROM blood_request WHERE id = ?");
+        $check = $conn->prepare("SELECT id, users_id, status, assigned_donor_id, required_date FROM blood_request WHERE id = ?");
         $check->bind_param("i", $request_id);
         $check->execute();
         $result = $check->get_result();
         if ($result && $result->num_rows > 0) {
             $req = $result->fetch_assoc();
-            if (in_array($req['status'], ['Pending', 'Approved']) && empty($req['assigned_donor_id'])) {
+            if ($req['status'] === 'Expired' || strtotime($req['required_date']) < strtotime('today')) {
+                $_SESSION['error'] = 'Cannot assign donor: this blood request has expired.';
+            } else if (in_array($req['status'], ['Pending', 'Approved']) && empty($req['assigned_donor_id'])) {
                 // Verify donor exists and is available
                 $donor_check = $conn->prepare("SELECT id, user_id, available_status FROM donor WHERE id = ?");
                 $donor_check->bind_param("i", $donor_id);
@@ -333,7 +338,7 @@ try {
         FROM blood_request r
         LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
         LEFT JOIN users u_donor ON d.user_id = u_donor.id
-        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
           AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
     ")->fetch_assoc()['c'] ?? 0);
     $stats['approved']  = (int)($conn->query("SELECT COUNT(*) AS c FROM blood_request WHERE status IN ('Approved', 'Assigned')")->fetch_assoc()['c'] ?? 0);
@@ -386,9 +391,10 @@ if (isset($_GET['view'])) {
                d.available_status as donor_status,
                d.blood_groups as donor_blood_group,
                d.phone as donor_phone,
-               da.created_at as assigned_date,
-               da.responded_at as responded_date,
-               da.status as assignment_status
+               d.weight as donor_weight,
+               d.age as donor_age,
+               da.status as assignment_status,
+               da.created_at as assignment_date
         FROM blood_request br
         LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
         LEFT JOIN users u ON br.users_id = u.id
@@ -396,20 +402,19 @@ if (isset($_GET['view'])) {
         LEFT JOIN users d_u ON d.user_id = d_u.id
         LEFT JOIN donor_assignments da ON da.request_id = br.id AND da.donor_id = COALESCE(br.assigned_donor_id, br.donor_id)
         WHERE br.id = ?
-        ORDER BY da.id DESC LIMIT 1
+        ORDER BY da.id DESC
+        LIMIT 1
     ");
-    if ($stmt) {
-        $stmt->bind_param("i", $view_id);
-        $stmt->execute();
-        $v_res = $stmt->get_result();
-        if ($v_res && $v_res->num_rows > 0) {
-            $view_row = $v_res->fetch_assoc();
-        }
-        $stmt->close();
+    $stmt->bind_param("i", $view_id);
+    $stmt->execute();
+    $view_result = $stmt->get_result();
+    if ($view_result && $view_result->num_rows > 0) {
+        $view_row = $view_result->fetch_assoc();
     }
+    $stmt->close();
 }
 
-// Fetch assignable requests (Pending or Approved without donor)
+// Fetch assignable requests (Pending or Approved without donor and not expired)
 $assignable_requests = [];
 try {
     $result = $conn->query("
@@ -419,7 +424,7 @@ try {
                (SELECT GROUP_CONCAT(DISTINCT donor_id) FROM donor_assignments WHERE request_id = r.id AND status = 'Cancelled') AS unassigned_donors
         FROM blood_request r
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
-        WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL
+        WHERE r.status IN ('Pending', 'Approved') AND r.assigned_donor_id IS NULL AND r.required_date >= CURDATE()
         ORDER BY r.required_date ASC
     ");
     if ($result && $result->num_rows > 0) {
@@ -445,7 +450,7 @@ try {
 } catch (Exception $e) {
 }
 
-// Pending / in-progress blood requests for action cards
+// Pending / in-progress blood requests for action cards (non-expired)
 $pending_requests = [];
 try {
     $result = $conn->query("
@@ -454,7 +459,7 @@ try {
         LEFT JOIN blood_groups bg ON r.blood_groups_id = bg.id
         LEFT JOIN donor d ON COALESCE(r.assigned_donor_id, r.donor_id) = d.id
         LEFT JOIN users u_donor ON d.user_id = u_donor.id
-        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled')
+        WHERE r.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'Expired')
           AND (COALESCE(r.assigned_donor_id, r.donor_id) IS NULL OR u_donor.status = 'Active' OR u_donor.status IS NULL)
         ORDER BY r.required_date ASC
         LIMIT 10
@@ -1002,7 +1007,7 @@ $stats = [
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
                             <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                                <?php foreach (['Pending', 'Approved', 'Assigned', 'Accepted', 'Completed', 'Rejected'] as $st): ?>
+                                <?php foreach (['Pending', 'Approved', 'Assigned', 'Accepted', 'Completed', 'Rejected', 'Expired'] as $st): ?>
                                     <option value="<?= $st ?>" <?= (($edit_row['status'] ?? 'Pending') === $st) ? 'selected' : '' ?>><?= $st ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -1048,6 +1053,7 @@ $stats = [
                             <option value="Received">Received</option>
                             <option value="Completed">Completed</option>
                             <option value="Rejected">Rejected</option>
+                            <option value="Expired">Expired</option>
                         </select>
                     </div>
                     <button onclick="clearFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear Filters</button>
@@ -1097,6 +1103,7 @@ $stats = [
                                             'Unavailable' => 'bg-red-100 text-red-700',
                                             'Rejected'  => 'bg-red-100 text-red-700',
                                             'Cancelled' => 'bg-red-100 text-red-700',
+                                            'Expired'   => 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
                                         ];
                                         $sc = $statusColors[$reqStatus] ?? 'bg-gray-100 text-gray-700';
 

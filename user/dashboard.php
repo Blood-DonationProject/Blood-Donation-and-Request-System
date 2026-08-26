@@ -41,8 +41,10 @@ if ($r) $totalDonors = $r->fetch_assoc()['c'] ?? 0;
 $r = $conn->query("SELECT COUNT(*) AS c FROM blood_request");
 if ($r) $totalRequests = $r->fetch_assoc()['c'] ?? 0;
 $r = $conn->query("SELECT COUNT(*) AS c FROM donor_assignments WHERE status='Completed'");
-if ($r) $totalDonations = $r->fetch_assoc()['c'] ?? 0;
-$r = $conn->query("SELECT COUNT(*) AS c FROM users");
+$roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+$hasRoleColumn = ($roleCheck && $roleCheck->num_rows > 0);
+$userFilter = $hasRoleColumn ? "WHERE role = 'User'" : "WHERE username != 'admin'";
+$r = $conn->query("SELECT COUNT(*) AS c FROM users {$userFilter}");
 if ($r) $totalUsers = $r->fetch_assoc()['c'] ?? 0;
 $livesSaved = $totalDonations * 3;
 ?>
