@@ -76,6 +76,29 @@ try {
     $conn->query("ALTER TABLE notifications ADD COLUMN related_user_id INT NULL DEFAULT NULL AFTER donor_id");
   }
 
+  // Ensure email_logs table exists and has related_id
+  $conn->query("CREATE TABLE IF NOT EXISTS `email_logs` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `notification_id` INT NULL,
+      `user_id` INT NULL,
+      `related_id` INT NULL,
+      `recipient_email` VARCHAR(100) NOT NULL,
+      `recipient_name` VARCHAR(100) DEFAULT NULL,
+      `subject` VARCHAR(255) NOT NULL,
+      `email_type` VARCHAR(50) NOT NULL,
+      `status` ENUM('Pending','Sent','Delivered','Failed','Bounced','Opened') DEFAULT 'Pending',
+      `error_message` TEXT DEFAULT NULL,
+      `sent_at` TIMESTAMP NULL DEFAULT NULL,
+      `delivered_at` TIMESTAMP NULL DEFAULT NULL,
+      `opened_at` TIMESTAMP NULL DEFAULT NULL,
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+  $chkRelCol = $conn->query("SHOW COLUMNS FROM email_logs LIKE 'related_id'");
+  if ($chkRelCol && $chkRelCol->num_rows === 0) {
+    $conn->query("ALTER TABLE email_logs ADD COLUMN related_id INT NULL DEFAULT NULL AFTER user_id");
+  }
+
   // Reassign any legacy notifications where user_id = 0 to first active admin
   $adminRes = $conn->query("SELECT id FROM users WHERE role = 'Admin' AND (status = 'Active' OR status IS NULL) LIMIT 1");
   if ($adminRes && $adminRow = $adminRes->fetch_assoc()) {

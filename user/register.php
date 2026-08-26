@@ -87,8 +87,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($stmt->execute()) {
         $new_user_id = $conn->insert_id;
         require_once __DIR__ . '/../includes/notification_helper.php';
+        require_once __DIR__ . '/../includes/mailer.php';
+
+        // Website Notification for the new user
+        create_notification($conn, $new_user_id, 'User_Registration', 'Welcome to BloodLife', 'Welcome to BloodLife! Your account has been registered successfully.', null, null, null, $new_user_id);
+
+        // Website Notification for Admins
         $notifMsg = 'New user "' . $candidate . '" (' . $email . ') registered on ' . date('M j, Y · g:i A') . '.';
         notify_admins($conn, 'User_Registration', 'New user registered', $notifMsg, null, null, null, $new_user_id);
+
+        // Fail-safe decoupled welcome email to new user
+        send_welcome_user_email($new_user_id, $candidate, $email);
 
         $loginRedirect = 'login.php?registered=1&email=' . urlencode($email) . '&password=' . urlencode($password);
         if (!empty($redirectTo)) {

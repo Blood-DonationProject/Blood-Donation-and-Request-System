@@ -109,12 +109,29 @@ if (!$isLoggedIn) {
             if ($stmt->execute()) {
                 $donorId = $updateId > 0 ? $updateId : $conn->insert_id;
 
-                // Notify admin on new donor registration
+                // Notify admin and donor on new donor registration
+                $donorEmailRes = null;
                 if ($updateId <= 0) {
                     require_once __DIR__ . '/../includes/notification_helper.php';
+                    require_once __DIR__ . '/../includes/mailer.php';
                     $donorUsername = $_SESSION['username'] ?? 'User #' . $userId;
+
+                    // Website Notification for the donor
+                    create_notification($conn, $userId, 'Donor_Registration', 'Donor Registration Successful', "Thank you for registering as a blood donor ({$blood_groups}). Your profile is active and ready for matches.", null, null, $donorId, $userId);
+
+                    // Website Notification for admins
                     $notifMsg = "Donor \"{$donorUsername}\" (Blood Group: {$blood_groups}, Phone: {$phone}, Address: {$address}, Age: {$age}) has registered.";
                     notify_admins($conn, 'Donor_Registration', 'New donor registration', $notifMsg, null, null, $donorId, $userId);
+
+                    // Fetch donor email for welcome email
+                    $userEmail = $_SESSION['email'] ?? '';
+                    if (empty($userEmail)) {
+                        $uQuery = $conn->query("SELECT email FROM users WHERE id = " . (int)$userId);
+                        if ($uQuery && $uRow = $uQuery->fetch_assoc()) $userEmail = $uRow['email'];
+                    }
+                    if (!empty($userEmail)) {
+                        $donorEmailRes = send_welcome_donor_email($userId, $donorUsername, $blood_groups, $userEmail);
+                    }
                 }
 
                 // Sync phone and address to users profile as the central source of truth
@@ -125,7 +142,11 @@ if (!$isLoggedIn) {
                     $updUser->close();
                 }
 
-                $message = $updateId > 0 ? 'Donor record updated successfully!' : 'Donor registration submitted successfully! Your status is pending approval.';
+                if ($updateId > 0) {
+                    $message = 'Donor record updated successfully!';
+                } else {
+                    $message = format_action_feedback('Donor registration completed', $donorEmailRes);
+                }
                 $messageType = 'success';
             } else {
                 $message = 'Failed to save registration. Please try again.';

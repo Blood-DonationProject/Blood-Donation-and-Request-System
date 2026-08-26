@@ -98,6 +98,9 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     $msg = "Donor \"" . htmlspecialchars($username) . "\" has accepted the blood request #" . $r_id . ($hosp ? " (" . $hosp . ")" : "") . ".";
     notify_admins($conn, 'Assignment_Accepted', 'Donor accepted the blood request', $msg, $r_id, $assignment_id, $d_id);
 
+    // Notify Donor
+    create_notification($conn, $userId, 'Assignment_Accepted', 'Assignment Accepted', "You have accepted the blood request #{$r_id} ({$hosp}). Please proceed to the hospital.", $r_id, $assignment_id, $d_id, $userId);
+
     // Notify Requester
     $get_req = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM blood_request br JOIN users u ON br.users_id = u.id WHERE br.id = ?");
     $get_req->bind_param("i", $r_id);
@@ -105,15 +108,21 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     $req_user = $get_req->get_result()->fetch_assoc();
     $get_req->close();
 
+    $emailRes = null;
     if ($req_user) {
       $reqMsg = "The assigned donor " . htmlspecialchars($username) . " has accepted your blood request #" . $r_id . ".";
-      $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Accepted', ?)");
-      $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
-      $reqNotif->execute();
-      $reqNotif->close();
+      $reqNotifId = create_notification($conn, $req_user['user_id'], 'Assignment_Accepted', 'Donor Accepted', $reqMsg, $r_id, $assignment_id, $d_id, $userId);
 
-      send_notification_email($req_user['user_id'], 'Donor Accepted', $reqMsg, 'StatusUpdate', $r_id);
+      // Fail-safe decoupled email to requester
+      require_once __DIR__ . '/../includes/mailer.php';
+      $emailRes = send_donor_accepted_email($req_user['user_id'], [
+        'id'          => $r_id,
+        'hospital'    => $hosp,
+        'blood_group' => $reqData['blood_group'] ?? ''
+      ], ['username' => $username], $reqNotifId);
     }
+
+    $_SESSION['flash_success'] = format_action_feedback('Assignment accepted', $emailRes);
   } elseif ($_GET['action'] === 'reject' && $d_id > 0) {
     // Update blood_request: unassign donor and set to Pending
     $stmt_a = $conn->prepare("UPDATE blood_request SET status = 'Pending', assigned_donor_id = NULL WHERE id = ? AND (assigned_donor_id = ? OR assigned_donor_id IS NULL)");
@@ -146,6 +155,17 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     $msg = "Donor \"" . htmlspecialchars($username) . "\" has rejected the blood request #" . $r_id . ($hosp ? " (" . $hosp . ")" : "") . ". Please assign another donor.";
     notify_admins($conn, 'Assignment_Rejected', 'Donor rejected the blood request', $msg, $r_id, $assignment_id, $d_id);
 
+    // Notify Donor
+    create_notification($conn, $userId, 'Assignment_Rejected', 'Assignment Declined', "You declined blood request #{$r_id}. Your profile has been set back to Available.", $r_id, $assignment_id, $d_id, $userId);
+
+    // Fail-safe decoupled email alert to Admin
+    require_once __DIR__ . '/../includes/mailer.php';
+    $adminEmailRes = send_admin_donor_rejected_email([
+      'id'          => $r_id,
+      'hospital'    => $hosp,
+      'blood_group' => $reqData['blood_group'] ?? ''
+    ], ['username' => $username]);
+
     // Notify Requester
     $get_req = $conn->prepare("SELECT u.id as user_id, u.email, u.username FROM blood_request br JOIN users u ON br.users_id = u.id WHERE br.id = ?");
     $get_req->bind_param("i", $r_id);
@@ -153,16 +173,20 @@ if (isset($_GET['action']) && isset($_GET['req_id']) && $isLoggedIn) {
     $req_user = $get_req->get_result()->fetch_assoc();
     $get_req->close();
 
+    $reqEmailRes = null;
     if ($req_user) {
-      $reqMsg = "The assigned donor rejected your blood request. We are finding another donor.";
-      $reqNotif = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, 'StatusUpdate', 'Donor Rejected', ?)");
-      $reqNotif->bind_param("iiis", $req_user['user_id'], $r_id, $assignment_id, $reqMsg);
-      $reqNotif->execute();
-      $reqNotif->close();
+      $reqMsg = "The assigned donor was unable to fulfill your blood request. We are finding another donor for you.";
+      $reqNotifId = create_notification($conn, $req_user['user_id'], 'Assignment_Rejected', 'Donor Rejected', $reqMsg, $r_id, $assignment_id, $d_id, $userId);
 
-      // Send email notification to requester
-      send_notification_email($req_user['user_id'], 'Donor Rejected', $reqMsg, 'StatusUpdate', $r_id);
+      // Fail-safe decoupled email to requester
+      $reqEmailRes = send_requester_donor_rejected_email($req_user['user_id'], [
+        'id'       => $r_id,
+        'hospital' => $hosp
+      ], $reqNotifId);
     }
+
+    $allSuccess = (!empty($adminEmailRes['success']) && ($reqEmailRes === null || !empty($reqEmailRes['success'])));
+    $_SESSION['flash_success'] = format_action_feedback('Assignment declined', $allSuccess);
   }
   header("Location: donor.php");
   exit;
@@ -526,7 +550,6 @@ if ($isLoggedIn && !empty($userId)) {
       background-color: #1f2937 !important;
       border-color: #4b5563 !important;
     }
-
   </style>
 </head>
 
@@ -540,6 +563,32 @@ if ($isLoggedIn && !empty($userId)) {
 
   <!-- Navbar -->
   <?php include __DIR__ . '/../includes/header.php'; ?>
+
+  <?php if (!empty($_SESSION['flash_success'])): ?>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+      <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-2">
+          <i class="fas fa-check-circle text-green-600 text-lg"></i>
+          <span class="text-sm font-medium"><?php echo htmlspecialchars($_SESSION['flash_success']); ?></span>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-green-600 hover:text-green-800 text-sm font-bold">&times;</button>
+      </div>
+    </div>
+    <?php unset($_SESSION['flash_success']); ?>
+  <?php endif; ?>
+
+  <?php if (!empty($_SESSION['flash_error'])): ?>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+      <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-2">
+          <i class="fas fa-exclamation-circle text-red-600 text-lg"></i>
+          <span class="text-sm font-medium"><?php echo htmlspecialchars($_SESSION['flash_error']); ?></span>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-800 text-sm font-bold">&times;</button>
+      </div>
+    </div>
+    <?php unset($_SESSION['flash_error']); ?>
+  <?php endif; ?>
 
   <!-- ═══════════════════════════════════════════════════ -->
   <!-- 1. HERO BANNER -->
@@ -678,9 +727,9 @@ if ($isLoggedIn && !empty($userId)) {
 
                     <!-- Right: Actions -->
                     <div class="flex flex-col justify-center items-center md:items-end gap-3 md:w-40 flex-shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-gray-100 md:pl-6">
-                      <?php 
+                      <?php
                       $currentAssignStatus = !empty($ar['assignment_status']) ? $ar['assignment_status'] : $ar['req_status'];
-                      if (!$isExpired && in_array($currentAssignStatus, ['Assigned', 'Pending'])): 
+                      if (!$isExpired && in_array($currentAssignStatus, ['Assigned', 'Pending'])):
                       ?>
                         <p class="text-xs text-gray-500 font-semibold mb-1 text-center md:text-right">Awaiting your response</p>
                         <a href="?action=accept&req_id=<?= $ar['id'] ?>" class="w-full bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 shadow-sm hover:shadow-md transition text-center text-sm flex justify-center items-center gap-2" onclick="return confirm('Are you sure you want to ACCEPT this assignment?')">
@@ -957,7 +1006,7 @@ if ($isLoggedIn && !empty($userId)) {
             <i class="fas fa-envelope"></i>
           </div>
           <h4 class="font-bold text-gray-900 mb-2">Email</h4>
-          <p class="text-gray-500 text-sm">info@bloodlife.com</p>
+          <p class="text-gray-500 text-sm">bloodcommunication12@gmail.com</p>
         </div>
 
         <!-- Phone -->
@@ -966,7 +1015,7 @@ if ($isLoggedIn && !empty($userId)) {
             <i class="fas fa-phone"></i>
           </div>
           <h4 class="font-bold text-gray-900 mb-2">Phone</h4>
-          <p class="text-gray-500 text-sm">1-800-BLOOD-999</p>
+          <p class="text-gray-500 text-sm">09-258111622</p>
         </div>
 
         <!-- Address -->

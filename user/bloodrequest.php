@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
     $req_id = (int)$_POST['request_id'];
     // Verify it belongs to the user and is 'Assigned' or 'Accepted'
     $stmt = $conn->prepare("
-        SELECT id, assigned_donor_id, blood_groups_id
+        SELECT id, assigned_donor_id, blood_groups_id, hospital
         FROM blood_request 
         WHERE id = ? AND users_id = ? AND status IN ('Assigned', 'Accepted')
     ");
@@ -57,18 +57,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
       $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$row['blood_groups_id']);
       if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
 
-      // Notify Admins
       require_once __DIR__ . '/../includes/notification_helper.php';
+      require_once __DIR__ . '/../includes/mailer.php';
+
+      // Notify Requester
+      $reqNotifId = create_notification($conn, $_SESSION['user_id'], 'Blood_Received', 'Blood Received Confirmed', "You have confirmed receiving blood for Request #{$req_id}. Request marked as Completed.", $req_id, null, $row['assigned_donor_id'], $_SESSION['user_id']);
+
+      // Notify Admins
       $adminNotifMsg = "Requester \"{$username}\" confirmed blood received from donor \"{$donorName}\" (Blood Group: {$bgName}, Units: 1) for Request #{$req_id}. Request marked as Completed.";
       notify_admins($conn, 'Blood_Received', 'Blood received confirmation', $adminNotifMsg, $req_id, null, $row['assigned_donor_id'], $_SESSION['user_id']);
 
       // Notify Donor if user_id is found
+      $donorEmailRes = null;
       if (!empty($donorUserId)) {
         $donorNotifMsg = "The requester has confirmed receiving your blood donation for Request #{$req_id}. Thank you for saving a life!";
-        create_notification($conn, $donorUserId, 'Blood_Received', 'Blood Donation Completed', $donorNotifMsg, $req_id, null, $row['assigned_donor_id'], $_SESSION['user_id']);
+        $donorNotifId = create_notification($conn, $donorUserId, 'Blood_Received', 'Blood Donation Completed', $donorNotifMsg, $req_id, null, $row['assigned_donor_id'], $_SESSION['user_id']);
+        
+        // Fail-safe decoupled thank-you email to Donor
+        $donorEmailRes = send_blood_received_thankyou_email($donorUserId, [
+          'id'          => $req_id,
+          'hospital'    => $row['hospital'] ?? 'Hospital',
+          'blood_group' => $bgName
+        ], $donorNotifId);
       }
 
-      $success_msg = "Blood received successfully. Request is now completed.";
+      // Fail-safe decoupled completion receipt to Requester
+      $reqEmailRes = send_request_completed_email($_SESSION['user_id'], [
+        'id'          => $req_id,
+        'hospital'    => $row['hospital'] ?? 'Hospital',
+        'blood_group' => $bgName
+      ], $reqNotifId);
+
+      $allSuccess = (($donorEmailRes === null || !empty($donorEmailRes['success'])) && ($reqEmailRes === null || !empty($reqEmailRes['success'])));
+      $success_msg = format_action_feedback('Blood received confirmed and request completed', $allSuccess);
     } else {
       $error_msg = "Invalid request or it is not in an active assignment status.";
     }

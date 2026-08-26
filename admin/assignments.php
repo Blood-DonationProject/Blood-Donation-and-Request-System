@@ -113,23 +113,33 @@ if (isset($_POST['assign_donor'])) {
                                 $donorUserRow = $donorUser->get_result()->fetch_assoc();
                                 $donorUser->close();
 
+                                $donorEmailRes = null;
                                 if ($donorUserRow) {
                                     $notifMsg = "You have been assigned as a donor for a blood request. Blood Group: " . $req['blood_group_name'] . " | Requester/Hospital: " . $req['hospital'] . " | Required Date: " . $req['required_date'];
                                     $notifType = 'Assignment';
-                                    $notifTitle = 'New Assignment';
+                                    $notifTitle = 'New Blood Request Assignment';
                                     $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
                                     $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
                                     $notifStmt->execute();
                                     $donorNotifId = $conn->insert_id;
                                     $notifStmt->close();
 
-                                    // Send email notification to donor
-                                    send_notification_email($donorUserRow['user_id'], $notifTitle, $notifMsg, 'Assignment', $request_id);
+                                    // Fail-safe decoupled email notification to donor
+                                    require_once __DIR__ . '/../includes/mailer.php';
+                                    $donorEmailRes = send_donor_assignment_email($donorUserRow['user_id'], [
+                                        'id'             => $request_id,
+                                        'blood_group'    => $req['blood_group_name'],
+                                        'hospital'       => $req['hospital'],
+                                        'units'          => $req['units'] ?? 1,
+                                        'required_date'  => $req['required_date'],
+                                        'requester_name' => $req['requester_name'] ?? 'Patient'
+                                    ], $assignment_id, $donorNotifId);
                                 }
 
                                 // Send notification to Requester
+                                $reqEmailRes = null;
                                 if (!empty($req['users_id'])) {
-                                    $reqNotifMsg = "Good news! A donor has been assigned to your blood request #" . $request_id . ".";
+                                    $reqNotifMsg = "Good news! A donor (" . ($donorUserRow['username'] ?? 'matched volunteer') . ") has been assigned to your blood request #" . $request_id . ".";
                                     $reqNotifType = 'Assignment';
                                     $reqNotifTitle = 'Donor Assigned';
                                     $reqNotifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
@@ -138,8 +148,12 @@ if (isset($_POST['assign_donor'])) {
                                     $reqNotifId = $conn->insert_id;
                                     $reqNotifStmt->close();
 
-                                    // Send email notification to requester
-                                    send_notification_email($req['users_id'], $reqNotifTitle, $reqNotifMsg, 'Assignment', $request_id);
+                                    // Fail-safe decoupled email notification to requester
+                                    require_once __DIR__ . '/../includes/mailer.php';
+                                    $reqEmailRes = send_requester_donor_assigned_email($req['users_id'], [
+                                        'id'       => $request_id,
+                                        'hospital' => $req['hospital']
+                                    ], $donorUserRow['username'] ?? 'Volunteer Donor', $reqNotifId);
                                 }
 
                                 // Create confirmation notification for Admin
@@ -148,7 +162,10 @@ if (isset($_POST['assign_donor'])) {
                                 $adminConfirmMsg = "Donor \"{$donorName}\" was successfully assigned to Request #{$request_id} ({$req['hospital']}).";
                                 notify_admins($conn, 'Assignment', 'Donor assigned successfully', $adminConfirmMsg, $request_id, $assignment_id, $donor_id);
 
-                                respond_assignment('success', 'Donor assigned successfully!', $is_ajax);
+                                $emailSuccess = (!empty($donorEmailRes['success']) && ($reqEmailRes === null || !empty($reqEmailRes['success'])));
+                                $feedbackMsg = format_action_feedback('Donor assigned', $emailSuccess);
+
+                                respond_assignment('success', $feedbackMsg, $is_ajax);
                             } else {
                                 respond_assignment('error', 'Error assigning donor: ' . $conn->error, $is_ajax);
                             }

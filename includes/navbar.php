@@ -225,87 +225,92 @@
     }
 </script>
 
-<nav class="bg-blue-100 dark:bg-gray-800 shadow-sm sticky top-0 z-30 border-b border-gray-100 dark:border-gray-700 transition-colors duration-300">
-    <div class="px-8 py-4 flex justify-between items-center">
+<nav class="bg-white/95 backdrop-blur-md shadow-sm sticky top-0 z-30 border-b-2 border-pink-100 transition-colors duration-300">
+    <div class="px-6 sm:px-8 py-3.5 flex justify-between items-center">
         <div class="flex items-center space-x-4">
             <div>
-                <h2 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-700"><?= htmlspecialchars($pageData['title']) ?></h2>
+                <h2 class="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-600 to-red-700 tracking-tight"><?= htmlspecialchars($pageData['title']) ?></h2>
                 <?php if ($pageData['description']): ?>
-                    <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm"><?= htmlspecialchars($pageData['description']) ?></p>
+                    <p class="text-gray-500 font-semibold mt-0.5 text-xs sm:text-sm"><?= htmlspecialchars($pageData['description']) ?></p>
                 <?php endif; ?>
             </div>
         </div>
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3 sm:space-x-4">
             <!-- Theme Toggle -->
-            <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center cursor-pointer hover:border-red-300 hover:bg-red-50 dark:hover:bg-gray-600 transition" aria-label="Toggle theme" onclick="toggleTheme()">
-                <span class="theme-icon-sun"><i class="fas fa-sun text-gray-600 dark:text-yellow-400"></i></span>
-                <span class="theme-icon-moon" style="display:none"><i class="fas fa-moon text-gray-600 dark:text-gray-300"></i></span>
+            <button type="button" class="theme-toggle-btn relative w-11 h-11 rounded-2xl border-2 border-pink-200 bg-pink-50/60 hover:bg-pink-100 hover:border-red-400 flex items-center justify-center cursor-pointer shadow-xs transition" aria-label="Toggle theme" onclick="toggleTheme()">
+                <span class="theme-icon-sun"><i class="fas fa-sun text-amber-500 text-lg"></i></span>
+                <span class="theme-icon-moon" style="display:none"><i class="fas fa-moon text-rose-700 text-lg"></i></span>
             </button>
             
             <!-- Notifications Bell -->
             <div class="relative">
-                <button onclick="toggleNotifications()" id="adminNotifBellBtn" class="relative w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center hover:bg-red-50 hover:border-red-300 dark:hover:bg-gray-600 transition" aria-label="View notifications">
-                    <i class="fas fa-bell text-gray-600 dark:text-gray-300"></i>
-                    <span id="notifBadgeCount" class="<?= $notifCount > 0 ? '' : 'hidden' ?> absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] px-1 flex items-center justify-center shadow-sm pulse-dot">
+                <button onclick="toggleNotifications()" id="adminNotifBellBtn" class="relative w-11 h-11 rounded-2xl border-2 border-pink-200 bg-pink-50/60 hover:bg-pink-100 hover:border-red-400 flex items-center justify-center shadow-xs transition cursor-pointer" aria-label="View notifications">
+                    <i class="fas fa-bell text-red-600 text-lg"></i>
+                    <span id="notifBadgeCount" class="<?= $notifCount > 0 ? '' : 'hidden' ?> absolute -top-1 -right-1 bg-gradient-to-r from-red-600 to-rose-600 text-white text-[11px] font-black rounded-full h-5 min-w-[20px] px-1 flex items-center justify-center shadow-md shadow-red-200 pulse-dot">
                         <?= $notifCount > 99 ? '99+' : $notifCount ?>
                     </span>
                 </button>
                 
                 <!-- Dropdown -->
-                <div id="adminNotifDropdown" class="hidden absolute right-0 mt-3 w-88 sm:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
-                    <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/80">
-                        <div class="flex items-center gap-2">
-                            <i class="fas fa-bell text-red-600 dark:text-red-400"></i>
-                            <p class="font-bold text-gray-800 dark:text-gray-100 text-sm">Notifications</p>
+                <div id="adminNotifDropdown" class="hidden absolute right-0 mt-3 w-88 sm:w-96 bg-white rounded-3xl shadow-2xl border-2 border-pink-100 z-50 overflow-hidden">
+                    <div class="p-4 border-b-2 border-pink-50 flex items-center justify-between bg-gradient-to-r from-rose-50/90 to-pink-50/40">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shadow-2xs">
+                                <i class="fas fa-bell text-sm"></i>
+                            </div>
+                            <p class="font-black text-gray-900 text-sm">Notifications</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span id="notifHeaderNewCount" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"><?= $notifCount ?> new</span>
-                            <button id="markAllReadBtn" onclick="markAllNotificationsReadAjax(event)" class="<?= $notifCount > 0 ? '' : 'hidden' ?> text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">Mark all read</button>
+                            <span id="notifHeaderNewCount" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 shadow-2xs"><?= $notifCount ?> new</span>
+                            <button id="markAllReadBtn" onclick="markAllNotificationsReadAjax(event)" class="<?= $notifCount > 0 ? '' : 'hidden' ?> text-xs font-black text-rose-600 hover:text-red-700 hover:underline">Mark all read</button>
                         </div>
                     </div>
                     
-                    <div id="adminNotifItems" class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+                    <div id="adminNotifItems" class="max-h-96 overflow-y-auto divide-y-2 divide-pink-50">
                         <?php if (count($admin_notifs) > 0): ?>
                             <?php foreach ($admin_notifs as $n):
                                 $is_read = $n['is_read'] == 1;
                                 $meta = get_notification_meta($n);
                                 $bgClass = $is_read 
-                                    ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750' 
-                                    : 'notif-item-unread bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100/50 dark:hover:bg-red-900/30';
+                                    ? 'bg-white hover:bg-rose-50/30' 
+                                    : 'notif-item-unread bg-gradient-to-r from-rose-50/90 via-pink-50/50 to-white hover:bg-rose-100/50 border-l-4 border-l-red-600';
                                 
                                 $action_url = $meta['action_url'];
                             ?>
-                                <div class="block p-3.5 border-b border-gray-100 dark:border-gray-700/60 transition cursor-pointer <?= $bgClass ?>" onclick="markNotificationReadAndGo(<?= (int)$n['id'] ?>, '<?= htmlspecialchars($action_url) ?>')">
-                                    <div class="flex items-start gap-3">
-                                        <div class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <i class="fas <?= htmlspecialchars($meta['icon']) ?> <?= htmlspecialchars($meta['icon_color']) ?> text-sm"></i>
+                                <div class="block p-4 border-b border-pink-50 transition cursor-pointer <?= $bgClass ?>" onclick="markNotificationReadAndGo(<?= (int)$n['id'] ?>, '<?= htmlspecialchars($action_url) ?>')">
+                                    <div class="flex items-start gap-3.5">
+                                        <div class="w-9 h-9 rounded-xl <?= $is_read ? 'bg-pink-100 text-rose-600' : 'bg-red-100 text-red-600' ?> flex items-center justify-center flex-shrink-0 mt-0.5 border border-pink-200">
+                                            <i class="fas <?= htmlspecialchars($meta['icon']) ?> text-sm"></i>
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center justify-between gap-1">
-                                                <p class="text-xs font-bold text-gray-900 dark:text-gray-100 truncate"><?= htmlspecialchars($n['title'] ?? 'Notification') ?></p>
+                                                <p class="text-xs <?= $is_read ? 'font-bold text-gray-800' : 'font-black text-gray-900' ?> truncate"><?= htmlspecialchars($n['title'] ?? 'Notification') ?></p>
                                                 <?php if (!$is_read): ?>
                                                     <span class="unread-indicator-dot w-2 h-2 rounded-full bg-red-600 shadow-sm shadow-red-300 mt-1 flex-shrink-0"></span>
                                                 <?php endif; ?>
                                             </div>
-                                            <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2 leading-relaxed"><?= htmlspecialchars($n['message']) ?></p>
+                                            <p class="text-xs text-gray-600 mt-0.5 line-clamp-2 leading-relaxed font-medium"><?= htmlspecialchars($n['message']) ?></p>
                                             <div class="mt-2 flex items-center justify-between">
-                                                <span class="text-[10px] text-gray-400 dark:text-gray-500 font-medium"><?= date('M j, g:i A', strtotime($n['created_at'])) ?></span>
-                                                <span class="text-[11px] font-semibold text-red-600 hover:text-red-700 dark:text-red-400"><?= htmlspecialchars($meta['action_text']) ?></span>
+                                                <span class="text-[10px] text-gray-400 font-semibold"><?= date('M j, g:i A', strtotime($n['created_at'])) ?></span>
+                                                <span class="text-[11px] font-black text-red-600 hover:text-red-700"><?= htmlspecialchars($meta['action_text']) ?></span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="p-6 text-center text-gray-400 dark:text-gray-500 text-sm">
-                                <i class="fas fa-bell-slash text-2xl mb-2 block opacity-60"></i>
-                                No notifications yet
+                            <div class="p-8 text-center bg-white">
+                                <div class="w-14 h-14 bg-pink-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl">
+                                    <i class="fas fa-bell-slash"></i>
+                                </div>
+                                <p class="text-gray-800 font-bold text-sm">No notifications yet</p>
+                                <p class="text-gray-400 text-xs mt-0.5">All caught up!</p>
                             </div>
                         <?php endif; ?>
                     </div>
                     
-                    <div class="p-3 border-t border-gray-100 dark:border-gray-700 text-center bg-gray-50 dark:bg-gray-800/80 rounded-b-2xl">
-                        <a href="notifications.php" class="text-xs font-bold text-red-600 hover:text-red-700 dark:text-red-400 flex items-center justify-center gap-1.5 transition">
+                    <div class="p-3.5 border-t-2 border-pink-50 text-center bg-pink-50/50 rounded-b-3xl">
+                        <a href="notifications.php" class="text-xs font-black text-red-600 hover:text-red-700 flex items-center justify-center gap-1.5 transition">
                             <span>View All Notifications</span>
                             <i class="fas fa-arrow-right text-[10px]"></i>
                         </a>
@@ -315,33 +320,33 @@
 
             <!-- Admin Profile -->
             <div class="relative" id="adminMenu">
-                <div class="flex items-center space-x-3 cursor-pointer pl-3 border-l border-gray-200 dark:border-gray-700" onclick="toggleAdminDropdown()">
-                    <div class="text-right">
-                        <p class="font-semibold text-sm text-gray-800 dark:text-gray-200"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                        <p class="text-xs text-gray-400" data-i18n="administrator">Administrator</p>
+                <div class="flex items-center space-x-3 cursor-pointer pl-4 border-l-2 border-pink-100" onclick="toggleAdminDropdown()">
+                    <div class="text-right hidden sm:block">
+                        <p class="font-black text-sm text-gray-900"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
+                        <p class="text-[11px] font-bold text-rose-600 uppercase tracking-wider" data-i18n="administrator">Administrator</p>
                     </div>
-                    <div class="w-10 h-10 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-sm">
+                    <div class="w-11 h-11 bg-gradient-to-br from-red-500 to-rose-600 text-white rounded-2xl flex items-center justify-center font-black text-sm shadow-md shadow-red-200">
                         <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
                     </div>
                 </div>
-                <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 z-50">
-                    <div class="p-4 border-b border-gray-100 dark:border-gray-700">
+                <div id="adminDropdown" class="hidden absolute right-0 mt-3 w-64 bg-white rounded-3xl shadow-2xl border-2 border-pink-100 z-50 overflow-hidden">
+                    <div class="p-5 border-b-2 border-pink-50 bg-gradient-to-r from-rose-50/90 to-pink-50/40">
                         <div class="flex items-center space-x-3">
-                            <div class="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">
+                            <div class="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-600 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-md shadow-red-200 flex-shrink-0">
                                 <?= strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2)) ?>
                             </div>
                             <div class="min-w-0">
-                                <p class="font-semibold text-gray-800 dark:text-gray-100 truncate"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
-                                <p class="text-xs text-gray-400 truncate"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
+                                <p class="font-black text-gray-900 truncate text-sm"><?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?></p>
+                                <p class="text-xs text-rose-600 font-semibold truncate"><?= htmlspecialchars($_SESSION['user_email'] ?? '') ?></p>
                             </div>
                         </div>
                     </div>
-                    <div class="p-3 space-y-1">
-                        <a href="notifications.php" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition font-medium">
-                            <i class="fas fa-bell text-gray-400 text-xs w-4 text-center"></i>
+                    <div class="p-3 space-y-1.5">
+                        <a href="notifications.php" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-800 hover:bg-pink-50 hover:text-red-600 rounded-2xl transition font-bold">
+                            <i class="fas fa-bell text-red-500 text-xs w-4 text-center"></i>
                             <span>Notifications</span>
                         </a>
-                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-red-600 text-white py-2.5 rounded-xl font-semibold hover:bg-red-700 transition mt-2 shadow-sm" data-i18n="logout">Logout</a>
+                        <a href="logout.php" onclick="return confirm('Are you sure you want to logout?')" class="block w-full text-center bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 rounded-2xl font-black transition mt-2 shadow-md shadow-red-200" data-i18n="logout">Logout</a>
                     </div>
                 </div>
             </div>

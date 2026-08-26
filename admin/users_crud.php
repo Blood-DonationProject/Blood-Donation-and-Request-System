@@ -4,6 +4,14 @@ require_once __DIR__ . '/../config/db.php';
 
 $error = '';
 $success = '';
+if (isset($_SESSION['success'])) {
+    $success = $_SESSION['success'];
+    unset($_SESSION['success']);
+}
+if (isset($_SESSION['error'])) {
+    $error = $_SESSION['error'];
+    unset($_SESSION['error']);
+}
 
 // Check if role column exists
 $roleCheck = @$conn->query("SHOW COLUMNS FROM users LIKE 'role'");
@@ -26,7 +34,16 @@ if (isset($_POST['add'])) {
             $stmt->bind_param("ssss", $username, $email, $password, $status);
         }
         if ($stmt->execute()) {
-            $success = 'User created successfully.';
+            $newUserId = $conn->insert_id;
+            require_once __DIR__ . '/../includes/notification_helper.php';
+            require_once __DIR__ . '/../includes/mailer.php';
+
+            // Website notification
+            create_notification($conn, $newUserId, 'User_Registration', 'Welcome to BloodLife', 'Your account has been created by the administrator.', null, null, null, $newUserId);
+            
+            // Welcome email
+            $emailRes = send_welcome_user_email($newUserId, $username, $email);
+            $success = format_action_feedback('User created', $emailRes);
         } else {
             $error = 'Error: ' . $conn->error;
         }
@@ -49,9 +66,17 @@ if (isset($_POST['toggle_status'])) {
             $stmt->bind_param("si", $newStatus, $id);
         }
         if ($stmt->execute() && $stmt->affected_rows > 0) {
-            $success = "User status updated to {$newStatus}.";
+            // Website notification for user
+            require_once __DIR__ . '/../includes/notification_helper.php';
+            create_notification($conn, $id, 'StatusUpdate', 'Account Status Updated', "Your BloodLife account status is now {$newStatus}.", null, null, null, $id);
+
+            // Fail-safe decoupled email to user
+            require_once __DIR__ . '/../includes/mailer.php';
+            $emailRes = send_account_status_email($id, $newStatus);
+
+            $_SESSION['success'] = format_action_feedback("User status updated to {$newStatus}", $emailRes);
         } else {
-            $error = 'Error updating user or user is an Admin account.';
+            $_SESSION['error'] = 'Error updating user or user is an Admin account.';
         }
         $stmt->close();
         header('Location: users_crud.php');

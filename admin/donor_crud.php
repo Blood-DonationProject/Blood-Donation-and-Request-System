@@ -52,7 +52,7 @@ if (isset($_POST['assign_donor'])) {
 
     if ($request_id > 0 && $donor_id > 0) {
         // Verify the request exists and is in a valid state
-        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.required_date, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN users u ON br.users_id = u.id WHERE br.id = ?");
+        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.hospital, br.required_date, br.units, bg.blood_gp_name AS blood_group_name, u.email AS requester_email, u.username AS requester_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id LEFT JOIN users u ON br.users_id = u.id WHERE br.id = ?");
         $check->bind_param("i", $request_id);
         $check->execute();
         $result = $check->get_result();
@@ -103,41 +103,46 @@ if (isset($_POST['assign_donor'])) {
                             $donorUserRow = $donorUser->get_result()->fetch_assoc();
                             $donorUser->close();
 
+                            require_once __DIR__ . '/../includes/notification_helper.php';
+                            require_once __DIR__ . '/../includes/mailer.php';
+
+                            $donorEmailRes = null;
                             if ($donorUserRow) {
-                                $notifMsg = "You have a new blood donation assignment for Request #" . $request_id . ". Please accept or decline on your dashboard.";
+                                $notifMsg = "You have been assigned as a donor for a blood request. Blood Group: " . ($req['blood_group_name'] ?? 'Blood') . " | Hospital: " . ($req['hospital'] ?? '') . " | Required Date: " . ($req['required_date'] ?? '');
                                 $notifType = 'Assignment';
-                                $notifTitle = 'New Assignment';
-                                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-                                $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
-                                $notifStmt->execute();
-                                $donorNotifId = $conn->insert_id;
-                                $notifStmt->close();
+                                $notifTitle = 'New Blood Request Assignment';
+                                $donorNotifId = create_notification($conn, $donorUserRow['user_id'], $notifType, $notifTitle, $notifMsg, $request_id, $assignment_id, $donor_id, $req['users_id']);
                                 
-                                // Send email notification to donor
-                                send_notification_email($donorUserRow['user_id'], $notifTitle, $notifMsg, 'Assignment', $request_id);
+                                // Fail-safe decoupled email to donor
+                                $donorEmailRes = send_donor_assignment_email($donorUserRow['user_id'], [
+                                    'id'             => $request_id,
+                                    'blood_group'    => $req['blood_group_name'] ?? 'Blood',
+                                    'hospital'       => $req['hospital'] ?? '',
+                                    'units'          => $req['units'] ?? 1,
+                                    'required_date'  => $req['required_date'] ?? '',
+                                    'requester_name' => $req['requester_name'] ?? 'Patient'
+                                ], $assignment_id, $donorNotifId);
                             }
 
                             // Send notification to Requester
+                            $reqEmailRes = null;
                             if (!empty($req['users_id'])) {
                                 $reqNotifMsg = "Good news! A donor has been assigned to your blood request #" . $request_id . ".";
-                                $reqNotifType = 'Assignment';
-                                $reqNotifTitle = 'Donor Assigned';
-                                $reqNotifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-                                $reqNotifStmt->bind_param("iiisss", $req['users_id'], $request_id, $assignment_id, $reqNotifType, $reqNotifTitle, $reqNotifMsg);
-                                $reqNotifStmt->execute();
-                                $reqNotifId = $conn->insert_id;
-                                $reqNotifStmt->close();
+                                $reqNotifId = create_notification($conn, $req['users_id'], 'Assignment', 'Donor Assigned', $reqNotifMsg, $request_id, $assignment_id, $donor_id, $req['users_id']);
                                 
-                                // Send email notification to requester
-                                send_notification_email($req['users_id'], $reqNotifTitle, $reqNotifMsg, 'Assignment', $request_id);
+                                // Fail-safe decoupled email to requester
+                                $reqEmailRes = send_requester_donor_assigned_email($req['users_id'], [
+                                    'id'       => $request_id,
+                                    'hospital' => $req['hospital'] ?? ''
+                                ], $donorUserRow['username'] ?? 'Volunteer Donor', $reqNotifId);
                             }
 
                             // Notify Admin
-                            require_once __DIR__ . '/../includes/notification_helper.php';
                             $adminConfirmMsg = "Donor assigned successfully to Request #{$request_id}.";
                             notify_admins($conn, 'Assignment', 'Donor assigned successfully', $adminConfirmMsg, $request_id, $assignment_id, $donor_id);
 
-                            $_SESSION['success'] = 'Donor assigned successfully!';
+                            $emailSuccess = (!empty($donorEmailRes['success']) && ($reqEmailRes === null || !empty($reqEmailRes['success'])));
+                            $_SESSION['success'] = format_action_feedback('Donor assigned', $emailSuccess);
                         } else {
                             $_SESSION['error'] = 'Error assigning donor: ' . $conn->error;
                         }

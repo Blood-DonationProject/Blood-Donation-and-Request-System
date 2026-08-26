@@ -109,6 +109,7 @@ if (isset($_GET['reject'])) {
 }
 
 // Complete action
+// Complete action
 if (isset($_GET['complete'])) {
     $id = (int)$_GET['complete'];
     $stmt = $conn->prepare("UPDATE blood_request SET status='Completed' WHERE id=? AND status='Received'");
@@ -120,10 +121,13 @@ if (isset($_GET['complete'])) {
         $stmt_assign->close();
 
         // Insert into donation history
-        $req_stmt = $conn->prepare("SELECT users_id, assigned_donor_id, blood_groups_id, units FROM blood_request WHERE id=?");
+        $req_stmt = $conn->prepare("SELECT br.users_id, br.assigned_donor_id, br.blood_groups_id, br.units, br.hospital, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id=?");
         $req_stmt->bind_param("i", $id);
         $req_stmt->execute();
         $req_res = $req_stmt->get_result();
+        $donorEmailRes = null;
+        $reqEmailRes = null;
+
         if ($req_res && $req_res->num_rows > 0) {
             $req = $req_res->fetch_assoc();
             if ($req['assigned_donor_id']) {
@@ -133,13 +137,19 @@ if (isset($_GET['complete'])) {
                 $dhStmt->execute();
                 $dhStmt->close();
 
+                // Restore donor availability
+                $updDonor = $conn->prepare("UPDATE donor SET available_status = 'Available' WHERE id = ?");
+                $updDonor->bind_param("i", $req['assigned_donor_id']);
+                $updDonor->execute();
+                $updDonor->close();
+
                 // Get assignment_id for notification
                 $assignment_id = null;
                 $get_assign = $conn->prepare("SELECT id FROM donor_assignments WHERE request_id = ? AND donor_id = ?");
                 $get_assign->bind_param("ii", $id, $req['assigned_donor_id']);
                 $get_assign->execute();
                 if ($row_assign = $get_assign->get_result()->fetch_assoc()) {
-                    $assignment_id = $row_assign['id'];
+                    $assignment_id = (int)$row_assign['id'];
                 }
                 $get_assign->close();
 
@@ -150,26 +160,42 @@ if (isset($_GET['complete'])) {
                 $donorUserRow = $donorUser->get_result()->fetch_assoc();
                 $donorUser->close();
 
-                $notifType = 'StatusUpdate';
+                require_once __DIR__ . '/../includes/notification_helper.php';
+                require_once __DIR__ . '/../includes/mailer.php';
+
+                $notifType = 'Blood_Received';
                 $notifTitle = 'Request Completed';
                 $notifMsg = "Request #" . $id . " has been successfully completed and recorded in your history.";
 
-                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-
                 // Notify requester
-                $notifStmt->bind_param("iiisss", $req['users_id'], $id, $assignment_id, $notifType, $notifTitle, $notifMsg);
-                $notifStmt->execute();
+                $reqNotifId = create_notification($conn, $req['users_id'], $notifType, $notifTitle, $notifMsg, $id, $assignment_id, $req['assigned_donor_id'], $req['users_id']);
 
                 // Notify donor
+                $donorNotifId = null;
                 if ($donorUserRow) {
-                    $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $id, $assignment_id, $notifType, $notifTitle, $notifMsg);
-                    $notifStmt->execute();
+                    $donorNotifId = create_notification($conn, $donorUserRow['user_id'], $notifType, 'Blood Donation Completed', "Your blood donation for Request #{$id} has been confirmed received.", $id, $assignment_id, $req['assigned_donor_id'], $req['users_id']);
+                    
+                    // Decoupled email to donor
+                    $donorEmailRes = send_blood_received_thankyou_email($donorUserRow['user_id'], [
+                        'id'          => $id,
+                        'hospital'    => $req['hospital'] ?? 'Hospital',
+                        'blood_group' => $req['blood_gp_name'] ?? 'Blood'
+                    ], $donorNotifId);
                 }
-                $notifStmt->close();
+
+                // Decoupled completion email to requester
+                $reqEmailRes = send_request_completed_email($req['users_id'], [
+                    'id'          => $id,
+                    'hospital'    => $req['hospital'] ?? 'Hospital',
+                    'blood_group' => $req['blood_gp_name'] ?? 'Blood'
+                ], $reqNotifId);
             }
         }
         $req_stmt->close();
-        $_SESSION['success'] = 'Request marked as completed and recorded in history.';
+
+        require_once __DIR__ . '/../includes/notification_helper.php';
+        $emailSuccess = (($donorEmailRes === null || !empty($donorEmailRes['success'])) && ($reqEmailRes === null || !empty($reqEmailRes['success'])));
+        $_SESSION['success'] = format_action_feedback('Request marked as completed and recorded in history', $emailSuccess);
     }
     $stmt->close();
     header('Location: blood_requests_crud.php');
@@ -183,7 +209,7 @@ if (isset($_POST['assign_donor'])) {
 
     if ($request_id > 0 && $donor_id > 0) {
         // Verify the request exists and is in a valid state
-        $check = $conn->prepare("SELECT id, users_id, status, assigned_donor_id, required_date FROM blood_request WHERE id = ?");
+        $check = $conn->prepare("SELECT br.id, br.users_id, br.status, br.assigned_donor_id, br.hospital, br.required_date, br.units, bg.blood_gp_name, u.username AS requester_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id LEFT JOIN users u ON br.users_id = u.id WHERE br.id = ?");
         $check->bind_param("i", $request_id);
         $check->execute();
         $result = $check->get_result();
@@ -193,7 +219,7 @@ if (isset($_POST['assign_donor'])) {
                 $_SESSION['error'] = 'Cannot assign donor: this blood request has expired.';
             } else if (in_array($req['status'], ['Pending', 'Approved']) && empty($req['assigned_donor_id'])) {
                 // Verify donor exists and is available
-                $donor_check = $conn->prepare("SELECT id, user_id, available_status FROM donor WHERE id = ?");
+                $donor_check = $conn->prepare("SELECT id, user_id, available_status, blood_groups FROM donor WHERE id = ?");
                 $donor_check->bind_param("i", $donor_id);
                 $donor_check->execute();
                 $donor_result = $donor_check->get_result();
@@ -221,28 +247,51 @@ if (isset($_POST['assign_donor'])) {
                             $assignStmt->close();
 
                             // Get donor's user_id for notification
-                            $donorUser = $conn->prepare("SELECT user_id FROM donor WHERE id = ?");
+                            $donorUser = $conn->prepare("SELECT d.user_id, u.username FROM donor d JOIN users u ON d.user_id = u.id WHERE d.id = ?");
                             $donorUser->bind_param("i", $donor_id);
                             $donorUser->execute();
                             $donorUserRow = $donorUser->get_result()->fetch_assoc();
                             $donorUser->close();
 
+                            require_once __DIR__ . '/../includes/notification_helper.php';
+                            require_once __DIR__ . '/../includes/mailer.php';
+
+                            $donorEmailRes = null;
                             if ($donorUserRow) {
-                                $notifMsg = "You have a new blood donation assignment for Request #" . $request_id . ". Please accept or decline on your dashboard.";
+                                $notifMsg = "You have been assigned as a donor for a blood request. Blood Group: " . ($req['blood_gp_name'] ?? '') . " | Requester/Hospital: " . ($req['hospital'] ?? '') . " | Required Date: " . ($req['required_date'] ?? '');
                                 $notifType = 'Assignment';
-                                $notifTitle = 'New Assignment';
-                                $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-                                $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
-                                $notifStmt->execute();
-                                $notifStmt->close();
+                                $notifTitle = 'New Blood Request Assignment';
+                                $donorNotifId = create_notification($conn, $donorUserRow['user_id'], $notifType, $notifTitle, $notifMsg, $request_id, $assignment_id, $donor_id, $req['users_id']);
+
+                                // Fail-safe decoupled email to donor
+                                $donorEmailRes = send_donor_assignment_email($donorUserRow['user_id'], [
+                                    'id'             => $request_id,
+                                    'blood_group'    => $req['blood_gp_name'] ?? 'Blood',
+                                    'hospital'       => $req['hospital'] ?? '',
+                                    'units'          => $req['units'] ?? 1,
+                                    'required_date'  => $req['required_date'] ?? '',
+                                    'requester_name' => $req['requester_name'] ?? 'Patient'
+                                ], $assignment_id, $donorNotifId);
+                            }
+
+                            // Notify Requester
+                            $reqEmailRes = null;
+                            if (!empty($req['users_id'])) {
+                                $reqNotifMsg = "Good news! A donor (" . ($donorUserRow['username'] ?? 'matched volunteer') . ") has been assigned to your blood request #" . $request_id . ".";
+                                $reqNotifId = create_notification($conn, $req['users_id'], 'Assignment', 'Donor Assigned', $reqNotifMsg, $request_id, $assignment_id, $donor_id, $req['users_id']);
+
+                                $reqEmailRes = send_requester_donor_assigned_email($req['users_id'], [
+                                    'id'       => $request_id,
+                                    'hospital' => $req['hospital'] ?? ''
+                                ], $donorUserRow['username'] ?? 'Volunteer Donor', $reqNotifId);
                             }
 
                             // Notify Admin
-                            require_once __DIR__ . '/../includes/notification_helper.php';
                             $adminConfirmMsg = "Donor assigned successfully to Request #{$request_id}.";
                             notify_admins($conn, 'Assignment', 'Donor assigned successfully', $adminConfirmMsg, $request_id, $assignment_id, $donor_id);
 
-                            $_SESSION['success'] = 'Donor assigned successfully!';
+                            $emailSuccess = (!empty($donorEmailRes['success']) && ($reqEmailRes === null || !empty($reqEmailRes['success'])));
+                            $_SESSION['success'] = format_action_feedback('Donor assigned', $emailSuccess);
                         } else {
                             $_SESSION['error'] = 'Error assigning donor: ' . $conn->error;
                         }

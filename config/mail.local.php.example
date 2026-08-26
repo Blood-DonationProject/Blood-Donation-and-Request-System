@@ -21,14 +21,14 @@ return [
     'smtp_auth'     => true,
 
     // Your Gmail address
-    'smtp_username' => 'your-email@gmail.com',
+    'smtp_username' => 'bloodcommunicationsystem12@gmail.com',
 
     // Your 16-character Gmail App Password (NOT your regular Gmail account password)
-    'smtp_password' => 'your-16-char-app-password',
+    'smtp_password' => 'sgtuysidlykhtyzk',
 
     // Sender details
-    'from_email'    => 'your-email@gmail.com',
-    'from_name'     => 'BloodLife Donation System',
+    'from_email'    => 'bloodcommunicationsystem12@gmail.com',
+    'from_name'     => 'Blood Communication System ',
 
     // Set to true for detailed SMTP debug output in development/logs
     'debug'         => false,

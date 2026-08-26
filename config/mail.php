@@ -52,17 +52,39 @@ $localConfigPath = __DIR__ . '/mail.local.php';
 if (file_exists($localConfigPath)) {
     $localConfig = require $localConfigPath;
     if (is_array($localConfig)) {
-        if (isset($localConfig['from_email']) && ($localConfig['from_email'] === 'your-email@gmail.com' || empty($localConfig['from_email']))) {
+        if (isset($localConfig['from_email']) && (trim($localConfig['from_email']) === 'your-email@gmail.com' || empty(trim($localConfig['from_email'])))) {
             unset($localConfig['from_email']);
         }
-        if (isset($localConfig['smtp_username']) && $localConfig['smtp_username'] === 'your-email@gmail.com') {
+        if (isset($localConfig['smtp_username']) && (trim($localConfig['smtp_username']) === 'your-email@gmail.com' || empty(trim($localConfig['smtp_username'])))) {
             unset($localConfig['smtp_username']);
         }
-        if (isset($localConfig['smtp_password']) && $localConfig['smtp_password'] === 'your-16-char-app-password') {
+        if (isset($localConfig['smtp_password']) && (trim($localConfig['smtp_password']) === 'your-16-char-app-password' || empty(trim($localConfig['smtp_password'])))) {
             unset($localConfig['smtp_password']);
         }
         $mailConfig = array_merge($mailConfig, $localConfig);
     }
 }
+
+// Normalize & clean configuration values
+$mailConfig['smtp_host']     = trim($mailConfig['smtp_host'] ?? '') ?: 'smtp.gmail.com';
+$mailConfig['smtp_port']     = (int)($mailConfig['smtp_port'] ?? 587);
+$mailConfig['smtp_secure']   = strtolower(trim($mailConfig['smtp_secure'] ?? 'tls'));
+$mailConfig['smtp_auth']     = filter_var($mailConfig['smtp_auth'] ?? true, FILTER_VALIDATE_BOOLEAN);
+$mailConfig['smtp_username'] = trim($mailConfig['smtp_username'] ?? '');
+// Clean spaces from 16-character Google App Password (e.g. "abcd efgh ijkl mnop" -> "abcdefghijklmnop")
+$mailConfig['smtp_password'] = str_replace(' ', '', trim($mailConfig['smtp_password'] ?? ''));
+
+// Normalize port & encryption matching for Gmail SMTP
+if ($mailConfig['smtp_port'] === 465 || $mailConfig['smtp_secure'] === 'ssl' || $mailConfig['smtp_secure'] === 'smtps') {
+    $mailConfig['smtp_port']   = 465;
+    $mailConfig['smtp_secure'] = 'ssl';
+} else {
+    $mailConfig['smtp_port']   = 587;
+    $mailConfig['smtp_secure'] = 'tls';
+}
+
+$mailConfig['from_email'] = trim($mailConfig['from_email'] ?? '') ?: ($mailConfig['smtp_username'] ?: 'bloodcommunicationsystem12@gmail.com');
+$mailConfig['from_name']  = trim($mailConfig['from_name'] ?? '') ?: 'BloodLife Donation System';
+$mailConfig['debug']      = filter_var($mailConfig['debug'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
 return $mailConfig;

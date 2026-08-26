@@ -99,9 +99,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['donor_submit'])) {
       if (!$existing) {
         $donorId = $conn->insert_id;
         require_once __DIR__ . '/../includes/notification_helper.php';
+        require_once __DIR__ . '/../includes/mailer.php';
         $donorUsername = $_SESSION['username'] ?? 'User #' . $userId;
         $notifMsg = "Donor \"{$donorUsername}\" (Blood Group: {$blood_groups}, Phone: {$phone}, Address: {$address}, Age: {$age}) has registered.";
         notify_admins($conn, 'Donor_Registration', 'New donor registration', $notifMsg, null, null, $donorId, $userId);
+
+        $userEmail = $_SESSION['email'] ?? '';
+        if (empty($userEmail)) {
+          $uQuery = $conn->query("SELECT email FROM users WHERE id = " . (int)$userId);
+          if ($uQuery && $uRow = $uQuery->fetch_assoc()) $userEmail = $uRow['email'];
+        }
+        if (!empty($userEmail)) {
+          send_welcome_donor_email($userId, $donorUsername, $blood_groups, $userEmail);
+        }
       }
       $message = $existing ? 'Donor information updated successfully.' : 'Donor registration successful.';
       $messageType = 'success';
@@ -133,13 +143,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_submit'])) {
     if ($stmt->execute()) {
       $newReqId = $conn->insert_id;
       require_once __DIR__ . '/../includes/notification_helper.php';
+      require_once __DIR__ . '/../includes/mailer.php';
       $bgName = '';
       $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$blood_groups_id);
       if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
       $notifMsg = "Requester: {$username} | Blood Group: {$bgName} | Units: {$units} | Hospital: {$hospital} | Required Date: {$required_date} | Urgency: Normal";
       notify_admins($conn, 'Blood_Request', 'New blood request', $notifMsg, $newReqId, null, null, $userId);
 
-      $message = 'Blood request submitted successfully.';
+      // Decoupled confirmation email to requester
+      send_blood_request_confirmation_email($userId, [
+        'id'             => $newReqId,
+        'blood_group'    => $bgName,
+        'hospital'       => $hospital,
+        'units'          => $units,
+        'required_date'  => $required_date,
+        'urgency'        => 'Normal'
+      ]);
+
+      $message = 'Blood request submitted successfully. Notification and confirmation email sent.';
       $messageType = 'success';
     } else {
       $message = 'Error submitting request: ' . $conn->error;

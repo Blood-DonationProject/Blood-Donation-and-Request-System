@@ -200,15 +200,38 @@ if ($isLoggedIn) {
           if ($insStmt->execute()) {
             $newReqId = $conn->insert_id;
             
-            // Notify admin of new blood request
             require_once __DIR__ . '/../includes/notification_helper.php';
+            require_once __DIR__ . '/../includes/mailer.php';
             $bgName = '';
             $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$blood_groups_id);
             if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
-            $notifMsg = "Requester: {$username} | Blood Group: {$bgName} | Units: {$units} | Hospital: {$hospital} | Required Date: {$required_date} | Urgency: {$urgency}";
-            notify_admins($conn, 'Blood_Request', 'New blood request', $notifMsg, $newReqId, null, null, $userId);
 
-            $message = 'Blood request submitted successfully!';
+            // Website Notification for Requester
+            $userNotifMsg = "Your request for {$units} unit(s) of {$bgName} blood at {$hospital} has been submitted successfully.";
+            $userNotifId = create_notification($conn, $userId, 'Blood_Request', 'Blood Request Submitted', $userNotifMsg, $newReqId, null, null, $userId);
+
+            // Website Notification for Admin
+            $notifMsg = "Requester: {$username} | Blood Group: {$bgName} | Units: {$units} | Hospital: {$hospital} | Required Date: {$required_date} | Urgency: {$urgency}";
+            $notifId = notify_admins($conn, 'Blood_Request', 'New blood request', $notifMsg, $newReqId, null, null, $userId);
+
+            // Fail-safe decoupled confirmation email to Requester
+            $reqPayload = [
+              'id'             => $newReqId,
+              'blood_group'    => $bgName,
+              'hospital'       => $hospital,
+              'units'          => $units,
+              'required_date'  => $required_date,
+              'urgency'        => $urgency,
+              'requester_name' => $username
+            ];
+            $reqEmailRes = send_blood_request_confirmation_email($userId, $reqPayload, $userNotifId);
+
+            // If Urgent/Critical, send immediate urgent alert email to Admin
+            if (in_array(strtolower($urgency), ['urgent', 'critical'])) {
+              send_admin_urgent_request_email($reqPayload, $notifId);
+            }
+
+            $_SESSION['success'] = format_action_feedback('Blood request submitted', $reqEmailRes);
             $messageType = 'success';
           } else {
             $message = 'Failed to save request: ' . $conn->error;
@@ -223,7 +246,7 @@ if ($isLoggedIn) {
     if ($messageType === 'success') {
       $redirectUrl = (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0)
         ? 'requestblood.php?edit=' . (int)$_POST['update_id'] . '&msg=updated'
-        : 'requestblood.php?msg=created';
+        : 'requestblood.php';
       header('Location: ' . $redirectUrl);
       exit;
     }
@@ -241,8 +264,12 @@ if ($isLoggedIn) {
   }
   $stmt->close();
 
-  // URL message redirect
-  if (isset($_GET['msg'])) {
+  // Session message & URL message redirect
+  if (isset($_SESSION['success'])) {
+    $message = $_SESSION['success'];
+    $messageType = 'success';
+    unset($_SESSION['success']);
+  } elseif (isset($_GET['msg'])) {
     $msg = $_GET['msg'];
     if ($msg === 'created') {
       $message = 'Blood request submitted successfully!';

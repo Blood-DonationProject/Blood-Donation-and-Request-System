@@ -33,35 +33,6 @@ if (isset($_POST['clear_all_logs'])) {
     exit;
 }
 
-// Stats aggregation
-$stats = [
-    'total'   => 0,
-    'sent'    => 0,
-    'failed'  => 0,
-    'pending' => 0,
-    'rate'    => 100,
-];
-
-try {
-    $totalRes = $conn->query("SELECT COUNT(*) AS c FROM email_logs");
-    $stats['total'] = (int)($totalRes->fetch_assoc()['c'] ?? 0);
-
-    $sentRes = $conn->query("SELECT COUNT(*) AS c FROM email_logs WHERE status = 'Sent'");
-    $stats['sent'] = (int)($sentRes->fetch_assoc()['c'] ?? 0);
-
-    $failedRes = $conn->query("SELECT COUNT(*) AS c FROM email_logs WHERE status = 'Failed'");
-    $stats['failed'] = (int)($failedRes->fetch_assoc()['c'] ?? 0);
-
-    $pendingRes = $conn->query("SELECT COUNT(*) AS c FROM email_logs WHERE status NOT IN ('Sent', 'Failed')");
-    $stats['pending'] = (int)($pendingRes->fetch_assoc()['c'] ?? 0);
-
-    if ($stats['total'] > 0) {
-        $stats['rate'] = round(($stats['sent'] / $stats['total']) * 100, 1);
-    }
-} catch (Exception $e) {
-    $error = "Error loading statistics: " . $e->getMessage();
-}
-
 // Fetch distinct email types for filter
 $emailTypes = [];
 try {
@@ -104,8 +75,6 @@ try {
         @keyframes fadeInUp   { from { opacity:0; transform:translateY( 20px); } to { opacity:1; transform:translateY(0); } }
         .animate-fade-down { animation: fadeInDown 0.6s ease-out; }
         .animate-fade-up   { animation: fadeInUp   0.6s ease-out; }
-        .stat-card { transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
     </style>
     <style id="dark-mode-styles">
         html:not(.dark) body { background-color: #ffffff !important; background-image: none !important; }
@@ -127,7 +96,6 @@ try {
         html.dark .bg-red-50:not(.sidebar *) { background-color: rgba(220,38,38,0.15) !important; }
         html.dark tbody tr { border-color: #374151 !important; }
         html.dark tbody tr:hover { background-color: #374151 !important; }
-        html.dark .stat-card:hover { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900">
@@ -149,57 +117,6 @@ try {
             <?php if ($success): ?>
                 <div class="bg-green-50 border-l-2 border-green-500 p-4 rounded mb-6"><p class="text-green-700"><?= htmlspecialchars($success) ?></p></div>
             <?php endif; ?>
-
-            <!-- Stats Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-                <!-- Total Emails -->
-                <div class="stat-card bg-blue-100 rounded-2xl p-6 border border-blue-300 shadow-sm animate-fade-down">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-blue-200 rounded-xl flex items-center justify-center">
-                            <i class="fas fa-envelope text-blue-600 text-xl"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-blue-700 bg-blue-200 px-2.5 py-1 rounded-full">All Time</span>
-                    </div>
-                    <h3 class="text-3xl font-bold text-gray-900"><?= number_format($stats['total']) ?></h3>
-                    <p class="text-sm text-gray-500 mt-1">Total Email Attempts</p>
-                </div>
-
-                <!-- Sent Successfully -->
-                <div class="stat-card bg-green-100 rounded-2xl p-6 border border-green-300 shadow-sm animate-fade-down" style="animation-delay: 0.1s;">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-green-200 rounded-xl flex items-center justify-center">
-                            <i class="fas fa-check-circle text-green-600 text-xl"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-green-700 bg-green-200 px-2.5 py-1 rounded-full">Delivered</span>
-                    </div>
-                    <h3 class="text-3xl font-bold text-gray-900"><?= number_format($stats['sent']) ?></h3>
-                    <p class="text-sm text-gray-500 mt-1">Sent Successfully</p>
-                </div>
-
-                <!-- Failed Attempts -->
-                <div class="stat-card bg-red-100 rounded-2xl p-6 border border-red-300 shadow-sm animate-fade-down" style="animation-delay: 0.2s;">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-red-200 rounded-xl flex items-center justify-center">
-                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-red-700 bg-red-200 px-2.5 py-1 rounded-full">Attention</span>
-                    </div>
-                    <h3 class="text-3xl font-bold text-gray-900"><?= number_format($stats['failed']) ?></h3>
-                    <p class="text-sm text-gray-500 mt-1">Failed Attempts</p>
-                </div>
-
-                <!-- Success Rate -->
-                <div class="stat-card bg-purple-100 rounded-2xl p-6 border border-purple-300 shadow-sm animate-fade-down" style="animation-delay: 0.3s;">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-purple-200 rounded-xl flex items-center justify-center">
-                            <i class="fas fa-chart-line text-purple-600 text-xl"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-purple-700 bg-purple-200 px-2.5 py-1 rounded-full">Health</span>
-                    </div>
-                    <h3 class="text-3xl font-bold text-gray-900"><?= $stats['rate'] ?>%</h3>
-                    <p class="text-sm text-gray-500 mt-1">Delivery Success Rate</p>
-                </div>
-            </div>
 
             <!-- Header & Search and Filter -->
             <div class="flex flex-col md:flex-row gap-4 mb-6">
@@ -391,6 +308,17 @@ try {
                 </div>
             </div>
 
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1">Related Record ID</span>
+                    <p id="modalRelatedId" class="font-medium text-gray-700 dark:text-gray-300 text-sm">-</p>
+                </div>
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1">Web Notification ID</span>
+                    <p id="modalNotifId" class="font-medium text-gray-700 dark:text-gray-300 text-sm">-</p>
+                </div>
+            </div>
+
             <div>
                 <span class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1">Attempt Date & Time</span>
                 <p id="modalSentAt" class="font-medium text-gray-700 dark:text-gray-300 text-sm"></p>
@@ -500,6 +428,8 @@ function viewLogDetails(log) {
     document.getElementById('modalRecipient').textContent = log.recipient_email || '-';
     document.getElementById('modalRecipientName').textContent = log.recipient_name ? ('(' + log.recipient_name + ')') : '';
     document.getElementById('modalSubject').textContent = log.subject || '(No Subject)';
+    document.getElementById('modalRelatedId').textContent = (log.related_id !== null && log.related_id !== undefined && log.related_id !== '') ? ('#' + log.related_id) : '-';
+    document.getElementById('modalNotifId').textContent = (log.notification_id !== null && log.notification_id !== undefined && log.notification_id !== '') ? ('#' + log.notification_id) : '-';
     
     // Email Type Badge
     const modalType = document.getElementById('modalEmailType');

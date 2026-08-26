@@ -59,6 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isValidToken && $userRow) {
             $updateStmt->bind_param("si", $hashedPassword, $userRow['id']);
             if ($updateStmt->execute()) {
                 $updateStmt->close();
+
+                require_once __DIR__ . '/../includes/notification_helper.php';
+                require_once __DIR__ . '/../includes/mailer.php';
+
+                // Website Notification
+                create_notification($conn, $userRow['id'], 'Security', 'Password Changed', 'Your BloodLife account password was successfully reset.', null, null, null, $userRow['id']);
+
+                // Security Email
+                send_password_changed_security_email($userRow['id'], $userRow['email'], $userRow['username']);
+
                 // Redirect to login with success flag
                 header('Location: login.php?reset=1&email=' . urlencode($userRow['email']));
                 exit;

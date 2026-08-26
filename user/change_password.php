@@ -42,6 +42,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         $upd = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
         $upd->bind_param("si", $hashed, $userId);
         if ($upd->execute()) {
+          $upd->close();
+
+          require_once __DIR__ . '/../includes/notification_helper.php';
+          require_once __DIR__ . '/../includes/mailer.php';
+
+          // Get user email
+          $userEmail = $_SESSION['email'] ?? '';
+          $userName = $_SESSION['username'] ?? 'User';
+          if (empty($userEmail)) {
+            $uQ = $conn->query("SELECT email, username FROM users WHERE id = " . (int)$userId);
+            if ($uQ && $uR = $uQ->fetch_assoc()) {
+              $userEmail = $uR['email'];
+              $userName = $uR['username'];
+            }
+          }
+
+          // Website Notification
+          create_notification($conn, $userId, 'Security', 'Password Changed', 'Your BloodLife account password was successfully updated.', null, null, null, $userId);
+
+          // Security Alert Email
+          if (!empty($userEmail)) {
+            send_password_changed_security_email($userId, $userEmail, $userName);
+          }
+
           $_SESSION['success_msg'] = 'Password updated successfully.';
           header('Location: index.php');
           exit;

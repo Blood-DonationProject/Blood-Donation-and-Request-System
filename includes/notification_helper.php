@@ -170,6 +170,8 @@ function get_admin_notifications($conn, $adminId, $limit = 10, $offset = 0, $fil
         $where[] = "n.is_read = 0";
     } elseif ($filter === 'read') {
         $where[] = "n.is_read = 1";
+    } elseif ($filter === 'important') {
+        $where[] = "(n.type IN ('Blood_Request', 'Security', 'Assignment', 'Assignment_Rejected') OR n.title LIKE '%urgent%' OR n.title LIKE '%emergency%' OR n.message LIKE '%urgent%')";
     }
 
     if (!empty($typeFilter) && $typeFilter !== 'all') {
@@ -243,6 +245,8 @@ function get_admin_notifications_count($conn, $adminId, $filter = 'all', $typeFi
         $where[] = "is_read = 0";
     } elseif ($filter === 'read') {
         $where[] = "is_read = 1";
+    } elseif ($filter === 'important') {
+        $where[] = "(type IN ('Blood_Request', 'Security', 'Assignment', 'Assignment_Rejected') OR title LIKE '%urgent%' OR title LIKE '%emergency%' OR message LIKE '%urgent%')";
     }
 
     if (!empty($typeFilter) && $typeFilter !== 'all') {
@@ -463,7 +467,36 @@ function get_notification_meta($notifOrType) {
                 'action_text' => 'Donation History'
             ];
 
+        case 'Security':
+            return [
+                'label'       => 'Security Alert',
+                'icon'        => 'fa-shield-halved',
+                'badge_bg'    => 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
+                'icon_color'  => 'text-amber-600',
+                'action_url'  => 'profile.php',
+                'action_text' => 'Account Security'
+            ];
+
         default:
             return $default;
     }
 }
+
+/**
+ * Format user-friendly flash message based on decoupled email results
+ * 
+ * @param string $actionTitle Primary action description (e.g., 'Donor assigned', 'Blood request submitted')
+ * @param bool|array $emailResult Boolean or array ['success' => bool] from send_email
+ * @return string
+ */
+function format_action_feedback($actionTitle, $emailResult) {
+    $emailSuccess = is_array($emailResult) ? (!empty($emailResult['success'])) : (bool)$emailResult;
+    $actionTitle = rtrim($actionTitle, ' .!');
+    
+    if ($emailSuccess) {
+        return "{$actionTitle} successfully. Notification and email sent successfully.";
+    } else {
+        return "{$actionTitle} successfully. Website notification sent. Email could not be delivered.";
+    }
+}
+
