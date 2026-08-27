@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
     html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
     html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-    html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
+    html.dark nav.bg-slate-100, html.dark nav.bg-slate-100.shadow-lg { background-color: #1f2937 !important; }
     html.dark .bg-white { background-color: #1f2937 !important; }
     html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
     html.dark .text-gray-700 { color: #d1d5db !important; }
@@ -136,6 +136,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 relative overflow-hidden">
       <!-- Decorative element -->
       <div class="absolute top-0 right-0 w-32 h-32 bg-red-100 rounded-bl-full -mr-16 -mt-16 opacity-50"></div>
+
+      <!-- Close / Back Button -->
+      <a href="profile.php" class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-600 rounded-full transition z-10" title="Back to profile">
+        <i class="fas fa-times text-lg"></i>
+      </a>
       
       <div class="relative">
         <div class="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-sm border border-red-200">

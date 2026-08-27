@@ -52,7 +52,7 @@ $stmt->close();
   <style>
     /* Dark mode body & nav */
     html.dark body { background-color: #111827 !important; color: #e5e7eb; }
-    html.dark nav.bg-white { background-color: #1f2937 !important; }
+    html.dark nav.bg-slate-100 { background-color: #1f2937 !important; }
     html.dark .bg-white { background-color: #1f2937 !important; }
     html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
     html.dark .text-gray-700 { color: #d1d5db !important; }

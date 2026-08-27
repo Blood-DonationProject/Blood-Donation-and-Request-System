@@ -184,18 +184,6 @@ $stats = [
             <?php endif; ?>
 
 
-            <!-- Top Action / Header -->
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800">User Management</h3>
-                    <p class="text-sm text-gray-500">Manage and monitor all system user accounts.</p>
-                </div>
-                <button onclick="toggleForm()" id="toggleFormBtn" class="bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold px-5 py-2.5 rounded-xl hover:shadow-lg transition flex items-center gap-2">
-                    <i class="fas fa-plus"></i>
-                    <span>Add New User</span>
-                </button>
-            </div>
-
             <!-- Search and Filter -->
             <div class="flex flex-col md:flex-row gap-4 mb-6">
                 <div class="flex-1">
@@ -208,41 +196,6 @@ $stats = [
                         <option value="Inactive">Inactive</option>
                     </select>
                 </div>
-            </div>
-
-            <div id="crudForm" class="bg-white rounded-2xl shadow-lg p-6 mb-8 hidden">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-gray-800">New User</h3>
-                    <button type="button" onclick="toggleForm()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                </div>
-                <form method="POST" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <input type="hidden" name="role" value="User">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Username *</label>
-                        <input type="text" name="username" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                        <input type="email" name="email" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Password *</label>
-                        <input type="password" name="password" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Status *</label>
-                        <select name="status" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition outline-none">
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit" name="add" class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold py-2.5 rounded-xl hover:shadow-lg transition">
-                            Create
-                        </button>
-                        <button type="button" onclick="toggleForm()" class="ml-2 w-full text-center bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-300 transition">Cancel</button>
-                    </div>
-                </form>
             </div>
 
             <!-- Data Table -->
@@ -260,7 +213,6 @@ $stats = [
                             <tr class="bg-gray-50 text-slate-600">
                                 <th class="p-3 hidden">ID</th>
                                 <th class="p-3">Name</th>
-                                <th class="p-3">Username</th>
                                 <th class="p-3">Email</th>
                                 <?php if ($hasRoleColumn): ?>
                                 <th class="p-3">Role</th>
@@ -290,7 +242,6 @@ $stats = [
                                                 <span class="font-medium"><?= htmlspecialchars($displayName) ?></span>
                                             </div>
                                         </td>
-                                        <td class="p-3"><?= htmlspecialchars($u['username']) ?></td>
                                         <td class="p-3"><?= htmlspecialchars($u['email'] ?? '-') ?></td>
                                         <?php if ($hasRoleColumn): ?>
                                         <td class="p-3"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $roleBadges[$u['role'] ?? 'User'] ?? 'bg-gray-100 text-gray-700' ?>"><?= htmlspecialchars($u['role'] ?? 'User') ?></span></td>

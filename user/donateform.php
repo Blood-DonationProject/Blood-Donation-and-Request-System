@@ -245,8 +245,8 @@ if ($isLoggedIn) {
       color: #e5e7eb;
     }
 
-    html.dark nav.bg-white,
-    html.dark nav.bg-white.shadow-lg {
+    html.dark nav.bg-slate-100,
+    html.dark nav.bg-slate-100.shadow-lg {
       background-color: #1f2937 !important;
     }
 
@@ -556,8 +556,7 @@ if ($isLoggedIn) {
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Contact Number <span class="text-red-500">*</span></label>
                 <input type="tel" name="contact" id="contactField" placeholder="Enter phone number" maxlength="15" pattern="[0-9]*" inputmode="numeric" required
                   value="<?= htmlspecialchars($editData['phone'] ?? $userPhone ?? '') ?>"
-                  <?= $formDisabled ? 'disabled' : '' ?>
-                  class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
+                  <?= $formDisabled ? 'disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"' : 'class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition"' ?> />
                 <p class="text-xs text-gray-400 mt-1">Numbers only, max 15 digits</p>
               </div>
             </div>

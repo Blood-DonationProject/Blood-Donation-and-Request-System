@@ -121,7 +121,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
 }
 
 ?>
-<nav class="bg-white shadow-lg sticky top-0 z-40">
+<nav class="bg-slate-100 shadow-lg sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-20">
             <!-- Logo -->

@@ -172,7 +172,7 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
     html:not(.dark) .bg-gray-50 { background-color: #ffffff !important; }
     html:not(.dark) .bg-gray-100 { background-color: #ffffff !important; }
     html.dark body { background-color: #111827 !important; background-image: none !important; color: #e5e7eb; }
-    html.dark nav.bg-white, html.dark nav.bg-white.shadow-lg { background-color: #1f2937 !important; }
+    html.dark nav.bg-slate-100, html.dark nav.bg-slate-100.shadow-lg { background-color: #1f2937 !important; }
     html.dark .bg-white { background-color: #1f2937 !important; }
     html.dark .text-gray-900, html.dark .text-gray-800 { color: #f3f4f6 !important; }
     html.dark .text-gray-700 { color: #d1d5db !important; }
@@ -191,7 +191,7 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
 <body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen flex flex-col">
 
   <!-- Navbar -->
-  <nav class="bg-white shadow-lg">
+  <nav class="bg-slate-100 shadow-lg">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <a href="index.php" class="flex items-center space-x-3 animate-fade-down">

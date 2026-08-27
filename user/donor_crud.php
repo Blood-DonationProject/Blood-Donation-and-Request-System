@@ -57,6 +57,21 @@ if (!$isLoggedIn) {
         $message = 'You must be logged in to register as a donor.';
         $messageType = 'error';
     } else {
+        // Fetch current profile phone
+        $profilePhone = '';
+        $profileStmt = $conn->prepare("SELECT phone FROM users WHERE id = ?");
+        if ($profileStmt) {
+            $profileStmt->bind_param("i", $userId);
+            $profileStmt->execute();
+            $profileRes = $profileStmt->get_result();
+            if ($profileRow = $profileRes->fetch_assoc()) {
+                $profilePhone = $profileRow['phone'] ?? '';
+            }
+            $profileStmt->close();
+        }
+
+        // Phone validation removed to allow updating from everywhere
+
         // Check if user already has a donor record (prevent duplicate registration)
         if ($updateId <= 0) {
             $checkStmt = $conn->prepare("SELECT id, available_status, last_donation_date FROM donor WHERE user_id = ? LIMIT 1");
@@ -135,7 +150,8 @@ if (!$isLoggedIn) {
                 }
 
                 // Sync phone and address to users profile as the central source of truth
-                $updUser = $conn->prepare("UPDATE users SET phone = ?, address = ? WHERE id = ?");
+                $updQuery = "UPDATE users SET phone = ?, address = ? WHERE id = ?";
+                $updUser = $conn->prepare($updQuery);
                 if ($updUser) {
                     $updUser->bind_param("ssi", $phone, $address, $userId);
                     $updUser->execute();

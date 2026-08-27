@@ -101,37 +101,53 @@ if ($isLoggedIn) {
 
   // CREATE or UPDATE
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Update user profile phone & address if submitted
     $submittedPhone = trim($_POST['phone'] ?? $_POST['contact'] ?? '');
     $submittedAddress = trim($_POST['address'] ?? '');
-    if (!empty($submittedPhone) || !empty($submittedAddress)) {
-      // Update central users profile
-      $updUser = $conn->prepare("UPDATE users SET phone = ?, address = ? WHERE id = ?");
-      if ($updUser) {
-        $updUser->bind_param("ssi", $submittedPhone, $submittedAddress, $userId);
-        $updUser->execute();
-        $updUser->close();
-      }
 
-      // Sync to donor table if record exists
-      $chkDonor = $conn->prepare("SELECT id FROM donor WHERE user_id = ? LIMIT 1");
-      if ($chkDonor) {
-        $chkDonor->bind_param("i", $userId);
-        $chkDonor->execute();
-        $hasDonor = $chkDonor->get_result()->num_rows > 0;
-        $chkDonor->close();
-        if ($hasDonor) {
-          $updDonor = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
-          if ($updDonor) {
-            $updDonor->bind_param("ssi", $submittedPhone, $submittedAddress, $userId);
-            $updDonor->execute();
-            $updDonor->close();
+    // Fetch current profile phone
+    $profilePhone = '';
+    $profileStmt = $conn->prepare("SELECT phone FROM users WHERE id = ?");
+    if ($profileStmt) {
+      $profileStmt->bind_param("i", $userId);
+      $profileStmt->execute();
+      $profileRes = $profileStmt->get_result();
+      if ($profileRow = $profileRes->fetch_assoc()) {
+        $profilePhone = $profileRow['phone'] ?? '';
+      }
+      $profileStmt->close();
+    }
+
+    // Phone validation removed to allow updating from everywhere
+    if (true) {
+      if (!empty($submittedPhone) || !empty($submittedAddress)) {
+        // Update central users profile
+        $updQuery = "UPDATE users SET phone = ?, address = ? WHERE id = ?";
+        $updUser = $conn->prepare($updQuery);
+        if ($updUser) {
+          $updUser->bind_param("ssi", $submittedPhone, $submittedAddress, $userId);
+          $updUser->execute();
+          $updUser->close();
+        }
+
+        // Sync to donor table if record exists
+        $chkDonor = $conn->prepare("SELECT id FROM donor WHERE user_id = ? LIMIT 1");
+        if ($chkDonor) {
+          $chkDonor->bind_param("i", $userId);
+          $chkDonor->execute();
+          $hasDonor = $chkDonor->get_result()->num_rows > 0;
+          $chkDonor->close();
+          if ($hasDonor) {
+            $updDonor = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
+            if ($updDonor) {
+              $updDonor->bind_param("ssi", $submittedPhone, $submittedAddress, $userId);
+              $updDonor->execute();
+              $updDonor->close();
+            }
           }
         }
+        $userPhone = $submittedPhone;
+        $userAddress = $submittedAddress;
       }
-      $userPhone = $submittedPhone;
-      $userAddress = $submittedAddress;
-    }
 
     if (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0) {
       // UPDATE ONLY URGENCY
@@ -242,6 +258,7 @@ if ($isLoggedIn) {
         $stmt->close();
       }
     }
+  } // End of phone validation else block
 
     if ($messageType === 'success') {
       $redirectUrl = (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0)
@@ -357,8 +374,8 @@ if ($isLoggedIn) {
       color: #e5e7eb;
     }
 
-    html.dark nav.bg-white,
-    html.dark nav.bg-white.shadow-lg {
+    html.dark nav.bg-slate-100,
+    html.dark nav.bg-slate-100.shadow-lg {
       background-color: #1f2937 !important;
     }
 
@@ -485,8 +502,8 @@ if ($isLoggedIn) {
           </div>
           <div class="grid sm:grid-cols-2 gap-5 mb-5">
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number <span class="text-red-500">*</span></label>
-              <input type="tel" name="phone" id="contactField" placeholder="Enter phone number" maxlength="15" pattern="[0-9]*" inputmode="numeric" required
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+              <input type="tel" name="phone" id="contactField" placeholder="Enter phone number" maxlength="15" pattern="[0-9]*" inputmode="numeric"
                 value="<?= htmlspecialchars($userPhone ?? '') ?>"
                 class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 transition" />
               <p class="text-xs text-gray-400 mt-1">Numbers only, max 15 digits</p>
@@ -731,25 +748,6 @@ if ($isLoggedIn) {
     }
 
     function checkPhoneMismatch(e) {
-      if (phoneMismatchConfirmed) {
-        return true;
-      }
-      const phoneInput = document.getElementById('contactField') || (requestBloodForm ? requestBloodForm.querySelector('input[name="phone"], input[name="contact"]') : null);
-      const enteredVal = phoneInput ? phoneInput.value.trim() : '';
-      const cleanSaved = (savedProfilePhone || '').replace(/\D/g, '');
-      const cleanEntered = enteredVal.replace(/\D/g, '');
-
-      if (cleanSaved !== cleanEntered) {
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (typeof e.stopImmediatePropagation === 'function') {
-            e.stopImmediatePropagation();
-          }
-        }
-        showPhoneMismatchModal(savedProfilePhone || '(Not set)', enteredVal);
-        return false;
-      }
       return true;
     }
 

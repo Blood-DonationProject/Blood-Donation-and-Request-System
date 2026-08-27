@@ -258,8 +258,8 @@ if ($isLoggedIn && $userId > 0) {
       color: #e5e7eb;
     }
 
-    html.dark nav.bg-white,
-    html.dark nav.bg-white.shadow-lg {
+    html.dark nav.bg-slate-100,
+    html.dark nav.bg-slate-100.shadow-lg {
       background-color: #1f2937 !important;
     }
 

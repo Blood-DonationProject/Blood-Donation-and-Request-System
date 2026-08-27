@@ -225,7 +225,7 @@
     }
 </script>
 
-<nav class="bg-white/95 backdrop-blur-md shadow-sm sticky top-0 z-30 border-b-2 border-pink-100 transition-colors duration-300">
+<nav class="bg-slate-100/95 backdrop-blur-md shadow-sm sticky top-0 z-30 border-b-2 border-pink-100 transition-colors duration-300">
     <div class="px-6 sm:px-8 py-3.5 flex justify-between items-center">
         <div class="flex items-center space-x-4">
             <div>
