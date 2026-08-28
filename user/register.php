@@ -12,7 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $phone = trim($_POST['phone'] ?? '');
   $password = $_POST['password'] ?? '';
   $confirmPassword = $_POST['confirm_password'] ?? '';
-  $termsAccepted = isset($_POST['terms']) && $_POST['terms'] === '1';
 
   if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
     $message = 'Please fill in all required fields.';
@@ -25,9 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $messageType = 'error';
   } elseif (strlen($password) < 8) {
     $message = 'Password must be at least 8 characters long.';
-    $messageType = 'error';
-  } elseif (!$termsAccepted) {
-    $message = 'Please accept the Terms and Policy before registering.';
     $messageType = 'error';
   } else {
     $checkEmail = $conn->prepare('SELECT id, role, status, last_activity, last_login FROM users WHERE email = ? LIMIT 1');
@@ -285,11 +281,6 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
               </div>
             </div>
 
-            <label class="flex items-start gap-3 cursor-pointer pt-1">
-              <input id="reg_terms" name="terms" value="1" type="checkbox" <?= (isset($_POST['terms']) && $_POST['terms'] === '1') ? 'checked' : '' ?> class="accent-red-600 w-4 h-4 mt-0.5 flex-shrink-0" />
-              <span class="text-sm text-gray-600"><span data-i18n="agree_terms">I agree to BloodLife's</span> <a href="#" class="text-red-600 underline" data-i18n="terms_of_service">Terms of Service</a> <span data-i18n="and">and</span> <a href="#" class="text-red-600 underline" data-i18n="privacy_policy">Privacy Policy</a></span>
-            </label>
-
             <button type="submit"
               class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-3.5 rounded-xl font-bold hover:shadow-xl transition transform hover:scale-[1.02] text-sm" data-i18n="create_account_btn">
               Create Account →
@@ -344,10 +335,8 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
     function validateRegisterForm(event) {
       const name = document.getElementById('reg_name').value.trim();
       const email = document.getElementById('reg_email').value.trim();
-      const role = document.getElementById('reg_role').value;
       const password = document.getElementById('reg_password').value;
       const confirm = document.getElementById('reg_confirm').value;
-      const terms = document.getElementById('reg_terms').checked;
 
       if (!name || !email || !password) {
         event.preventDefault();
@@ -368,11 +357,6 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
       if (password.length < 8) {
         event.preventDefault();
         alert('Password must be at least 8 characters.');
-        return false;
-      }
-      if (!terms) {
-        event.preventDefault();
-        alert('Please accept the Terms and Policy before registering.');
         return false;
       }
 

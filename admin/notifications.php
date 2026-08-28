@@ -336,14 +336,10 @@ function get_time_ago_string($datetime) {
                                             <i class="fas fa-arrow-right text-[9px]"></i>
                                         </a>
 
-                                        <!-- Mark Read / Unread Button -->
+                                        <!-- Mark Read Button -->
                                         <?php if (!$is_read): ?>
                                             <button onclick="toggleReadStatusPage(<?= (int)$n['id'] ?>, true)" title="Mark as read" class="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-red-600 hover:border-red-300 transition flex items-center justify-center text-xs shadow-2xs cursor-pointer">
                                                 <i class="fas fa-check"></i>
-                                            </button>
-                                        <?php else: ?>
-                                            <button onclick="toggleReadStatusPage(<?= (int)$n['id'] ?>, false)" title="Mark as unread" class="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-400 hover:bg-gray-50 hover:text-red-600 hover:border-red-300 transition flex items-center justify-center text-xs shadow-2xs cursor-pointer">
-                                                <i class="fas fa-envelope"></i>
                                             </button>
                                         <?php endif; ?>
 

@@ -19,6 +19,28 @@ if (isset($conn) && $conn instanceof mysqli) {
         if ($chkUserCol && $chkUserCol->num_rows === 0) {
             $conn->query("ALTER TABLE notifications ADD COLUMN related_user_id INT NULL DEFAULT NULL AFTER donor_id");
         }
+        
+        $conn->query("
+            CREATE TABLE IF NOT EXISTS `user_notifications` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `notification_id` INT NOT NULL,
+                `user_id` INT NOT NULL,
+                `is_read` TINYINT(1) DEFAULT 0,
+                `is_deleted` TINYINT(1) DEFAULT 0,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT `fk_un_notif` FOREIGN KEY (`notification_id`) REFERENCES `notifications`(`id`) ON DELETE CASCADE,
+                CONSTRAINT `fk_un_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+        
+        $chk = $conn->query("SELECT COUNT(*) as c FROM user_notifications");
+        if ($chk && $chk->fetch_assoc()['c'] == 0) {
+            $conn->query("
+                INSERT INTO user_notifications (notification_id, user_id, is_read, created_at)
+                SELECT id, user_id, is_read, created_at FROM notifications WHERE user_id IS NOT NULL
+            ");
+        }
+        $conn->query("ALTER TABLE notifications MODIFY COLUMN user_id INT NULL");
     } catch (\Throwable $e) {
         // Silently continue if database user has restricted DDL permissions
     }
@@ -62,11 +84,7 @@ function get_admin_user_ids($conn) {
  * @param int|null $relatedUserId
  * @return int|false Notification ID or false on failure
  */
-function create_notification($conn, $userId, $type, $title, $message, $requestId = null, $assignmentId = null, $donorId = null, $relatedUserId = null) {
-    $userId = (int)$userId;
-    if ($userId <= 0) return false;
-
-    // Check if optional columns exist in current table
+function create_base_notification($conn, $type, $title, $message, $requestId = null, $assignmentId = null, $donorId = null, $relatedUserId = null) {
     static $hasExtraCols = null;
     if ($hasExtraCols === null) {
         $chk = $conn->query("SHOW COLUMNS FROM notifications LIKE 'donor_id'");
@@ -76,11 +94,11 @@ function create_notification($conn, $userId, $type, $title, $message, $requestId
     if ($hasExtraCols) {
         $stmt = $conn->prepare("
             INSERT INTO notifications 
-            (user_id, request_id, assignment_id, donor_id, related_user_id, type, title, message, is_read, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
+            (request_id, assignment_id, donor_id, related_user_id, type, title, message, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
         ");
         if ($stmt) {
-            $stmt->bind_param("iiiiisss", $userId, $requestId, $assignmentId, $donorId, $relatedUserId, $type, $title, $message);
+            $stmt->bind_param("iiiisss", $requestId, $assignmentId, $donorId, $relatedUserId, $type, $title, $message);
             $stmt->execute();
             $insertId = $stmt->insert_id;
             $stmt->close();
@@ -89,16 +107,40 @@ function create_notification($conn, $userId, $type, $title, $message, $requestId
     } else {
         $stmt = $conn->prepare("
             INSERT INTO notifications 
-            (user_id, request_id, assignment_id, type, title, message, is_read, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
+            (request_id, assignment_id, type, title, message, created_at) 
+            VALUES (?, ?, ?, ?, ?, NOW())
         ");
         if ($stmt) {
-            $stmt->bind_param("iiisss", $userId, $requestId, $assignmentId, $type, $title, $message);
+            $stmt->bind_param("iisss", $requestId, $assignmentId, $type, $title, $message);
             $stmt->execute();
             $insertId = $stmt->insert_id;
             $stmt->close();
             return $insertId;
         }
+    }
+    return false;
+}
+
+function add_notification_recipient($conn, $notifId, $userId) {
+    if (!$notifId || !$userId) return false;
+    $stmt = $conn->prepare("INSERT INTO user_notifications (notification_id, user_id, is_read, is_deleted, created_at) VALUES (?, ?, 0, 0, NOW())");
+    if ($stmt) {
+        $stmt->bind_param("ii", $notifId, $userId);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+    return false;
+}
+
+function create_notification($conn, $userId, $type, $title, $message, $requestId = null, $assignmentId = null, $donorId = null, $relatedUserId = null) {
+    $userId = (int)$userId;
+    if ($userId <= 0) return false;
+
+    $notifId = create_base_notification($conn, $type, $title, $message, $requestId, $assignmentId, $donorId, $relatedUserId);
+    if ($notifId) {
+        add_notification_recipient($conn, $notifId, $userId);
+        return $notifId;
     }
     return false;
 }
@@ -118,9 +160,12 @@ function create_notification($conn, $userId, $type, $title, $message, $requestId
  */
 function notify_admins($conn, $type, $title, $message, $requestId = null, $assignmentId = null, $donorId = null, $relatedUserId = null) {
     $adminIds = get_admin_user_ids($conn);
+    $notifId = create_base_notification($conn, $type, $title, $message, $requestId, $assignmentId, $donorId, $relatedUserId);
+    if (!$notifId) return 0;
+    
     $count = 0;
     foreach ($adminIds as $adminId) {
-        if (create_notification($conn, $adminId, $type, $title, $message, $requestId, $assignmentId, $donorId, $relatedUserId)) {
+        if (add_notification_recipient($conn, $notifId, $adminId)) {
             $count++;
         }
     }
@@ -136,7 +181,7 @@ function notify_admins($conn, $type, $title, $message, $requestId = null, $assig
  */
 function get_admin_unread_count($conn, $adminId) {
     $adminId = (int)$adminId;
-    $stmt = $conn->prepare("SELECT COUNT(*) AS unread_count FROM notifications WHERE user_id = ? AND is_read = 0");
+    $stmt = $conn->prepare("SELECT COUNT(*) AS unread_count FROM user_notifications WHERE user_id = ? AND is_read = 0 AND is_deleted = 0");
     if ($stmt) {
         $stmt->bind_param("i", $adminId);
         $stmt->execute();
@@ -162,14 +207,14 @@ function get_admin_unread_count($conn, $adminId) {
  */
 function get_admin_notifications($conn, $adminId, $limit = 10, $offset = 0, $filter = 'all', $typeFilter = null, $search = null) {
     $adminId = (int)$adminId;
-    $where = ["n.user_id = ?"];
+    $where = ["nr.user_id = ?", "nr.is_deleted = 0"];
     $types = "i";
     $params = [$adminId];
 
     if ($filter === 'unread') {
-        $where[] = "n.is_read = 0";
+        $where[] = "nr.is_read = 0";
     } elseif ($filter === 'read') {
-        $where[] = "n.is_read = 1";
+        $where[] = "nr.is_read = 1";
     } elseif ($filter === 'important') {
         $where[] = "(n.type IN ('Blood_Request', 'Security', 'Assignment', 'Assignment_Rejected') OR n.title LIKE '%urgent%' OR n.title LIKE '%emergency%' OR n.message LIKE '%urgent%')";
     }
@@ -191,7 +236,7 @@ function get_admin_notifications($conn, $adminId, $limit = 10, $offset = 0, $fil
     $whereClause = implode(" AND ", $where);
     $query = "
         SELECT 
-            n.*,
+            n.*, nr.is_read,
             br.requester_name,
             br.hospital,
             br.units AS request_units,
@@ -205,6 +250,7 @@ function get_admin_notifications($conn, $adminId, $limit = 10, $offset = 0, $fil
             reg_u.username AS registered_username,
             reg_u.email AS registered_email
         FROM notifications n
+        JOIN user_notifications nr ON n.id = nr.notification_id
         LEFT JOIN blood_request br ON n.request_id = br.id
         LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
         LEFT JOIN donor d ON n.donor_id = d.id OR br.assigned_donor_id = d.id
@@ -237,16 +283,16 @@ function get_admin_notifications($conn, $adminId, $limit = 10, $offset = 0, $fil
  */
 function get_admin_notifications_count($conn, $adminId, $filter = 'all', $typeFilter = null, $search = null) {
     $adminId = (int)$adminId;
-    $where = ["user_id = ?"];
+    $where = ["nr.user_id = ?", "nr.is_deleted = 0"];
     $types = "i";
     $params = [$adminId];
 
     if ($filter === 'unread') {
-        $where[] = "is_read = 0";
+        $where[] = "nr.is_read = 0";
     } elseif ($filter === 'read') {
-        $where[] = "is_read = 1";
+        $where[] = "nr.is_read = 1";
     } elseif ($filter === 'important') {
-        $where[] = "(type IN ('Blood_Request', 'Security', 'Assignment', 'Assignment_Rejected') OR title LIKE '%urgent%' OR title LIKE '%emergency%' OR message LIKE '%urgent%')";
+        $where[] = "(n.type IN ('Blood_Request', 'Security', 'Assignment', 'Assignment_Rejected') OR n.title LIKE '%urgent%' OR n.title LIKE '%emergency%' OR n.message LIKE '%urgent%')";
     }
 
     if (!empty($typeFilter) && $typeFilter !== 'all') {
@@ -256,7 +302,7 @@ function get_admin_notifications_count($conn, $adminId, $filter = 'all', $typeFi
     }
 
     if (!empty($search)) {
-        $where[] = "(title LIKE ? OR message LIKE ?)";
+        $where[] = "(n.title LIKE ? OR n.message LIKE ?)";
         $types .= "ss";
         $searchWild = '%' . $search . '%';
         $params[] = $searchWild;
@@ -264,7 +310,7 @@ function get_admin_notifications_count($conn, $adminId, $filter = 'all', $typeFi
     }
 
     $whereClause = implode(" AND ", $where);
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications WHERE {$whereClause}");
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications n JOIN user_notifications nr ON n.id = nr.notification_id WHERE {$whereClause}");
     if (!$stmt) return 0;
 
     $stmt->bind_param($types, ...$params);
@@ -280,7 +326,7 @@ function get_admin_notifications_count($conn, $adminId, $filter = 'all', $typeFi
 function mark_notification_read($conn, $notifId, $adminId) {
     $notifId = (int)$notifId;
     $adminId = (int)$adminId;
-    $stmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+    $stmt = $conn->prepare("UPDATE user_notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?");
     if ($stmt) {
         $stmt->bind_param("ii", $notifId, $adminId);
         $success = $stmt->execute();
@@ -296,7 +342,7 @@ function mark_notification_read($conn, $notifId, $adminId) {
 function mark_notification_unread($conn, $notifId, $adminId) {
     $notifId = (int)$notifId;
     $adminId = (int)$adminId;
-    $stmt = $conn->prepare("UPDATE notifications SET is_read = 0 WHERE id = ? AND user_id = ?");
+    $stmt = $conn->prepare("UPDATE user_notifications SET is_read = 0 WHERE notification_id = ? AND user_id = ?");
     if ($stmt) {
         $stmt->bind_param("ii", $notifId, $adminId);
         $success = $stmt->execute();
@@ -311,7 +357,7 @@ function mark_notification_unread($conn, $notifId, $adminId) {
  */
 function mark_all_notifications_read($conn, $adminId) {
     $adminId = (int)$adminId;
-    $stmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+    $stmt = $conn->prepare("UPDATE user_notifications SET is_read = 1 WHERE user_id = ? AND is_deleted = 0");
     if ($stmt) {
         $stmt->bind_param("i", $adminId);
         $success = $stmt->execute();
@@ -327,7 +373,7 @@ function mark_all_notifications_read($conn, $adminId) {
 function delete_notification($conn, $notifId, $adminId) {
     $notifId = (int)$notifId;
     $adminId = (int)$adminId;
-    $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
+    $stmt = $conn->prepare("UPDATE user_notifications SET is_deleted = 1 WHERE notification_id = ? AND user_id = ?");
     if ($stmt) {
         $stmt->bind_param("ii", $notifId, $adminId);
         $success = $stmt->execute();
@@ -342,7 +388,7 @@ function delete_notification($conn, $notifId, $adminId) {
  */
 function delete_all_read_notifications($conn, $adminId) {
     $adminId = (int)$adminId;
-    $stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ? AND is_read = 1");
+    $stmt = $conn->prepare("UPDATE user_notifications SET is_deleted = 1 WHERE user_id = ? AND is_read = 1");
     if ($stmt) {
         $stmt->bind_param("i", $adminId);
         $success = $stmt->execute();

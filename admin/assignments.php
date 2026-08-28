@@ -2,8 +2,7 @@
 include 'auth_check.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/mailer.php';
-
-
+require_once __DIR__ . '/../includes/notification_helper.php';
 $error = '';
 $success = '';
 
@@ -118,11 +117,7 @@ if (isset($_POST['assign_donor'])) {
                                     $notifMsg = "You have been assigned as a donor for a blood request. Blood Group: " . $req['blood_group_name'] . " | Requester/Hospital: " . $req['hospital'] . " | Required Date: " . $req['required_date'];
                                     $notifType = 'Assignment';
                                     $notifTitle = 'New Blood Request Assignment';
-                                    $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-                                    $notifStmt->bind_param("iiisss", $donorUserRow['user_id'], $request_id, $assignment_id, $notifType, $notifTitle, $notifMsg);
-                                    $notifStmt->execute();
-                                    $donorNotifId = $conn->insert_id;
-                                    $notifStmt->close();
+                                    $donorNotifId = create_notification($conn, $donorUserRow['user_id'], $notifType, $notifTitle, $notifMsg, $request_id, $assignment_id, $donor_id);
 
                                     // Fail-safe decoupled email notification to donor
                                     require_once __DIR__ . '/../includes/mailer.php';
@@ -142,11 +137,7 @@ if (isset($_POST['assign_donor'])) {
                                     $reqNotifMsg = "Good news! A donor (" . ($donorUserRow['username'] ?? 'matched volunteer') . ") has been assigned to your blood request #" . $request_id . ".";
                                     $reqNotifType = 'Assignment';
                                     $reqNotifTitle = 'Donor Assigned';
-                                    $reqNotifStmt = $conn->prepare("INSERT INTO notifications (user_id, request_id, assignment_id, type, title, message) VALUES (?, ?, ?, ?, ?, ?)");
-                                    $reqNotifStmt->bind_param("iiisss", $req['users_id'], $request_id, $assignment_id, $reqNotifType, $reqNotifTitle, $reqNotifMsg);
-                                    $reqNotifStmt->execute();
-                                    $reqNotifId = $conn->insert_id;
-                                    $reqNotifStmt->close();
+                                    $reqNotifId = create_notification($conn, $req['users_id'], $reqNotifType, $reqNotifTitle, $reqNotifMsg, $request_id, $assignment_id, $donor_id);
 
                                     // Fail-safe decoupled email notification to requester
                                     require_once __DIR__ . '/../includes/mailer.php';

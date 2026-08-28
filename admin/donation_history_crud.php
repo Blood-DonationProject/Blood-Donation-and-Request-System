@@ -129,13 +129,6 @@ $stats = [
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="w-40">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-                    <select id="filterStatus" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-red-500 transition">
-                        <option value="">All</option>
-                        <option value="Completed">Completed</option>
-                    </select>
-                </div>
                 <button onclick="clearFilters()" class="px-4 py-2.5 text-sm text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition font-semibold whitespace-nowrap">Clear Filters</button>
             </div>
 
@@ -194,24 +187,20 @@ $stats = [
 <script>
 const searchInput = document.getElementById('searchInput');
 const filterBloodGroup = document.getElementById('filterBloodGroup');
-const filterStatus = document.getElementById('filterStatus');
 const rows = document.querySelectorAll('.history-row');
 
 function applyFilters() {
     const q = searchInput.value.toLowerCase();
     const bg = filterBloodGroup.value;
-    const status = filterStatus.value;
     
     rows.forEach(row => {
         const text = row.textContent.toLowerCase();
         const rowBg = row.getAttribute('data-blood-group');
-        const rowStatus = row.getAttribute('data-status');
         
         const matchesSearch = text.includes(q);
         const matchesBg = !bg || rowBg === bg;
-        const matchesStatus = !status || rowStatus === status;
         
-        if (matchesSearch && matchesBg && matchesStatus) {
+        if (matchesSearch && matchesBg) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
@@ -222,13 +211,11 @@ function applyFilters() {
 function clearFilters() {
     if(searchInput) searchInput.value = '';
     if(filterBloodGroup) filterBloodGroup.value = '';
-    if(filterStatus) filterStatus.value = '';
     applyFilters();
 }
 
 if(searchInput) searchInput.addEventListener('keyup', applyFilters);
 if(filterBloodGroup) filterBloodGroup.addEventListener('change', applyFilters);
-if(filterStatus) filterStatus.addEventListener('change', applyFilters);
 
 function toggleAdminDropdown() {
     document.getElementById('adminDropdown').classList.toggle('hidden');

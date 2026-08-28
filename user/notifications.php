@@ -8,6 +8,32 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 $userId = $_SESSION['user_id'];
 
+if (isset($_GET['delete'])) {
+    $notif_id = (int)$_GET['delete'];
+    $stmt_del = $conn->prepare("UPDATE user_notifications SET is_deleted = 1 WHERE notification_id = ? AND user_id = ?");
+    if ($stmt_del) {
+        $stmt_del->bind_param('ii', $notif_id, $userId);
+        $stmt_del->execute();
+        $stmt_del->close();
+    }
+    $cleanQuery = $_GET;
+    unset($cleanQuery['delete']);
+    $queryString = http_build_query($cleanQuery);
+    header('Location: notifications.php' . ($queryString ? '?' . $queryString : ''));
+    exit;
+}
+
+if (isset($_GET['clear_all'])) {
+    $stmt_del = $conn->prepare("UPDATE user_notifications SET is_deleted = 1 WHERE user_id = ?");
+    if ($stmt_del) {
+        $stmt_del->bind_param('i', $userId);
+        $stmt_del->execute();
+        $stmt_del->close();
+    }
+    header('Location: notifications.php');
+    exit;
+}
+
 // Pagination
 $limit = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -18,13 +44,13 @@ $offset = ($page - 1) * $limit;
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
 $filterQuery = "";
 if ($filter === 'unread') {
-    $filterQuery = " AND is_read = 0";
+    $filterQuery = " AND nr.is_read = 0";
 } elseif ($filter === 'read') {
-    $filterQuery = " AND is_read = 1";
+    $filterQuery = " AND nr.is_read = 1";
 }
 
 // Total count for pagination
-$countStmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications WHERE user_id = ?" . $filterQuery);
+$countStmt = $conn->prepare("SELECT COUNT(*) AS total FROM notifications n JOIN user_notifications nr ON n.id = nr.notification_id WHERE nr.user_id = ? AND nr.is_deleted = 0" . $filterQuery);
 $countStmt->bind_param("i", $userId);
 $countStmt->execute();
 $totalNotifs = $countStmt->get_result()->fetch_assoc()['total'];
@@ -32,7 +58,7 @@ $countStmt->close();
 $totalPages = ceil($totalNotifs / $limit);
 
 // Fetch notifications
-$stmt = $conn->prepare("SELECT id, request_id, assignment_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ?" . $filterQuery . " ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt = $conn->prepare("SELECT n.id, n.request_id, n.assignment_id, n.type, n.title, n.message, nr.is_read, n.created_at FROM notifications n JOIN user_notifications nr ON n.id = nr.notification_id WHERE nr.user_id = ? AND nr.is_deleted = 0" . $filterQuery . " ORDER BY n.created_at DESC LIMIT ? OFFSET ?");
 $stmt->bind_param("iii", $userId, $limit, $offset);
 $stmt->execute();
 $notificationsList = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -91,6 +117,9 @@ $stmt->close();
         <?php if ($totalNotifs > 0): ?>
           <a href="?read_notifs=1" class="text-sm font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition shadow-sm border border-blue-100">
               <i class="fas fa-check-double mr-1"></i> Mark all as read
+          </a>
+          <a href="?clear_all=1" onclick="return confirm('Are you sure you want to clear all notifications?');" class="text-sm font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition shadow-sm border border-red-100">
+              <i class="fas fa-trash-alt mr-1"></i> Clear all
           </a>
         <?php endif; ?>
       </div>
@@ -199,7 +228,7 @@ $stmt->close();
                   </div>
                   <p class="text-sm text-gray-600 mt-1"><?= htmlspecialchars($n['message']) ?></p>
                   
-                  <div class="mt-3">
+                  <div class="mt-3 flex items-center justify-between">
                     <?php if (!$is_read): ?>
                       <button id="notif-btn-<?= $n['id'] ?>" type="button" onclick="openNotifModal(<?= $n['id'] ?>, false)" class="text-sm font-semibold text-red-600 hover:text-red-800 transition">
                         View Details &rarr;
@@ -209,6 +238,9 @@ $stmt->close();
                         View Details &rarr;
                       </button>
                     <?php endif; ?>
+                      <a href="?delete=<?= $n['id'] ?>" onclick="return confirm('Are you sure you want to delete this notification?');" class="text-xs text-gray-400 hover:text-red-600 transition" title="Delete Notification">
+                        <i class="fas fa-trash-alt"></i> Delete
+                      </a>
                   </div>
                 </div>
               </div>

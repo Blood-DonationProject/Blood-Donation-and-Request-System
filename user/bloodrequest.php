@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/notification_helper.php';
 $isLoggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
 $username = $isLoggedIn ? htmlspecialchars($_SESSION['username']) : '';
 
@@ -128,10 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isLoggedIn) {
           // In-app Notification
           $notifTitle = 'Assignment Cancelled';
           $notifMsg = 'Your assigned blood donation request has been cancelled by the requester. You are now marked as Available.';
-          $notif = $conn->prepare("INSERT INTO notifications (user_id, request_id, type, title, message) VALUES (?, ?, 'Assignment_Cancelled', ?, ?)");
-          $notif->bind_param("iiss", $donorUser['user_id'], $req_id, $notifTitle, $notifMsg);
-          $notif->execute();
-          $notification_id = $conn->insert_id;
+          $notification_id = create_notification($conn, $donorUser['user_id'], 'Assignment_Cancelled', $notifTitle, $notifMsg, $req_id, null, null, $_SESSION['user_id']);
         }
       }
       $success_msg = "Request cancelled successfully.";

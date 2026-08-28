@@ -73,7 +73,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
 
     // Mark notifications as read if requested
     if (isset($_GET['read_notifs'])) {
-        $stmt_read = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+        $stmt_read = $conn->prepare("UPDATE user_notifications SET is_read = 1 WHERE user_id = ? AND is_deleted = 0");
         if ($stmt_read) {
             $stmt_read->bind_param('i', $_SESSION['user_id']);
             $stmt_read->execute();
@@ -86,7 +86,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
 
     if (isset($_GET['mark_read'])) {
         $notif_id = (int)$_GET['mark_read'];
-        $stmt_mark = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+        $stmt_mark = $conn->prepare("UPDATE user_notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?");
         if ($stmt_mark) {
             $stmt_mark->bind_param('ii', $notif_id, $_SESSION['user_id']);
             $stmt_mark->execute();
