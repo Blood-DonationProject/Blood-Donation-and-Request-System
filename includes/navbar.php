@@ -150,33 +150,33 @@
         items.forEach(function(n) {
             var isUnread = n.is_read == 0;
             var unreadClass = isUnread 
-                ? 'notif-item-unread bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100/50 dark:hover:bg-red-900/30' 
-                : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750';
+                ? 'notif-item-unread bg-amber-50 dark:bg-amber-900/40 hover:bg-amber-100 dark:hover:bg-amber-800/60 border-l-4 border-l-amber-500' 
+                : 'bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-amber-900/20';
             
-            var dot = isUnread ? '<span class="unread-indicator-dot w-2 h-2 rounded-full bg-red-600 shadow-sm shadow-red-300 mt-1 flex-shrink-0"></span>' : '';
+            var dot = isUnread ? '<span class="unread-indicator-dot w-2 h-2 rounded-full bg-amber-500 shadow-sm shadow-amber-300 dark:shadow-amber-900/50 mt-1 flex-shrink-0"></span>' : '';
             var actionUrl = n.action_url || 'notifications.php';
             var safeTitle = escapeHtml(n.title || 'Notification');
             var safeMsg = escapeHtml(n.message || '');
             var safeTime = escapeHtml(n.time_ago || '');
             var safeIcon = n.icon || 'fa-bell';
-            var safeIconColor = n.icon_color || 'text-red-500';
+            var safeIconColor = n.icon_color || 'text-amber-600 dark:text-amber-400';
             var safeActionText = escapeHtml(n.action_text || 'View →');
 
             html += `
-                <div class="block p-3.5 border-b border-gray-100 dark:border-gray-700/60 transition cursor-pointer ${unreadClass}" onclick="markNotificationReadAndGo(${n.id}, '${actionUrl}')">
-                    <div class="flex items-start gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div class="block p-4 border-b border-amber-100 dark:border-amber-800/50 transition cursor-pointer ${unreadClass}" onclick="markNotificationReadAndGo(${n.id}, '${actionUrl}')">
+                    <div class="flex items-start gap-3.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-800/60 flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-200 dark:border-amber-700">
                             <i class="fas ${safeIcon} ${safeIconColor} text-sm"></i>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-1">
-                                <p class="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">${safeTitle}</p>
+                                <p class="text-xs ${isUnread ? 'font-black text-gray-900 dark:text-gray-100' : 'font-bold text-gray-800 dark:text-gray-200'} truncate">${safeTitle}</p>
                                 ${dot}
                             </div>
                             <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2 leading-relaxed">${safeMsg}</p>
                             <div class="mt-2 flex items-center justify-between">
                                 <span class="text-[10px] text-gray-400 dark:text-gray-500 font-medium">${safeTime}</span>
-                                <span class="text-[11px] font-semibold text-red-600 hover:text-red-700 dark:text-red-400">${safeActionText}</span>
+                                <span class="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300">${safeActionText}</span>
                             </div>
                         </div>
                     </div>
@@ -252,65 +252,65 @@
                 </button>
                 
                 <!-- Dropdown -->
-                <div id="adminNotifDropdown" class="hidden absolute right-0 mt-3 w-88 sm:w-96 bg-white rounded-3xl shadow-2xl border-2 border-pink-100 z-50 overflow-hidden">
-                    <div class="p-4 border-b-2 border-pink-50 flex items-center justify-between bg-gradient-to-r from-rose-50/90 to-pink-50/40">
+                <div id="adminNotifDropdown" class="hidden absolute right-0 mt-3 w-88 sm:w-96 bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border-2 border-amber-200 dark:border-amber-800 z-50 overflow-hidden">
+                    <div class="p-4 border-b-2 border-amber-100 dark:border-amber-800/50 flex items-center justify-between bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/40 dark:to-amber-800/40">
                         <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shadow-2xs">
+                            <div class="w-8 h-8 rounded-xl bg-amber-200 dark:bg-amber-700 text-amber-700 dark:text-amber-200 flex items-center justify-center shadow-2xs">
                                 <i class="fas fa-bell text-sm"></i>
                             </div>
-                            <p class="font-black text-gray-900 text-sm">Notifications</p>
+                            <p class="font-black text-gray-900 dark:text-gray-100 text-sm">Notifications</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span id="notifHeaderNewCount" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 shadow-2xs"><?= $notifCount ?> new</span>
-                            <button id="markAllReadBtn" onclick="markAllNotificationsReadAjax(event)" class="<?= $notifCount > 0 ? '' : 'hidden' ?> text-xs font-black text-rose-600 hover:text-red-700 hover:underline">Mark all read</button>
+                            <span id="notifHeaderNewCount" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-200 dark:bg-amber-700 text-amber-700 dark:text-amber-200 shadow-2xs"><?= $notifCount ?> new</span>
+                            <button id="markAllReadBtn" onclick="markAllNotificationsReadAjax(event)" class="<?= $notifCount > 0 ? '' : 'hidden' ?> text-xs font-black text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 hover:underline">Mark all read</button>
                         </div>
                     </div>
                     
-                    <div id="adminNotifItems" class="max-h-96 overflow-y-auto divide-y-2 divide-pink-50">
+                    <div id="adminNotifItems" class="max-h-96 overflow-y-auto divide-y-2 divide-amber-100 dark:divide-amber-800/50">
                         <?php if (count($admin_notifs) > 0): ?>
                             <?php foreach ($admin_notifs as $n):
                                 $is_read = $n['is_read'] == 1;
                                 $meta = get_notification_meta($n);
                                 $bgClass = $is_read 
-                                    ? 'bg-white hover:bg-rose-50/30' 
-                                    : 'notif-item-unread bg-gradient-to-r from-rose-50/90 via-pink-50/50 to-white hover:bg-rose-100/50 border-l-4 border-l-red-600';
+                                    ? 'bg-white dark:bg-gray-900 hover:bg-amber-50 dark:hover:bg-amber-900/20' 
+                                    : 'notif-item-unread bg-gradient-to-r from-amber-100 to-white dark:from-amber-900/40 dark:to-gray-900 hover:bg-amber-200 dark:hover:bg-amber-800/40 border-l-4 border-l-amber-500';
                                 
                                 $action_url = $meta['action_url'];
                             ?>
-                                <div class="block p-4 border-b border-pink-50 transition cursor-pointer <?= $bgClass ?>" onclick="markNotificationReadAndGo(<?= (int)$n['id'] ?>, '<?= htmlspecialchars($action_url) ?>')">
+                                <div class="block p-4 border-b border-amber-100 dark:border-amber-800/50 transition cursor-pointer <?= $bgClass ?>" onclick="markNotificationReadAndGo(<?= (int)$n['id'] ?>, '<?= htmlspecialchars($action_url) ?>')">
                                     <div class="flex items-start gap-3.5">
-                                        <div class="w-9 h-9 rounded-xl <?= $is_read ? 'bg-pink-100 text-rose-600' : 'bg-red-100 text-red-600' ?> flex items-center justify-center flex-shrink-0 mt-0.5 border border-pink-200">
+                                        <div class="w-9 h-9 rounded-xl <?= $is_read ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400' : 'bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200' ?> flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-200 dark:border-amber-700">
                                             <i class="fas <?= htmlspecialchars($meta['icon']) ?> text-sm"></i>
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center justify-between gap-1">
-                                                <p class="text-xs <?= $is_read ? 'font-bold text-gray-800' : 'font-black text-gray-900' ?> truncate"><?= htmlspecialchars($n['title'] ?? 'Notification') ?></p>
+                                                <p class="text-xs <?= $is_read ? 'font-bold text-gray-800 dark:text-gray-200' : 'font-black text-gray-900 dark:text-gray-100' ?> truncate"><?= htmlspecialchars($n['title'] ?? 'Notification') ?></p>
                                                 <?php if (!$is_read): ?>
-                                                    <span class="unread-indicator-dot w-2 h-2 rounded-full bg-red-600 shadow-sm shadow-red-300 mt-1 flex-shrink-0"></span>
+                                                    <span class="unread-indicator-dot w-2 h-2 rounded-full bg-amber-500 shadow-sm shadow-amber-300 dark:shadow-amber-900/50 mt-1 flex-shrink-0"></span>
                                                 <?php endif; ?>
                                             </div>
-                                            <p class="text-xs text-gray-600 mt-0.5 line-clamp-2 leading-relaxed font-medium"><?= htmlspecialchars($n['message']) ?></p>
+                                            <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-2 leading-relaxed font-medium"><?= htmlspecialchars($n['message']) ?></p>
                                             <div class="mt-2 flex items-center justify-between">
                                                 <span class="text-[10px] text-gray-400 font-semibold"><?= date('M j, g:i A', strtotime($n['created_at'])) ?></span>
-                                                <span class="text-[11px] font-black text-red-600 hover:text-red-700"><?= htmlspecialchars($meta['action_text']) ?></span>
+                                                <span class="text-[11px] font-black text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200"><?= htmlspecialchars($meta['action_text']) ?></span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="p-8 text-center bg-white">
-                                <div class="w-14 h-14 bg-pink-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl">
+                            <div class="p-8 text-center bg-white dark:bg-gray-900">
+                                <div class="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 text-amber-500 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl">
                                     <i class="fas fa-bell-slash"></i>
                                 </div>
-                                <p class="text-gray-800 font-bold text-sm">No notifications yet</p>
-                                <p class="text-gray-400 text-xs mt-0.5">All caught up!</p>
+                                <p class="text-gray-800 dark:text-gray-200 font-bold text-sm">No notifications yet</p>
+                                <p class="text-gray-400 dark:text-gray-500 text-xs mt-0.5">All caught up!</p>
                             </div>
                         <?php endif; ?>
                     </div>
                     
-                    <div class="p-3.5 border-t-2 border-pink-50 text-center bg-pink-50/50 rounded-b-3xl">
-                        <a href="notifications.php" class="text-xs font-black text-red-600 hover:text-red-700 flex items-center justify-center gap-1.5 transition">
+                    <div class="p-3.5 border-t-2 border-amber-100 dark:border-amber-800/50 text-center bg-amber-50 dark:bg-amber-900/20 rounded-b-3xl">
+                        <a href="notifications.php" class="text-xs font-black text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 flex items-center justify-center gap-1.5 transition">
                             <span>View All Notifications</span>
                             <i class="fas fa-arrow-right text-[10px]"></i>
                         </a>

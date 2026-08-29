@@ -240,9 +240,6 @@ try {
                                         </td>
                                         <td class="p-3 text-right whitespace-nowrap">
                                             <div class="flex items-center justify-end gap-2">
-                                                <button type="button" onclick='viewLogDetails(<?= json_encode($log) ?>)' class="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold text-xs rounded-lg transition" title="View Details">
-                                                    <i class="fas fa-eye mr-1"></i>View
-                                                </button>
                                                 <button type="button" onclick="openDeleteModal('email_logs.php?delete=<?= $log['id'] ?>')" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 font-semibold text-xs rounded-lg transition" title="Delete Log">
                                                     <i class="fas fa-trash-alt mr-1"></i>Delete
                                                 </button>

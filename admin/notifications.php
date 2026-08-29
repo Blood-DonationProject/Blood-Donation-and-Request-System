@@ -97,6 +97,61 @@ function get_time_ago_string($datetime) {
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
+    <script>
+        (function(){ var t = localStorage.getItem('bloodlife-theme'); if (t === 'dark') document.documentElement.classList.add('dark'); })();
+    </script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style id="dark-mode-styles">
+        html.dark body { background-color: #111827 !important; color: #e5e7eb; }
+        
+        html.dark .bg-white:not(.sidebar *):not(nav *) { background-color: #1f2937 !important; }
+        html.dark .bg-slate-50:not(.sidebar *):not(nav *) { background-color: #111827 !important; }
+        html.dark .bg-gray-50:not(.sidebar *):not(nav *) { background-color: #374151 !important; }
+        html.dark .bg-gray-100:not(.sidebar *):not(nav *) { background-color: #4b5563 !important; }
+        html.dark .bg-gray-50\/70:not(.sidebar *):not(nav *) { background-color: rgba(55, 65, 81, 0.7) !important; }
+        
+        html.dark .text-gray-900:not(.sidebar *):not(nav *) { color: #f9fafb !important; }
+        html.dark .text-gray-800:not(.sidebar *):not(nav *), html.dark .text-slate-800:not(.sidebar *):not(nav *) { color: #f3f4f6 !important; }
+        html.dark .text-gray-700:not(.sidebar *):not(nav *) { color: #e5e7eb !important; }
+        html.dark .text-gray-600:not(.sidebar *):not(nav *) { color: #d1d5db !important; }
+        html.dark .text-gray-500:not(.sidebar *):not(nav *) { color: #9ca3af !important; }
+        html.dark .text-gray-400:not(.sidebar *):not(nav *) { color: #6b7280 !important; }
+        
+        html.dark .border-gray-100:not(.sidebar *):not(nav *), html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }
+        html.dark .border-gray-200:not(.sidebar *):not(nav *), html.dark .border-gray-200\/80:not(.sidebar *):not(nav *) { border-color: #4b5563 !important; }
+        html.dark .border-gray-300:not(.sidebar *):not(nav *) { border-color: #6b7280 !important; }
+        html.dark .border-slate-200\/80:not(.sidebar *):not(nav *) { border-color: #4b5563 !important; }
+        
+        html.dark input, html.dark select, html.dark textarea { background-color: #374151 !important; border-color: #4b5563 !important; color: #f3f4f6 !important; }
+        
+        html.dark .bg-red-50:not(.sidebar *), html.dark .bg-red-50\/30:not(.sidebar *) { background-color: rgba(220,38,38,0.15) !important; }
+        html.dark .bg-red-100:not(.sidebar *) { background-color: rgba(220,38,38,0.25) !important; }
+        html.dark .border-red-100:not(.sidebar *), html.dark .border-red-200:not(.sidebar *) { border-color: rgba(220,38,38,0.3) !important; }
+        html.dark .text-red-700:not(.sidebar *) { color: #fca5a5 !important; }
+        html.dark .text-red-600:not(.sidebar *) { color: #f87171 !important; }
+        html.dark .text-red-500:not(.sidebar *) { color: #f87171 !important; }
+        
+        html.dark .bg-rose-100:not(.sidebar *) { background-color: rgba(225,29,72,0.2) !important; }
+        html.dark .text-rose-700:not(.sidebar *) { color: #fda4af !important; }
+        
+        /* Modal specific */
+        html.dark #notifDetailModal .bg-white { background-color: #1f2937 !important; }
+        html.dark #notifDetailModal .bg-slate-50 { background-color: #374151 !important; color: #d1d5db !important; }
+        html.dark #notifDetailModal .border-gray-100 { border-color: #374151 !important; }
+        html.dark #modalMetaGrid > div { background-color: #374151 !important; border-color: #4b5563 !important; }
+        
+        /* Hover states */
+        html.dark .hover\:bg-gray-50:hover:not(.sidebar *):not(nav *) { background-color: #374151 !important; }
+        html.dark .hover\:bg-gray-50\/70:hover:not(.sidebar *):not(nav *) { background-color: rgba(55, 65, 81, 0.9) !important; }
+        html.dark .hover\:bg-gray-100:hover:not(.sidebar *):not(nav *) { background-color: #4b5563 !important; }
+        html.dark .hover\:bg-gray-200:hover:not(.sidebar *):not(nav *) { background-color: #6b7280 !important; }
+        html.dark .hover\:bg-red-50\/60:hover:not(.sidebar *) { background-color: rgba(220,38,38,0.25) !important; }
+        html.dark .hover\:text-red-600:hover:not(.sidebar *):not(nav *) { color: #fca5a5 !important; }
+        html.dark .hover\:border-red-400:hover:not(.sidebar *):not(nav *) { border-color: #f87171 !important; }
+        html.dark .hover\:border-red-300:hover:not(.sidebar *):not(nav *) { border-color: #fca5a5 !important; }
+    </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
