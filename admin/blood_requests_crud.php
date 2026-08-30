@@ -448,7 +448,8 @@ if (isset($_GET['view'])) {
                d.weight as donor_weight,
                d.age as donor_age,
                da.status as assignment_status,
-               da.created_at as assignment_date
+               da.created_at as assignment_date,
+               da.responded_at as responded_date
         FROM blood_request br
         LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id
         LEFT JOIN users u ON br.users_id = u.id
@@ -833,7 +834,7 @@ $stats = [
         <?php include __DIR__ . '/../includes/sidebar.php'; ?>
 
         <!-- Main Content -->
-        <main class="flex-1 w-full min-w-0 overflow-x-hidden">
+        <main class="flex-1 min-w-0 flex flex-col">
 
             <?php include __DIR__ . '/../includes/navbar.php'; ?>
 
@@ -943,19 +944,19 @@ $stats = [
 
                         if (in_array($st, ['Assigned', 'Accepted', 'Received', 'Completed']) || $ast) {
                             $steps['Assigned']['status'] = 'Completed';
-                            $steps['Assigned']['date'] = $view_row['assigned_date'];
+                            $steps['Assigned']['date'] = $view_row['assignment_date'] ?? null;
                             $steps['Assigned']['color'] = 'bg-indigo-500';
                         }
 
                         if (in_array($st, ['Accepted', 'Received', 'Completed']) || $ast == 'Accepted') {
                             $steps['Accepted']['status'] = 'Completed';
                             $steps['Accepted']['label'] = 'Accepted';
-                            $steps['Accepted']['date'] = $view_row['responded_date'];
+                            $steps['Accepted']['date'] = $view_row['responded_date'] ?? null;
                             $steps['Accepted']['color'] = 'bg-purple-500';
                         } else if ($st == 'Rejected' || $ast == 'Rejected') {
                             $steps['Accepted']['status'] = 'Rejected';
                             $steps['Accepted']['label'] = 'Rejected';
-                            $steps['Accepted']['date'] = $view_row['responded_date'];
+                            $steps['Accepted']['date'] = $view_row['responded_date'] ?? null;
                             $steps['Accepted']['color'] = 'bg-red-500';
                         }
 

@@ -102,16 +102,27 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
         exit;
     }
 
-    // Fetch user notifications
-    $stmt_notif = $conn->prepare("SELECT id, request_id, assignment_id, type, title, message, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+    // Fetch unread count
     $notifCount = 0;
+    $stmt_count = $conn->prepare("SELECT COUNT(*) AS unread_count FROM user_notifications WHERE user_id = ? AND is_read = 0 AND is_deleted = 0");
+    if ($stmt_count) {
+        $stmt_count->bind_param('i', $_SESSION['user_id']);
+        $stmt_count->execute();
+        $res_count = $stmt_count->get_result();
+        if ($row_count = $res_count->fetch_assoc()) {
+            $notifCount = (int)$row_count['unread_count'];
+        }
+        $stmt_count->close();
+    }
+
+    // Fetch user notifications
+    $stmt_notif = $conn->prepare("SELECT n.id, n.request_id, n.assignment_id, n.type, n.title, n.message, nr.is_read, n.created_at FROM notifications n JOIN user_notifications nr ON n.id = nr.notification_id WHERE nr.user_id = ? AND nr.is_deleted = 0 ORDER BY n.created_at DESC LIMIT 5");
     if ($stmt_notif) {
         $stmt_notif->bind_param('i', $_SESSION['user_id']);
         $stmt_notif->execute();
         $res_notif = $stmt_notif->get_result();
         while ($n = $res_notif->fetch_assoc()) {
             $notifications[] = $n;
-            if ($n['is_read'] == 0) $notifCount++;
         }
         $stmt_notif->close();
     }

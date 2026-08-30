@@ -22,14 +22,10 @@ if (isset($_GET['msg']) && $_GET['msg'] === 'received') {
 
 // Handle profile update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-  $newEmail = trim($_POST['email'] ?? '');
   $newPhone = trim($_POST['phone'] ?? '');
   $newAddress = trim($_POST['address'] ?? '');
 
-  if ($newEmail === '') {
-    $message = 'Email address is required.';
-    $messageType = 'error';
-  } elseif ($newPhone === '') {
+  if ($newPhone === '') {
     $message = 'Phone number is required.';
     $messageType = 'error';
   } elseif (!preg_match('/^[0-9]{1,15}$/', $newPhone)) {
@@ -39,11 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     $message = 'Address / Township is required.';
     $messageType = 'error';
   } else {
-    $stmt = $conn->prepare("UPDATE users SET email = ?, phone = ?, address = ? WHERE id = ?");
-    $stmt->bind_param("sssi", $newEmail, $newPhone, $newAddress, $userId);
+    $stmt = $conn->prepare("UPDATE users SET phone = ?, address = ? WHERE id = ?");
+    $stmt->bind_param("ssi", $newPhone, $newAddress, $userId);
     $stmt->execute();
     $stmt->close();
-    $_SESSION['user_email'] = $newEmail;
 
     // Update donor table if record exists
     $stmt2 = $conn->prepare("UPDATE donor SET phone = ?, address = ? WHERE user_id = ?");
@@ -508,8 +503,8 @@ $stmt->close();
                     <input type="text" value="<?= htmlspecialchars($userData['username'] ?? '') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
                   </div>
                   <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_address">Email Address <span class="text-red-500">*</span></label>
-                    <input type="email" name="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" required class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white text-gray-900 focus:outline-none focus:border-red-500 transition" />
+                    <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="email_address">Email Address</label>
+                    <input type="email" value="<?= htmlspecialchars($userData['email'] ?? '') ?>" disabled class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" />
                   </div>
                   <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1" data-i18n="phone_number">Phone Number <span class="text-red-500">*</span></label>

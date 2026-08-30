@@ -163,7 +163,7 @@ try {
                     <table class="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr class="bg-gray-50 text-slate-600">
-                                <th class="p-3">ID</th>
+                                <th class="p-3 hidden">ID</th>
                                 <th class="p-3">Recipient</th>
                                 <th class="p-3">Subject</th>
                                 <th class="p-3">Email Type</th>
@@ -207,7 +207,7 @@ try {
                                     <tr class="log-row border-t border-slate-200 hover:bg-gray-50" 
                                         data-status="<?= htmlspecialchars($log['status']) ?>" 
                                         data-type="<?= htmlspecialchars($log['email_type']) ?>">
-                                        <td class="p-3 font-semibold text-gray-500">#<?= $log['id'] ?></td>
+                                        <td class="p-3 font-semibold text-gray-500 hidden">#<?= $log['id'] ?></td>
                                         <td class="p-3">
                                             <div class="flex items-center gap-3">
                                                 <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold <?= $isSent ? 'bg-green-100 text-green-700' : ($isFailed ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700') ?>">
