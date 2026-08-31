@@ -574,7 +574,6 @@ $stmt->close();
 
                 <div class="mt-4 bg-gray-50 rounded-xl px-5 py-3 flex flex-wrap items-center justify-between text-sm">
                   <span class="text-gray-500"><span data-i18n="donation_history_total">Total</span>: <strong class="text-gray-900"><?= number_format($totalUnits) ?></strong> <?= $totalUnits > 1 ? 'units' : 'unit' ?> <?= !empty($bloodGroup) && $bloodGroup !== '-' ? "($bloodGroup)" : '' ?></span>
-                  <span class="text-green-600 font-semibold">🩸 <span data-i18n="lives_saved_stat">Lives Saved</span>: <?= $livesSaved ?></span>
                 </div>
               <?php else: ?>
                 <div class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">

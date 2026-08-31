@@ -971,8 +971,9 @@ function send_password_changed_security_email($userId, $toEmail, $recipientName)
     $subject = "Security Alert: Your BloodLife Password Was Changed";
 
     $greeting = "Hello, {$displayName}!";
+    $dateStr = date('M j, Y · g:i A');
     $content = <<<HTML
-    <p style="font-size: 14px; color: #334155;">The password for your BloodLife account was successfully changed on <strong>` . date('M j, Y · g:i A') . `</strong>.</p>
+    <p style="font-size: 14px; color: #334155;">The password for your BloodLife account was successfully changed on <strong>{$dateStr}</strong>.</p>
     
     <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 16px; border-radius: 6px; font-size: 13px; color: #991b1b; margin: 20px 0;">
         <strong>⚠️ If you did not perform this change:</strong> Please contact the system administrator immediately to secure your account.

@@ -57,20 +57,40 @@ if (!$isLoggedIn) {
         $message = 'You must be logged in to register as a donor.';
         $messageType = 'error';
     } else {
-        // Fetch current profile phone
+        // Fetch current profile phone and address
         $profilePhone = '';
-        $profileStmt = $conn->prepare("SELECT phone FROM users WHERE id = ?");
+        $profileAddress = '';
+        $profileStmt = $conn->prepare("SELECT phone, address FROM users WHERE id = ?");
         if ($profileStmt) {
             $profileStmt->bind_param("i", $userId);
             $profileStmt->execute();
             $profileRes = $profileStmt->get_result();
             if ($profileRow = $profileRes->fetch_assoc()) {
                 $profilePhone = $profileRow['phone'] ?? '';
+                $profileAddress = $profileRow['address'] ?? '';
             }
             $profileStmt->close();
         }
 
-        // Phone validation removed to allow updating from everywhere
+        $isPhoneMismatch = (!empty($profilePhone) && $phone !== $profilePhone);
+        $isAddressMismatch = (!empty($profileAddress) && $address !== $profileAddress);
+
+        if ($isPhoneMismatch && $isAddressMismatch) {
+            $message = 'Your phone number and address are different from your current profile information. Please update them in your Profile first.';
+            $messageType = 'error';
+            header('Location: donateform.php?msg=error&text=' . urlencode($message));
+            exit;
+        } elseif ($isPhoneMismatch) {
+            $message = 'Your phone number is different from your current profile information. Please update your phone number in your Profile first.';
+            $messageType = 'error';
+            header('Location: donateform.php?msg=error&text=' . urlencode($message));
+            exit;
+        } elseif ($isAddressMismatch) {
+            $message = 'Your address is different from your current profile information. Please update your address in your Profile first.';
+            $messageType = 'error';
+            header('Location: donateform.php?msg=error&text=' . urlencode($message));
+            exit;
+        }
 
         // Check if user already has a donor record (prevent duplicate registration)
         if ($updateId <= 0) {

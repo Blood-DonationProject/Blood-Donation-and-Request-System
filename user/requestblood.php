@@ -104,21 +104,36 @@ if ($isLoggedIn) {
     $submittedPhone = trim($_POST['phone'] ?? $_POST['contact'] ?? '');
     $submittedAddress = trim($_POST['address'] ?? '');
 
-    // Fetch current profile phone
+    // Fetch current profile phone and address
     $profilePhone = '';
-    $profileStmt = $conn->prepare("SELECT phone FROM users WHERE id = ?");
+    $profileAddress = '';
+    $profileStmt = $conn->prepare("SELECT phone, address FROM users WHERE id = ?");
     if ($profileStmt) {
       $profileStmt->bind_param("i", $userId);
       $profileStmt->execute();
       $profileRes = $profileStmt->get_result();
       if ($profileRow = $profileRes->fetch_assoc()) {
         $profilePhone = $profileRow['phone'] ?? '';
+        $profileAddress = $profileRow['address'] ?? '';
       }
       $profileStmt->close();
     }
 
-    // Phone validation removed to allow updating from everywhere
-    if (true) {
+    $isPhoneMismatch = (!empty($profilePhone) && $submittedPhone !== $profilePhone);
+    $isAddressMismatch = (!empty($profileAddress) && $submittedAddress !== $profileAddress);
+
+    $validationPassed = false;
+    if ($isPhoneMismatch && $isAddressMismatch) {
+      $message = 'Your phone number and address are different from your current profile information. Please update them in your Profile first.';
+      $messageType = 'error';
+    } elseif ($isPhoneMismatch) {
+      $message = 'Your phone number is different from your current profile information. Please update your phone number in your Profile first.';
+      $messageType = 'error';
+    } elseif ($isAddressMismatch) {
+      $message = 'Your address is different from your current profile information. Please update your address in your Profile first.';
+      $messageType = 'error';
+    } else {
+      $validationPassed = true;
       if (!empty($submittedPhone) || !empty($submittedAddress)) {
         // Update central users profile
         $updQuery = "UPDATE users SET phone = ?, address = ? WHERE id = ?";
@@ -148,117 +163,119 @@ if ($isLoggedIn) {
         $userPhone = $submittedPhone;
         $userAddress = $submittedAddress;
       }
+    }
 
-    if (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0) {
-      // UPDATE ONLY URGENCY
-      $updateId = (int)$_POST['update_id'];
-      $urgency = trim($_POST['urgency'] ?? 'Normal');
-      if (!in_array($urgency, ['Normal', 'Urgent'])) {
-        $urgency = 'Normal';
-      }
-      
-      $chkStmt = $conn->prepare("SELECT status FROM blood_request WHERE id=? AND users_id=?");
-      $chkStmt->bind_param("ii", $updateId, $userId);
-      $chkStmt->execute();
-      $chkRes = $chkStmt->get_result()->fetch_assoc();
-      $chkStmt->close();
-      
-      if ($chkRes && in_array($chkRes['status'], ['Pending', 'Approved'])) {
-        $stmt = $conn->prepare("UPDATE blood_request SET Urgency=? WHERE id=? AND users_id=?");
-        $stmt->bind_param("sii", $urgency, $updateId, $userId);
-        if ($stmt->execute()) {
-          // Notify admin of blood request update
-          require_once __DIR__ . '/../includes/notification_helper.php';
-          $reqDetail = $conn->query("SELECT br.*, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = " . (int)$updateId)->fetch_assoc();
-          $hosp = $reqDetail['hospital'] ?? '';
-          $bgName = $reqDetail['blood_gp_name'] ?? '';
-          $notifMsg = "Requester \"{$username}\" updated blood request #{$updateId} (Hospital: {$hosp}, Blood Group: {$bgName}). Urgency set to: {$urgency}.";
-          notify_admins($conn, 'Blood_Request_Update', 'Blood request updated', $notifMsg, $updateId, null, null, $userId);
-
-          $message = 'Blood request urgency updated successfully!';
-          $messageType = 'success';
-        } else {
-          $message = 'Failed to update request: ' . $conn->error;
-          $messageType = 'error';
+    if ($validationPassed) {
+      if (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0) {
+        // UPDATE ONLY URGENCY
+        $updateId = (int)$_POST['update_id'];
+        $urgency = trim($_POST['urgency'] ?? 'Normal');
+        if (!in_array($urgency, ['Normal', 'Urgent'])) {
+          $urgency = 'Normal';
         }
-        $stmt->close();
-      } else {
-        $currStatus = $chkRes ? htmlspecialchars($chkRes['status']) : 'Not Found';
-        $message = 'This request cannot be edited at this stage (Status: ' . $currStatus . ').';
-        $messageType = 'error';
-      }
-    } elseif (isset($_POST['blood_groups_id'])) {
-      // INSERT NEW
-      $blood_groups_id = (int)$_POST['blood_groups_id'];
-      $units = 1; // Always exactly 1 Unit
-      $hospital = trim($_POST['hospital'] ?? '');
-      $required_date = $_POST['required_date'] ?? date('Y-m-d');
-      $status = $_POST['status'] ?? 'Pending';
-      $urgency = $_POST['urgency'] ?? 'Normal';
-
-      if ($blood_groups_id < 1) {
-        $message = 'Please select a blood type.';
-        $messageType = 'error';
-      } elseif ($hospital === '') {
-        $message = 'Please enter the hospital name.';
-        $messageType = 'error';
-      } else {
-        $stmt = $conn->prepare("SELECT id FROM blood_request WHERE users_id = ? AND status IN ('Pending', 'Approved', 'Assigned', 'Accepted', 'Blood Received') LIMIT 1");
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-        $stmt->store_result();
-        if ($stmt->num_rows > 0) {
-          $message = 'You already have an active blood request. Please wait until it is completed.';
-          $messageType = 'error';
-        } else {
-          $insStmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, Urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-          $insStmt->bind_param("isiissss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status, $urgency);
-          if ($insStmt->execute()) {
-            $newReqId = $conn->insert_id;
-            
+        
+        $chkStmt = $conn->prepare("SELECT status FROM blood_request WHERE id=? AND users_id=?");
+        $chkStmt->bind_param("ii", $updateId, $userId);
+        $chkStmt->execute();
+        $chkRes = $chkStmt->get_result()->fetch_assoc();
+        $chkStmt->close();
+        
+        if ($chkRes && in_array($chkRes['status'], ['Pending', 'Approved'])) {
+          $stmt = $conn->prepare("UPDATE blood_request SET Urgency=? WHERE id=? AND users_id=?");
+          $stmt->bind_param("sii", $urgency, $updateId, $userId);
+          if ($stmt->execute()) {
+            // Notify admin of blood request update
             require_once __DIR__ . '/../includes/notification_helper.php';
-            require_once __DIR__ . '/../includes/mailer.php';
-            $bgName = '';
-            $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$blood_groups_id);
-            if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
+            $reqDetail = $conn->query("SELECT br.*, bg.blood_gp_name FROM blood_request br LEFT JOIN blood_groups bg ON br.blood_groups_id = bg.id WHERE br.id = " . (int)$updateId)->fetch_assoc();
+            $hosp = $reqDetail['hospital'] ?? '';
+            $bgName = $reqDetail['blood_gp_name'] ?? '';
+            $notifMsg = "Requester \"{$username}\" updated blood request #{$updateId} (Hospital: {$hosp}, Blood Group: {$bgName}). Urgency set to: {$urgency}.";
+            notify_admins($conn, 'Blood_Request_Update', 'Blood request updated', $notifMsg, $updateId, null, null, $userId);
 
-            // Website Notification for Requester
-            $userNotifMsg = "Your request for {$units} unit(s) of {$bgName} blood at {$hospital} has been submitted successfully.";
-            $userNotifId = create_notification($conn, $userId, 'Blood_Request', 'Blood Request Submitted', $userNotifMsg, $newReqId, null, null, $userId);
-
-            // Website Notification for Admin
-            $notifMsg = "Requester: {$username} | Blood Group: {$bgName} | Units: {$units} | Hospital: {$hospital} | Required Date: {$required_date} | Urgency: {$urgency}";
-            $notifId = notify_admins($conn, 'Blood_Request', 'New blood request', $notifMsg, $newReqId, null, null, $userId);
-
-            // Fail-safe decoupled confirmation email to Requester
-            $reqPayload = [
-              'id'             => $newReqId,
-              'blood_group'    => $bgName,
-              'hospital'       => $hospital,
-              'units'          => $units,
-              'required_date'  => $required_date,
-              'urgency'        => $urgency,
-              'requester_name' => $username
-            ];
-            $reqEmailRes = send_blood_request_confirmation_email($userId, $reqPayload, $userNotifId);
-
-            // If Urgent/Critical, send immediate urgent alert email to Admin
-            if (in_array(strtolower($urgency), ['urgent', 'critical'])) {
-              send_admin_urgent_request_email($reqPayload, $notifId);
-            }
-
-            $_SESSION['success'] = format_action_feedback('Blood request submitted', $reqEmailRes);
+            $message = 'Blood request urgency updated successfully!';
             $messageType = 'success';
           } else {
-            $message = 'Failed to save request: ' . $conn->error;
+            $message = 'Failed to update request: ' . $conn->error;
             $messageType = 'error';
           }
-          $insStmt->close();
+          $stmt->close();
+        } else {
+          $currStatus = $chkRes ? htmlspecialchars($chkRes['status']) : 'Not Found';
+          $message = 'This request cannot be edited at this stage (Status: ' . $currStatus . ').';
+          $messageType = 'error';
         }
-        $stmt->close();
+      } elseif (isset($_POST['blood_groups_id'])) {
+        // INSERT NEW
+        $blood_groups_id = (int)$_POST['blood_groups_id'];
+        $units = 1; // Always exactly 1 Unit
+        $hospital = trim($_POST['hospital'] ?? '');
+        $required_date = $_POST['required_date'] ?? date('Y-m-d');
+        $status = $_POST['status'] ?? 'Pending';
+        $urgency = $_POST['urgency'] ?? 'Normal';
+
+        if ($blood_groups_id < 1) {
+          $message = 'Please select a blood type.';
+          $messageType = 'error';
+        } elseif ($hospital === '') {
+          $message = 'Please enter the hospital name.';
+          $messageType = 'error';
+        } else {
+          $stmt = $conn->prepare("SELECT id FROM blood_request WHERE users_id = ? AND status IN ('Pending', 'Approved', 'Assigned', 'Accepted', 'Blood Received') LIMIT 1");
+          $stmt->bind_param("i", $userId);
+          $stmt->execute();
+          $stmt->store_result();
+          if ($stmt->num_rows > 0) {
+            $message = 'You already have an active blood request. Please wait until it is completed.';
+            $messageType = 'error';
+          } else {
+            $insStmt = $conn->prepare("INSERT INTO blood_request (users_id, requester_name, blood_groups_id, units, hospital, required_date, status, Urgency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $insStmt->bind_param("isiissss", $userId, $username, $blood_groups_id, $units, $hospital, $required_date, $status, $urgency);
+            if ($insStmt->execute()) {
+              $newReqId = $conn->insert_id;
+              
+              require_once __DIR__ . '/../includes/notification_helper.php';
+              require_once __DIR__ . '/../includes/mailer.php';
+              $bgName = '';
+              $bgRes = $conn->query("SELECT blood_gp_name FROM blood_groups WHERE id = " . (int)$blood_groups_id);
+              if ($bgRes && $bgRow = $bgRes->fetch_assoc()) $bgName = $bgRow['blood_gp_name'];
+
+              // Website Notification for Requester
+              $userNotifMsg = "Your request for {$units} unit(s) of {$bgName} blood at {$hospital} has been submitted successfully.";
+              $userNotifId = create_notification($conn, $userId, 'Blood_Request', 'Blood Request Submitted', $userNotifMsg, $newReqId, null, null, $userId);
+
+              // Website Notification for Admin
+              $notifMsg = "Requester: {$username} | Blood Group: {$bgName} | Units: {$units} | Hospital: {$hospital} | Required Date: {$required_date} | Urgency: {$urgency}";
+              $notifId = notify_admins($conn, 'Blood_Request', 'New blood request', $notifMsg, $newReqId, null, null, $userId);
+
+              // Fail-safe decoupled confirmation email to Requester
+              $reqPayload = [
+                'id'             => $newReqId,
+                'blood_group'    => $bgName,
+                'hospital'       => $hospital,
+                'units'          => $units,
+                'required_date'  => $required_date,
+                'urgency'        => $urgency,
+                'requester_name' => $username
+              ];
+              $reqEmailRes = send_blood_request_confirmation_email($userId, $reqPayload, $userNotifId);
+
+              // If Urgent/Critical, send immediate urgent alert email to Admin
+              if (in_array(strtolower($urgency), ['urgent', 'critical'])) {
+                send_admin_urgent_request_email($reqPayload, $notifId);
+              }
+
+              $_SESSION['success'] = format_action_feedback('Blood request submitted', $reqEmailRes);
+              $messageType = 'success';
+            } else {
+              $message = 'Failed to save request: ' . $conn->error;
+              $messageType = 'error';
+            }
+            $insStmt->close();
+          }
+          $stmt->close();
+        }
       }
     }
-  } // End of phone validation else block
 
     if ($messageType === 'success') {
       $redirectUrl = (isset($_POST['update_id']) && (int)$_POST['update_id'] > 0)
