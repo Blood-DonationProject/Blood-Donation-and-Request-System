@@ -322,10 +322,12 @@ if ($isLoggedIn && $userId > 0) {
   </style>
 </head>
 
-<body class="bg-gradient-to-b from-pink-50 to-pink-100 dark:from-gray-900 dark:to-gray-900 min-h-screen">
+<body class="bg-gradient-to-b from-pink-50 to-pink-100 dark:from-gray-900 dark:to-gray-900 min-h-screen flex flex-col">
 
   <!-- Navbar -->
   <?php include __DIR__ . '/../includes/header.php'; ?>
+
+  <main class="flex-grow">
 
   <!-- Hero Banner -->
   <section class="bg-gradient-to-r from-red-600 to-red-800 text-white py-16">
@@ -491,6 +493,8 @@ if ($isLoggedIn && $userId > 0) {
     </div>
 
   <?php endif; ?>
+
+  </main>
 
   <!-- Footer -->
   <?php include __DIR__ . '/../includes/footer.php'; ?>

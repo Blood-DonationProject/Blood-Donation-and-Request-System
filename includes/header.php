@@ -170,13 +170,13 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                 <span class="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm pulse-dot"><?= $notifCount ?></span>
                             <?php endif; ?>
                         </button>
-                        <div id="notifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                            <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-                                <p class="font-semibold text-gray-800">Notifications</p>
+                        <div id="notifDropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-2xl shadow-red-500/30 border border-red-200 z-50">
+                            <div class="p-4 bg-gradient-to-r from-red-500 to-pink-500 rounded-t-xl flex items-center justify-between">
+                                <p class="font-bold text-white shadow-sm">Notifications</p>
                                 <div>
-                                    <span class="text-xs text-gray-400 mr-2"><?= $notifCount ?> new</span>
+                                    <span class="text-xs text-white/90 mr-2 font-medium"><?= $notifCount ?> new</span>
                                     <?php if ($notifCount > 0): ?>
-                                        <a href="?read_notifs=1" class="text-xs text-blue-600 hover:underline">Mark all as read</a>
+                                        <a href="?read_notifs=1" class="text-xs text-white font-bold hover:underline drop-shadow-sm">Mark all as read</a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -184,7 +184,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                 <div class="max-h-80 overflow-y-auto">
                                     <?php foreach ($notifications as $n):
                                         $is_read = $n['is_read'] == 1;
-                                        $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100';
+                                        $bgClass = $is_read ? 'bg-white hover:bg-gray-50' : 'bg-red-50 hover:bg-red-100 border-l-4 border-red-500';
 
                                         // Fetch extra contact info for successful assignments
                                         $contactHtml = '';
@@ -265,8 +265,8 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                                     No new notifications
                                 </div>
                             <?php endif; ?>
-                            <div class="p-3 border-t border-gray-100 text-center bg-gray-50 rounded-b-xl">
-                                <a href="notifications.php" class="text-sm font-semibold text-red-600 hover:text-red-700">View All Notifications &rarr;</a>
+                            <div class="p-3 text-center bg-red-50 hover:bg-red-100 transition rounded-b-xl">
+                                <a href="notifications.php" class="text-sm font-bold text-red-600">View All Notifications &rarr;</a>
                             </div>
                         </div>
                     </div>

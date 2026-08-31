@@ -187,7 +187,7 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
 <body class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900 min-h-screen flex flex-col">
 
   <!-- Navbar -->
-  <nav class="bg-slate-100 shadow-lg">
+  <nav class="bg-slate-100 shadow-lg sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <a href="index.php" class="flex items-center space-x-3 animate-fade-down">
@@ -200,8 +200,9 @@ $prefillEmail = isset($_POST['email']) ? htmlspecialchars($_POST['email']) : '';
         <div class="hidden md:flex items-center space-x-8">
           <a href="index.php" class="text-gray-700 hover:text-red-600 font-medium transition">Home</a>
           <a href="donor.php" class="text-gray-700 hover:text-red-600 font-medium transition">Donors</a>
-          
           <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-medium transition">Requests</a>
+          <a href="about.php" class="text-gray-700 hover:text-red-600 font-medium transition">About Us</a>
+          <a href="contact.php" class="text-gray-700 hover:text-red-600 font-medium transition">Contact Us</a>
 <button type="button" class="theme-toggle-btn relative w-10 h-10 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 transition" aria-label="Toggle theme" onclick="toggleTheme()">
                     <span class="theme-icon-sun"><svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
                     <span class="theme-icon-moon" style="display:none"><svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
