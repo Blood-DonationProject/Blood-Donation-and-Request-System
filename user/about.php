@@ -161,41 +161,41 @@ require_once __DIR__ . '/../config/db.php';
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
     <!-- Header -->
     <div class="text-center mb-16 animate-fade-down">
-      <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-500 mb-4">About Us</h1>
-      <p class="text-lg sm:text-xl text-red-600 max-w-2xl mx-auto font-bold">Blood Communication System</p>
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-red-600 dark:text-red-500 mb-4">About Us</h1>
+      <p class="text-lg sm:text-xl text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-blue-500 max-w-2xl mx-auto font-black tracking-wide drop-shadow-sm">Blood Communication System</p>
     </div>
 
     <!-- Top Grid: About, Purpose, Goal -->
     <div class="grid md:grid-cols-3 gap-8 mb-16">
-      <!-- About Our System -->
-      <div class="bg-pink-50/50 dark:bg-gray-200 p-8 rounded-3xl shadow-sm border border-pink-100 dark:border-gray-700 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-        <div class="w-16 h-16 bg-pink-100 dark:bg-gray-700 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center text-2xl mb-6 shadow-sm">
+      <!-- About Our System (Blood Theme) -->
+      <div class="bg-gradient-to-br from-red-500 to-red-600 dark:from-red-600 dark:to-red-800 p-8 rounded-3xl shadow-xl shadow-red-200 dark:shadow-none border border-red-400 dark:border-red-700 flex flex-col items-center text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 group">
+        <div class="w-16 h-16 bg-white/20 text-white rounded-full flex items-center justify-center text-2xl mb-6 shadow-inner group-hover:scale-110 group-hover:rotate-6 transition-transform">
           <i class="fa-solid fa-droplet"></i>
         </div>
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">About Our System</h2>
-        <p class="text-gray-600 text-lg leading-relaxed">
+        <h2 class="text-2xl font-bold text-white mb-4 drop-shadow-md">About Our System</h2>
+        <p class="text-red-50 text-lg leading-relaxed font-medium">
           Blood Communication System is a platform that connects blood donors with people who need blood.
         </p>
       </div>
 
-      <!-- Our Purpose -->
-      <div class="bg-rose-50/50 dark:bg-gray-200 p-8 rounded-3xl shadow-sm border border-rose-100 dark:border-gray-700 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-        <div class="w-16 h-16 bg-rose-100 dark:bg-gray-700 text-rose-600 dark:text-red-400 rounded-full flex items-center justify-center text-2xl mb-6 shadow-sm">
+      <!-- Our Purpose (Communication Theme) -->
+      <div class="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-800 p-8 rounded-3xl shadow-xl shadow-blue-200 dark:shadow-none border border-blue-400 dark:border-blue-700 flex flex-col items-center text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 group">
+        <div class="w-16 h-16 bg-white/20 text-white rounded-full flex items-center justify-center text-2xl mb-6 shadow-inner group-hover:scale-110 group-hover:-rotate-6 transition-transform">
           <i class="fa-solid fa-bullseye"></i>
         </div>
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">Our Purpose</h2>
-        <p class="text-gray-600 text-lg leading-relaxed">
+        <h2 class="text-2xl font-bold text-white mb-4 drop-shadow-md">Our Purpose</h2>
+        <p class="text-blue-50 text-lg leading-relaxed font-medium">
           Make blood request and donor coordination easier, faster, and more organized.
         </p>
       </div>
 
-      <!-- Our Goal -->
-      <div class="bg-red-50/50 dark:bg-gray-200 p-8 rounded-3xl shadow-sm border border-red-100 dark:border-gray-700 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-        <div class="w-16 h-16 bg-red-100 dark:bg-gray-700 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center text-2xl mb-6 shadow-sm">
-          <i class="fa-solid fa-hand-holding-heart"></i>
+      <!-- Our Goal (System/Network Theme) -->
+      <div class="bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-800 p-8 rounded-3xl shadow-xl shadow-purple-200 dark:shadow-none border border-purple-400 dark:border-purple-700 flex flex-col items-center text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 group">
+        <div class="w-16 h-16 bg-white/20 text-white rounded-full flex items-center justify-center text-2xl mb-6 shadow-inner group-hover:scale-110 group-hover:rotate-6 transition-transform">
+          <i class="fa-solid fa-network-wired"></i>
         </div>
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">Our Goal</h2>
-        <p class="text-gray-600 text-lg leading-relaxed">
+        <h2 class="text-2xl font-bold text-white mb-4 drop-shadow-md">Our Goal</h2>
+        <p class="text-purple-50 text-lg leading-relaxed font-medium">
           To make blood donation coordination more convenient and help connect suitable donors with people in need.
         </p>
       </div>

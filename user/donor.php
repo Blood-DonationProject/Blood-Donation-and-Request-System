@@ -986,50 +986,6 @@ if ($isLoggedIn && !empty($userId)) {
 
 
 
-  <!-- ═══════════════════════════════════════════════════ -->
-  <!-- 8. CONTACT INFORMATION -->
-  <!-- ═══════════════════════════════════════════════════ -->
-  <section class="section-white py-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
-
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">Contact Information</h2>
-        <p class="text-gray-600 max-w-2xl mx-auto text-lg">
-          Have questions? Reach out to us anytime. We're here to help you become a lifesaver.
-        </p>
-      </div>
-
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
-        <!-- Email -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center">
-          <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-red-200">
-            <i class="fas fa-envelope"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Email</h4>
-          <p class="text-gray-500 text-sm">bloodcommunication12@gmail.com</p>
-        </div>
-
-        <!-- Phone -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center">
-          <div class="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-pink-200">
-            <i class="fas fa-phone"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Phone</h4>
-          <p class="text-gray-500 text-sm">09-258111622</p>
-        </div>
-
-        <!-- Address -->
-        <div class="card-hover bg-white rounded-2xl p-8 border border-pink-100 shadow-sm text-center sm:col-span-2 lg:col-span-1">
-          <div class="w-16 h-16 bg-gradient-to-br from-rose-500 to-red-500 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-5 shadow-lg shadow-rose-200">
-            <i class="fas fa-location-dot"></i>
-          </div>
-          <h4 class="font-bold text-gray-900 mb-2">Address</h4>
-          <p class="text-gray-500 text-sm">123 Health Street, City</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
 
 
   <!-- ═══════════════════════════════════════════════════ -->

@@ -150,6 +150,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
                 <a href="donor.php" class="text-gray-700 hover:text-red-600 font-semibold text-base transition" data-i18n="donors">Donors</a>
                 <a href="bloodrequest.php" class="text-gray-700 hover:text-red-600 font-semibold text-base transition" data-i18n="requests">Requests</a>
                 <a href="about.php" class="text-gray-700 hover:text-red-600 font-semibold text-base transition">About Us</a>
+                <a href="contact.php" class="text-gray-700 hover:text-red-600 font-semibold text-base transition">Contact Us</a>
 
                 <button type="button" class="theme-toggle-btn relative w-11 h-11 rounded-xl border-2 border-gray-200 bg-gray-50 flex items-center justify-center cursor-pointer hover:border-red-400 hover:bg-red-50 transition" aria-label="Toggle theme" onclick="toggleTheme()">
                     <span class="theme-icon-sun"><svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -337,6 +338,7 @@ if ($isLoggedIn && isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
             <a href="donor.php" class="block px-3 py-2 text-base font-semibold text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition" data-i18n="donors">Donors</a>
             <a href="bloodrequest.php" class="block px-3 py-2 text-base font-semibold text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition" data-i18n="requests">Requests</a>
             <a href="about.php" class="block px-3 py-2 text-base font-semibold text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition">About Us</a>
+            <a href="contact.php" class="block px-3 py-2 text-base font-semibold text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition">Contact Us</a>
 
             <?php if ($isLoggedIn): ?>
                 <div class="border-t border-gray-100 pt-3 mt-2">
